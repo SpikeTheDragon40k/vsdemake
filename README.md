@@ -116,12 +116,12 @@ Shift+Esc quit. Game controllers work through SDL2.
 Headless/regression runs (no window): `--headless --no-render --frames 18000
 --seed 3 --input "R240 L240" --screenshot last.bmp` prints a state hash.
 
-## Step 5: Copy to the console
+## Step 5: Xbox 360
 
-*(planned)* The Xbox 360 backend (`engine/src/platform/xenon`) is not
-implemented yet. The data pack is already big-endian so the console loads it
-without conversion. Packaging (XEX/GOD) will be documented with the first
-console release.
+See **[docs/XBOX360_GUIDE.md](docs/XBOX360_GUIDE.md)** for the console
+prerequisites (RGH/JTAG + XeLL), building the free60 toolchain, building
+`vsdemake.elf32`, the USB layout and the first-boot checklist. The console
+backend is written but not yet verified on hardware.
 
 ## Development
 
