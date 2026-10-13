@@ -43,6 +43,15 @@ static uint32_t scripted_buttons(const char *script, size_t *pos, int *left) {
     return current;
 }
 
+#ifdef VS_XENON
+/* No command line on the console: look for the pack next to the ELF on USB or HDD. */
+static const char *xenon_find_pack(void) {
+    static const char *candidates[] = { "uda:/vsdemake/vsdata.vspack", "uda:/vsdata.vspack", "sda:/vsdemake/vsdata.vspack", "sda:/vsdata.vspack", "udb:/vsdata.vspack", NULL };
+    for (int i = 0; candidates[i]; i++) { FILE *f = fopen(candidates[i], "rb"); if (f) { fclose(f); return candidates[i]; } }
+    return NULL;
+}
+#endif
+
 int main(int argc, char **argv) {
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL;
     int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0;
@@ -60,6 +69,10 @@ int main(int argc, char **argv) {
         else if (argv[i][0] != '-') pack_path = argv[i];
         else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
     }
+#ifdef VS_XENON
+    if (!pack_path) pack_path = xenon_find_pack();
+    scale = 1;
+#endif
     if (!pack_path) { fprintf(stderr, "usage: vsdemake-sdl2 <vsdata.vspack> [options]\n"); return 2; }
 
     vs_plat_config cfg = { LOGICAL_W, LOGICAL_H, scale, headless, "vsdemake" };
