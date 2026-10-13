@@ -131,12 +131,14 @@ void vs_enemy_die(vs_game *g, vs_enemy *e) {
 
 void vs_enemy_get_damaged(vs_game *g, vs_enemy *e, float dmg, int hit_type, float kb) {
     if (e->is_dead) return;
+    if (dmg > 0) vs_fx_damage_number(g, e->x, e->y, dmg);
     e->hp -= dmg;
     if (e->hp <= 0) vs_enemy_die(g, e);
     else e->damageKB = kb;
     /* OnGetDamaged: tint and blink from the hitvfx table */
     float duration = e->is_dead ? 60 : 120;
     e->hit_tint = 0xffffff;
+    if (hit_type != VS_HITVFX_NONE) vs_fx_hit(g, e->x, e->y, hit_type);
     if (hit_type != VS_HITVFX_NONE) {
         int gi = vs_table_find_group_enum(&g->hitvfx_table, hit_type);
         if (gi >= 0) {

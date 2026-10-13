@@ -22,6 +22,7 @@
 #define VS_MAX_TEXTURES 32
 #define VS_MAX_SPRITES 16384
 #define VS_MAX_GEMS 400
+#define VS_MAX_FX 1200
 #define VS_BULLET_HITS 64
 
 /* ---- timers (ms, Phaser-like: elapsed accumulates, loops keep the remainder) */
@@ -194,6 +195,18 @@ typedef struct {
     float start_x, start_y;
 } vs_stage;
 
+/* ---- effects */
+enum { VS_FX_NUMBER = 1, VS_FX_HIT };
+typedef struct {
+    int active, kind;
+    float x, y, y0, rise, age, dur;
+    int value;
+    uint32_t tint;
+    char frame[32];
+} vs_fx;
+
+enum { VS_SCREEN_TITLE = 0, VS_SCREEN_SELECT, VS_SCREEN_GAME, VS_SCREEN_GAMEOVER };
+
 /* ---- tilemap (notes/behaviour/stage-map.md) */
 typedef struct {
     int active;
@@ -227,12 +240,19 @@ typedef struct {
     vs_levelup levelup;
     vs_stage stage;
     vs_tilemap tilemap;
+    vs_fx fx[VS_MAX_FX];
     vs_timer timers[VS_MAX_TIMERS];
     int time_stopped;
     int game_over;
+    float gameover_ms;
     uint32_t kills;
     float coins;
+    int chests_opened;
     int auto_pick;          /* headless: take the first level-up option */
+    int screen;             /* VS_SCREEN_* */
+    int menu_sel, menu_stage, menu_char_list[16], menu_char_count;
+    int selected_character, selected_stage;
+    uint64_t seed;
     uint32_t prev_buttons;
 
     vs_table enemies_table, characters_table, hitvfx_table, weapons_table, pickups_table;
@@ -242,7 +262,9 @@ typedef struct {
     const char *texture_names[VS_MAX_TEXTURES];
     int texture_count;
     int tex_characters, tex_enemies, tex_bg, tex_items, tex_vfx;
-    vs_atlas atl_characters, atl_enemies, atl_items, atl_vfx;
+    vs_atlas atl_characters, atl_enemies, atl_items, atl_vfx, atl_ui;
+    int tex_ui, tex_damage, tex_title;
+    vs_font damage_font;
 } vs_game;
 
 int vs_game_init(vs_game *g, const vs_pack *pack, int logical_w, int logical_h, uint64_t seed);
@@ -316,6 +338,19 @@ void vs_levelup_open(vs_game *g);
 void vs_levelup_choose(vs_game *g, int option);
 void vs_levelup_input(vs_game *g, const vs_pad *pad);
 void vs_level_weapon_up(vs_game *g, int type, int from_levelup);
+int vs_levelup_pull_remaining_powerup(vs_game *g);
+int vs_levelup_pull_existing(vs_game *g, int include_passives);
+int vs_levelup_pull_evolution(vs_game *g);
+int vs_levelup_pull_fixed(vs_game *g, int type);
+void vs_treasure_open(vs_game *g, int level, int treasure_row);
+
+/* effects */
+void vs_fx_damage_number(vs_game *g, float x, float y, float dmg);
+void vs_fx_hit(vs_game *g, float x, float y, int hit_type);
+void vs_fx_update(vs_game *g);
+void vs_fx_render(vs_game *g, float cam_x, float cam_y);
+/* run start/restart */
+int vs_game_start_run(vs_game *g, int character_enum, int stage_enum);
 
 /* tilemap */
 int vs_tilemap_init(vs_game *g, const char *map_key);

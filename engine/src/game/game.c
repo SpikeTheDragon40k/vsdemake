@@ -20,6 +20,7 @@ static float table_constant(const vs_pack *pack, const char *name, float dflt) {
 }
 
 static int load_texture(vs_game *g, const char *name) {
+    for (int i = 0; i < g->texture_count; i++) if (g->texture_names[i] && strcmp(g->texture_names[i], name) == 0) return i;
     int entry = vs_pack_find(g->pack, "TEX", name);
     vs_tex_info ti;
     if (entry < 0 || vs_pack_tex(g->pack, entry, &ti) != 0 || g->texture_count >= VS_MAX_TEXTURES) return -1;
@@ -42,6 +43,18 @@ static int open_table(vs_game *g, const char *name, vs_table *t, const char *fie
     return 0;
 }
 
+static void build_character_list(vs_game *g) {
+    g->menu_char_count = 0;
+    for (uint32_t gi = 0; gi < g->characters_table.group_count && g->menu_char_count < 16; gi++) {
+        vs_group grp; vs_table_group(&g->characters_table, gi, &grp);
+        vs_characters_rec c; vs_table_record(&g->characters_table, grp.first, &c);
+        /* bought or purchasable in the original shop; hidden/debug ones skipped */
+        if (!VS_HAS(&c, VS_CHARACTERS_F_CHARNAME) || (VS_HAS(&c, VS_CHARACTERS_F_HIDDEN) && c.hidden)) continue;
+        if (!(VS_HAS(&c, VS_CHARACTERS_F_ISBOUGHT) && c.isBought) && !(VS_HAS(&c, VS_CHARACTERS_F_PRICE) && c.price < 1000000)) continue;
+        g->menu_char_list[g->menu_char_count++] = grp.enum_index;
+    }
+}
+
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
     int auto_pick = g->auto_pick;
     memset(g, 0, sizeof *g);
@@ -49,16 +62,11 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     g->pack = pack;
     g->logical_w = lw;
     g->logical_h = lh;
-    vs_rng_seed(&g->rng, seed);
-    g->next_uid = 1;
+    g->seed = seed;
 
     g->base_player_px_speed = table_constant(pack, "_basePlayerPxSpeed", 82.5f);
     g->base_enemy_speed = table_constant(pack, "_baseEnemySpeed", 0.231f);
     g->base_projectile_speed = table_constant(pack, "_baseProjectileSpeed", 165.0f);
-    g->player_px_speed = g->base_player_px_speed;
-    g->enemy_speed = g->base_enemy_speed;
-    g->projectile_speed = g->base_projectile_speed;
-    g->gold_multiplier = g->enemy_health_multiplier = 1;
 
     if (open_table(g, "characters", &g->characters_table, VS_CHARACTERS_FIELD_NAMES)) return -1;
     if (open_table(g, "enemies", &g->enemies_table, VS_ENEMIES_FIELD_NAMES)) return -1;
@@ -70,17 +78,49 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (load_atlas(g, "enemies", &g->atl_enemies, &g->tex_enemies) != 0) return -1;
     if (load_atlas(g, "items", &g->atl_items, &g->tex_items) != 0) return -1;
     if (load_atlas(g, "vfx", &g->atl_vfx, &g->tex_vfx) != 0) return -1;
+    if (load_atlas(g, "UI", &g->atl_ui, &g->tex_ui) != 0) return -1;
+    g->tex_title = load_texture(g, "title");
+    {
+        int fi = vs_pack_find(pack, "FNT", "damNum-export");
+        if (fi < 0 || vs_pack_font(pack, fi, &g->damage_font) != 0) return -1;
+        g->tex_damage = load_texture(g, vs_pack_entry_name(pack, g->damage_font.tex_entry));
+    }
     if (vs_text_init() != 0) return -1;
+    build_character_list(g);
+    g->selected_character = VS_CHARACTERS_ANTONIO;
+    g->selected_stage = VS_STAGES_FOREST;
+    g->screen = VS_SCREEN_TITLE;
+    if (g->auto_pick) return vs_game_start_run(g, g->selected_character, g->selected_stage);
+    return 0;
+}
 
-    /* InitGame order (Core, line 6381): player + magnet, ticker, MakeLevelOne,
-     * LevelUpFactory.Init, stage (+ starting spawns), AddWeapon(starting). */
+/* InitGame (Core, line 6381): fresh run state; resources stay loaded. */
+int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
+    memset(&g->player, 0, sizeof g->player);
+    memset(g->enemies, 0, sizeof g->enemies);
+    memset(g->weapons, 0, sizeof g->weapons);
+    memset(g->bullets, 0, sizeof g->bullets);
+    memset(g->pickups, 0, sizeof g->pickups);
+    memset(&g->levelup, 0, sizeof g->levelup);
+    memset(&g->stage, 0, sizeof g->stage);
+    memset(&g->tilemap, 0, sizeof g->tilemap);
+    memset(g->fx, 0, sizeof g->fx);
+    memset(g->timers, 0, sizeof g->timers);
+    g->enemy_count = 0; g->cull_index = 0; g->next_uid = 1; g->time_stopped = 0; g->game_over = 0;
+    g->kills = 0; g->coins = 0; g->chests_opened = 0; g->tick = 0; g->update_tick = 0; g->survived_seconds = 0;
+    vs_rng_seed(&g->rng, g->seed);
+    g->player_px_speed = g->base_player_px_speed;
+    g->enemy_speed = g->base_enemy_speed;
+    g->projectile_speed = g->base_projectile_speed;
+    g->gold_multiplier = g->enemy_health_multiplier = 1;
+
     g->magnet.radius = 30; g->magnet.percentage = 1;
-    if (vs_player_init(g, VS_CHARACTERS_ANTONIO) != 0) return -1;
+    if (vs_player_init(g, character_enum) != 0) return -1;
     if (g->player.magnet_bonus > 0) { g->magnet.radius += g->magnet.radius * g->player.magnet_bonus; g->magnet.percentage += g->player.magnet_bonus; }
     vs_timer_add(g, VS_TIMER_TICKER, 1000, -1, 0, 0);
     vs_timer_add(g, VS_TIMER_REGEN, 1000, -1, 0, 0);
     vs_levelup_init(g);
-    if (vs_stage_init(g, VS_STAGES_FOREST) != 0) { vs_plat_log("stage init failed"); return -1; }
+    if (vs_stage_init(g, stage_enum) != 0) { vs_plat_log("stage init failed"); return -1; }
     vs_weapon_add(g, g->player.startingWeapon, 1);
     {
         vs_stage *s = &g->stage;
@@ -90,13 +130,46 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
         if (s->has_tileset && vs_tilemap_init(g, vs_table_str(&s->table, row0->tileset_mapKey)) != 0) vs_plat_log("tilemap failed to load");
         vs_tilemap_update(g);
     }
+    g->screen = VS_SCREEN_GAME;
     return g->tex_bg < 0 ? -1 : 0;
 }
 
+static void menu_update(vs_game *g, const vs_pad *pad) {
+    uint32_t pressed = pad->buttons & ~g->prev_buttons;
+    g->prev_buttons = pad->buttons;
+    switch (g->screen) {
+    case VS_SCREEN_TITLE:
+        if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; }
+        break;
+    case VS_SCREEN_SELECT: {
+        int n = g->menu_char_count;
+        if (pressed & VS_BTN_UP) g->menu_sel = (g->menu_sel + n - 1) % n;
+        if (pressed & VS_BTN_DOWN) g->menu_sel = (g->menu_sel + 1) % n;
+        if (pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) g->menu_stage ^= 1;
+        if (pressed & VS_BTN_B) g->screen = VS_SCREEN_TITLE;
+        if (pressed & (VS_BTN_A | VS_BTN_START)) {
+            g->selected_character = g->menu_char_list[g->menu_sel];
+            g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
+            g->seed = g->seed * 6364136223846793005ull + 1442695040888963407ull;
+            if (vs_game_start_run(g, g->selected_character, g->selected_stage) != 0) g->screen = VS_SCREEN_TITLE;
+        }
+        break;
+    }
+    case VS_SCREEN_GAMEOVER:
+        if (pressed & (VS_BTN_A | VS_BTN_START)) g->screen = VS_SCREEN_TITLE;
+        break;
+    default: break;
+    }
+}
+
 void vs_game_update(vs_game *g, const vs_pad *pad) {
-    if (g->game_over) return;
+    if (g->screen != VS_SCREEN_GAME) { menu_update(g, pad); return; }
+    if (g->game_over) {
+        g->gameover_ms += VS_TICK_MS;
+        if (g->gameover_ms > 1250 && !g->auto_pick) { g->screen = VS_SCREEN_GAMEOVER; g->prev_buttons = pad->buttons; }
+        return;
+    }
     if (g->levelup.pending) {
-        /* scene paused: only the level-up UI runs */
         vs_levelup_input(g, pad);
         g->prev_buttons = pad->buttons;
         return;
@@ -109,7 +182,6 @@ void vs_game_update(vs_game *g, const vs_pad *pad) {
     vs_enemies_cull_step(g);
     vs_bullets_cull(g);
 
-    /* Core.Update */
     g->update_tick++;
     int slow = 0;
     if (g->update_tick % 4 == 0) { g->update_tick = 0; slow = 1; }
@@ -125,6 +197,7 @@ void vs_game_update(vs_game *g, const vs_pad *pad) {
     vs_weapons_update(g);
     vs_enemies_update(g);
     vs_pickups_physics(g);
+    vs_fx_update(g);
     vs_timers_step(g);
     g->tick++;
 }
@@ -147,6 +220,15 @@ static uint32_t day_night_tint(const vs_game *g) {
     return lerp_color(0xffffff, 0x0444ee, f);
 }
 
+static const char *character_name(vs_game *g, int type, char *buf, size_t n) {
+    int gi = vs_table_find_group_enum(&g->characters_table, type);
+    if (gi < 0) return "?";
+    vs_group grp; vs_table_group(&g->characters_table, (uint32_t)gi, &grp);
+    vs_characters_rec c; vs_table_record(&g->characters_table, grp.first, &c);
+    snprintf(buf, n, "%s %s", vs_table_str(&g->characters_table, c.charName), VS_HAS(&c, VS_CHARACTERS_F_SURNAME) ? vs_table_str(&g->characters_table, c.surname) : "");
+    return buf;
+}
+
 static void render_levelup(vs_game *g) {
     vs_levelup *lu = &g->levelup;
     float x = g->logical_w * 0.5f - 150, y = 60;
@@ -163,26 +245,73 @@ static void render_levelup(vs_game *g) {
 }
 
 static void render_hud(vs_game *g) {
-    char buf[128];
+    char buf[160];
     vs_player *p = &g->player;
     float xp0 = g->levelup.previous_xp_factor, xp1 = g->levelup.current_xp_factor;
     float frac = xp1 > xp0 ? (p->xp - xp0) / (xp1 - xp0) : 0;
     if (frac < 0) frac = 0;
     if (frac > 1) frac = 1;
-    snprintf(buf, sizeof buf, "LV %d  XP %.0f/%.0f (%.0f%%)  HP %.0f/%.0f  %02d:%02d  KILLS %u  GOLD %.0f  ENEMIES %d",
-             p->level, p->xp, xp1, frac * 100, p->hp, p->maxHp, g->survived_seconds / 60, g->survived_seconds % 60, g->kills, g->coins, g->enemy_count);
-    vs_text_draw(4, 4, 1, 0xffffff, buf);
+    /* XP bar across the top, HP bar under the player (as the original) */
+    vs_sprite bar = {0};
+    vs_frame white;
+    if (vs_atlas_find(&g->atl_characters, "whiteDot.png", &white) == 0) {
+        bar.tex = g->textures[g->tex_characters]; bar.sx = (int16_t)white.x; bar.sy = (int16_t)white.y; bar.sw = 1; bar.sh = 1; bar.alpha = 255;
+        bar.dx = 0; bar.dy = 0; bar.scale_x = (float)g->logical_w; bar.scale_y = 12; bar.tint = 0x101030; vs_plat_draw(&bar);
+        bar.dx = 4; bar.dy = 4; bar.scale_x = (g->logical_w - 8) * frac; bar.scale_y = 6; bar.tint = 0x2266dd; vs_plat_draw(&bar);
+        float hx = g->logical_w * 0.5f - 16, hy = g->logical_h * 0.5f + 2;
+        bar.dx = hx; bar.dy = hy; bar.scale_x = 32; bar.scale_y = 4; bar.tint = 0x000000; vs_plat_draw(&bar);
+        bar.scale_x = 32 * (p->hp > 0 ? p->hp / p->maxHp : 0); bar.tint = 0xe00808; vs_plat_draw(&bar);
+    }
+    snprintf(buf, sizeof buf, "LV %d", p->level);
+    vs_text_draw(g->logical_w - 40, 3, 1, 0xffffff, buf);
+    snprintf(buf, sizeof buf, "%02d:%02d", g->survived_seconds / 60, g->survived_seconds % 60);
+    vs_text_draw(g->logical_w * 0.5f - 15, 16, 1.5f, 0xffffff, buf);
+    snprintf(buf, sizeof buf, "KILLS %u   GOLD %.0f", g->kills, g->coins);
+    vs_text_draw(g->logical_w - 150, 16, 1, 0xffffff, buf);
     float wy = 16;
     for (int i = 0; i < VS_MAX_WEAPONS; i++) {
         if (!g->weapons[i].active) continue;
         snprintf(buf, sizeof buf, "%s %d", vs_weapon_name(g, g->weapons[i].type), g->weapons[i].level);
-        vs_text_draw(4, wy, 1, 0xc0c0ff, buf);
+        vs_text_draw(4, wy, 1, g->weapons[i].is_power_up ? 0xc0ffc0 : 0xc0c0ff, buf);
         wy += 9;
     }
-    if (g->game_over) vs_text_draw(g->logical_w * 0.5f - 60, g->logical_h * 0.5f - 10, 3, 0xff4040, "GAME OVER");
+    if (g->game_over) vs_text_draw(g->logical_w * 0.5f - 80, g->logical_h * 0.5f - 10, 3, 0xff4040, "GAME OVER");
+}
+
+static void render_menu(vs_game *g) {
+    char buf[96];
+    vs_plat_begin_frame(0x000000);
+    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT) {
+        if (g->tex_title >= 0) {
+            vs_sprite s = {0};
+            s.tex = g->textures[g->tex_title]; s.sw = 332; s.sh = 133; s.scale_x = s.scale_y = 1.5f; s.alpha = 255; s.tint = 0xffffff;
+            s.dx = g->logical_w * 0.5f - 332 * 0.75f; s.dy = 30; vs_plat_draw(&s);
+        }
+    }
+    if (g->screen == VS_SCREEN_TITLE) {
+        vs_text_draw(g->logical_w * 0.5f - 60, 260, 1.5f, 0xffffff, "PRESS START");
+        vs_text_draw(g->logical_w * 0.5f - 140, 400, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
+    } else if (g->screen == VS_SCREEN_SELECT) {
+        vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
+        for (int i = 0; i < g->menu_char_count; i++) {
+            char nm[64];
+            snprintf(buf, sizeof buf, "%s %s", i == g->menu_sel ? ">" : " ", character_name(g, g->menu_char_list[i], nm, sizeof nm));
+            vs_text_draw(60, 260 + 10 * i, 1, i == g->menu_sel ? 0xffff80 : 0xffffff, buf);
+        }
+        vs_text_draw(420, 240, 1.5f, 0xffffff, "STAGE (left/right)");
+        vs_text_draw(420, 260, 1, g->menu_stage == 0 ? 0xffff80 : 0xffffff, g->menu_stage == 0 ? "> Mad Forest" : "  Mad Forest");
+        vs_text_draw(420, 270, 1, g->menu_stage == 1 ? 0xffff80 : 0xffffff, g->menu_stage == 1 ? "> Inlaid Library" : "  Inlaid Library");
+    } else if (g->screen == VS_SCREEN_GAMEOVER) {
+        vs_text_draw(g->logical_w * 0.5f - 80, 120, 3, 0xff4040, "GAME OVER");
+        snprintf(buf, sizeof buf, "SURVIVED %02d:%02d   LEVEL %d   KILLS %u   GOLD %.0f   CHESTS %d", g->survived_seconds / 60, g->survived_seconds % 60, g->player.level, g->kills, g->coins, g->chests_opened);
+        vs_text_draw(g->logical_w * 0.5f - 200, 200, 1.2f, 0xffffff, buf);
+        vs_text_draw(g->logical_w * 0.5f - 60, 300, 1.5f, 0xffffff, "PRESS START");
+    }
+    vs_plat_end_frame();
 }
 
 void vs_game_render(vs_game *g) {
+    if (g->screen != VS_SCREEN_GAME) { render_menu(g); return; }
     vs_player *p = &g->player;
     float cam_x = p->x - g->logical_w * 0.5f, cam_y = p->y - g->logical_h * 0.5f;
     vs_plat_begin_frame(0x000000);
@@ -190,7 +319,6 @@ void vs_game_render(vs_game *g) {
     vs_render_begin(g, cam_x, cam_y);
     vs_tilemap_render(g, cam_x, cam_y);
 
-    /* pickups: depth 9 + y - player.y; gems behind everything (y - player.y - H) */
     for (int i = 0; i < VS_MAX_PICKUPS; i++) {
         vs_pickup *pk = &g->pickups[i];
         if (!pk->active) continue;
@@ -205,7 +333,6 @@ void vs_game_render(vs_game *g) {
         vs_render_sprite(g, g->tex_items, &f, pk->x, pk->y, 0.5f, 0.5f, 1.0f, 0, 0, 0, 0xffffff, 255, depth);
     }
 
-    /* enemies: depth y - player.y, origin (0.5, 1), flip when moving right, wobble */
     for (int i = 0; i < g->enemy_count; i++) {
         vs_enemy *e = &g->enemies[i];
         if (!e->active) continue;
@@ -233,7 +360,6 @@ void vs_game_render(vs_game *g) {
         vs_render_sprite(g, g->tex_enemies, &f, e->x, e->y, 0.5f, 1.0f, e->scale, e->dir_x > 0, 0, angle, tint, (uint8_t)(e->alpha * 255), e->y - p->y);
     }
 
-    /* garlic ring (weapon visual) and bullets */
     for (int i = 0; i < VS_MAX_WEAPONS; i++) {
         vs_weapon *w = &g->weapons[i];
         if (!w->active || w->type != VS_WEAPONS_GARLIC) continue;
@@ -244,7 +370,7 @@ void vs_game_render(vs_game *g) {
     for (int i = 0; i < VS_MAX_BULLETS; i++) {
         vs_bullet *b = &g->bullets[i];
         if (!b->active || !b->visible) continue;
-        const char *fname; float ox = 0.5f, oy = 0.5f, depth = 1; int tex = g->tex_vfx; const vs_atlas *atl = &g->atl_vfx;
+        const char *fname; float depth = 1; int tex = g->tex_vfx; const vs_atlas *atl = &g->atl_vfx;
         switch (b->type) {
         case VS_WEAPONS_WHIP: fname = "slash.png"; break;
         case VS_WEAPONS_MAGIC_MISSILE: case VS_WEAPONS_HOLY_MISSILE: fname = "ProjectileHoly1.png"; break;
@@ -254,7 +380,10 @@ void vs_game_render(vs_game *g) {
         case VS_WEAPONS_CROSS: fname = "ProjectileCross2.png"; depth = 2.0f * g->logical_h; break;
         case VS_WEAPONS_HOLYBOOK: fname = "HolyBook.png"; break;
         case VS_WEAPONS_VESPERS: fname = "Page2.png"; break;
-        case VS_WEAPONS_HOLYWATER: fname = b->state == 0 ? "HolyWater.png" : "circle.png"; tex = b->state == 0 ? g->tex_items : g->tex_vfx; atl = b->state == 0 ? &g->atl_items : &g->atl_vfx; depth = b->state == 0 ? g->logical_h : -0.5f * g->logical_h; break;
+        case VS_WEAPONS_HOLYWATER:
+            if (b->state == 0) { fname = "HolyWater.png"; tex = g->tex_items; atl = &g->atl_items; depth = (float)g->logical_h; }
+            else { fname = "circle.png"; depth = -0.5f * g->logical_h; }
+            break;
         default: fname = "ProjectileHoly1.png"; break;
         }
         vs_frame f;
@@ -263,10 +392,9 @@ void vs_game_render(vs_game *g) {
         uint32_t tint = 0xffffff; uint8_t alpha = b->alpha;
         if (b->type == VS_WEAPONS_WHIP && b->age_ms < 100) scale *= b->age_ms / 100.0f;
         if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) { scale = b->body_r * 2 / 256.0f; tint = 0x4040ff; alpha = 60; }
-        vs_render_sprite(g, tex, &f, b->x, b->y, ox, oy, scale, b->flip_x, b->flip_y, b->angle, tint, alpha, depth);
+        vs_render_sprite(g, tex, &f, b->x, b->y, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, tint, alpha, depth);
     }
 
-    /* player at depth 0 */
     {
         char name[64];
         int frame = 1;
@@ -275,9 +403,11 @@ void vs_game_render(vs_game *g) {
         vs_frame f;
         if (vs_atlas_find(&g->atl_characters, name, &f) == 0) {
             uint32_t tint = p->receiving_damage ? 0xff0000 : (vs_player_is_invul(g) ? 0xffffbb : 0xffffff);
+            if (p->is_dead) tint = 0xff0000;
             vs_render_sprite(g, g->tex_characters, &f, p->x, p->y, 0.5f, 1.0f, 1.0f, p->facing_left, 0, 0, tint, 255, 0);
         }
     }
+    vs_fx_render(g, cam_x, cam_y);
     vs_render_end(g);
     render_hud(g);
     if (g->levelup.pending) render_levelup(g);

@@ -124,10 +124,7 @@ static void get_taken(vs_game *g, vs_pickup *p) {
         }
         break;
     case VS_PICKUPS_TREASURE:
-        /* treasure.md: prizes are resolved when the chest screen exists;
-         * for now the coin award only */
-        g->coins += (float)(int)(p->treasure_level == 3 ? 200 + 100 * vs_rng_f32(&g->rng) : p->treasure_level == 2 ? 100 + 100 * vs_rng_f32(&g->rng) : 50 + 50 * vs_rng_f32(&g->rng)) * g->gold_multiplier * pl->greed;
-        pl->invul_ms += 1000;
+        vs_treasure_open(g, p->treasure_level, p->treasure_row);
         break;
     default: break;
     }
@@ -171,4 +168,46 @@ void vs_pickups_physics(vs_game *g) {
         dx = p->x - px; dy = p->y - py; rr = r + pr;
         if (dx * dx + dy * dy < rr * rr) get_taken(g, p);
     }
+}
+
+/* Treasure chest: resolve prizes immediately (treasure.md; the chest
+ * animation is not reproduced). */
+void vs_treasure_open(vs_game *g, int level, int treasure_row) {
+    vs_player *pl = &g->player;
+    vs_stage *s = &g->stage;
+    int prize_types[5] = {VS_PRIZES_EVOLUTION, VS_PRIZES_POWERUP, VS_PRIZES_POWERUP, VS_PRIZES_POWERUP, VS_PRIZES_POWERUP};
+    int fixed[5] = {-1, -1, -1, -1, -1};
+    if (treasure_row >= 0) {
+        vs_stages_rec row; vs_table_record(&s->table, (uint32_t)treasure_row, &row);
+        if (VS_HAS(&row, VS_STAGES_F_TREASURE)) {
+            const uint8_t *items; uint32_t n = vs_table_list(&s->table, row.treasure, &items);
+            if (n >= 1) {
+                vs_stages_treasure_rec t; vs_table_record(&s->treasure_table, vs_list_u32(items, 0), &t);
+                if (VS_HAS(&t, VS_STAGES_TREASURE_F_PRIZETYPES)) { uint32_t m = vs_table_list(&s->treasure_table, t.prizeTypes, &items); for (uint32_t i = 0; i < m && i < 5; i++) prize_types[i] = vs_list_i32(items, i); }
+                if (VS_HAS(&t, VS_STAGES_TREASURE_F_FIXEDPRIZES)) { uint32_t m = vs_table_list(&s->treasure_table, t.fixedPrizes, &items); for (uint32_t i = 0; i < m && i < 5; i++) fixed[i] = vs_list_i32(items, i); }
+            }
+        }
+    }
+    int slots = level >= 3 ? 5 : level == 2 ? 3 : 1;
+    float coins = level >= 3 ? 200 + 100 * vs_rng_f32(&g->rng) : level == 2 ? 100 + 100 * vs_rng_f32(&g->rng) : 50 + 50 * vs_rng_f32(&g->rng);
+    coins = (float)(int)coins;
+    int prizes[5]; int prize_count = 0;
+    for (int i = 0; i < slots; i++) {
+        int type = prize_types[i], item = -1;
+        if (type == VS_PRIZES_RANDOM) type = vs_rng_f32(&g->rng) < 0.5f ? VS_PRIZES_POWERUP : VS_PRIZES_EXISTING_ANY;
+        switch (type) {
+        case VS_PRIZES_POWERUP: item = vs_levelup_pull_remaining_powerup(g); break;
+        case VS_PRIZES_EXISTING_WEAPON: item = vs_levelup_pull_existing(g, 0); break;
+        case VS_PRIZES_EXISTING_ANY: item = vs_levelup_pull_existing(g, 1); break;
+        case VS_PRIZES_EVOLUTION: item = vs_levelup_pull_evolution(g); if (item < 0) item = vs_levelup_pull_existing(g, 1); break;
+        case VS_PRIZES_FIXED: item = fixed[i] >= 0 ? vs_levelup_pull_fixed(g, fixed[i]) : -1; if (item < 0) item = vs_levelup_pull_existing(g, 1); break;
+        default: break;
+        }
+        if (item >= 0) { prizes[prize_count++] = item; vs_levelup_remove_from_store(g, item); }
+        else coins += 25;
+    }
+    for (int i = 0; i < prize_count; i++) vs_level_weapon_up(g, prizes[i], 0);
+    g->coins += coins * g->gold_multiplier * pl->greed;
+    pl->invul_ms += 1000;
+    g->chests_opened++;
 }

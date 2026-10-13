@@ -198,3 +198,89 @@ void vs_levelup_input(vs_game *g, const vs_pad *pad) {
     if (pressed & VS_BTN_DOWN) lu->selected = (lu->selected + 1) % lu->option_count;
     if (pressed & VS_BTN_A) vs_levelup_choose(g, lu->selected);
 }
+
+/* ---- treasure pulls (notes/behaviour/treasure.md) ---- */
+
+static int weighted_from(vs_game *g, int *types, float *ws, int n, float acc) {
+    if (n == 0 || acc <= 0) return -1;
+    float r = vs_rng_f32(&g->rng) * acc;
+    for (int i = 0; i < n; i++) if (ws[i] >= r) return types[i];
+    return -1;
+}
+
+int vs_levelup_pull_remaining_powerup(vs_game *g) {
+    vs_levelup *lu = &g->levelup;
+    int types[64]; float ws[64]; int n = 0; float acc = 0;
+    for (uint32_t gi = 0; gi < g->weapons_table.group_count; gi++) {
+        vs_group grp; vs_table_group(&g->weapons_table, gi, &grp);
+        if (lu->excluded[grp.enum_index]) continue;
+        vs_weapons_rec r; vs_table_record(&g->weapons_table, grp.first, &r);
+        if (!r.isPowerUp) continue;
+        acc += (float)r.rarity;
+        if (r.rarity > 0 && n < 64) { types[n] = grp.enum_index; ws[n] = acc; n++; }
+    }
+    return weighted_from(g, types, ws, n, acc);
+}
+
+int vs_levelup_pull_existing(vs_game *g, int include_passives) {
+    vs_levelup *lu = &g->levelup;
+    int types[VS_MAX_WEAPONS]; float ws[VS_MAX_WEAPONS]; int n = 0; float acc = 0;
+    for (int i = 0; i < VS_MAX_WEAPONS; i++) {
+        if (!g->weapons[i].active) continue;
+        int type = g->weapons[i].type;
+        if (lu->excluded[type]) continue;
+        vs_weapons_rec r; int gi = vs_table_find_group_enum(&g->weapons_table, type);
+        vs_group grp; vs_table_group(&g->weapons_table, (uint32_t)gi, &grp); vs_table_record(&g->weapons_table, grp.first, &r);
+        if (!include_passives && r.isPowerUp) continue;
+        acc += (float)r.rarity;
+        if (r.rarity > 0) { types[n] = type; ws[n] = acc; n++; }
+    }
+    return weighted_from(g, types, ws, n, acc);
+}
+
+int vs_levelup_pull_evolution(vs_game *g) {
+    vs_levelup *lu = &g->levelup;
+    int types[16]; float ws[16]; int n = 0; float acc = 0;
+    for (int i = 0; i < lu->special_count; i++) {
+        int type = lu->special[i];
+        int gi = vs_table_find_group_enum(&g->weapons_table, type);
+        if (gi < 0) continue;
+        vs_group grp; vs_table_group(&g->weapons_table, (uint32_t)gi, &grp);
+        vs_weapons_rec r; vs_table_record(&g->weapons_table, grp.first, &r);
+        if (!r.isEvolution || r.rarity <= 0) continue;
+        int ok = 1, req_level = VS_HAS(&r, VS_WEAPONS_F_REQUIRESLEVEL) ? r.requiresLevel : 0;
+        if (VS_HAS(&r, VS_WEAPONS_F_REQUIRES)) {
+            const uint8_t *items; uint32_t cnt = vs_table_list(&g->weapons_table, r.requires, &items);
+            for (uint32_t k = 0; k < cnt; k++) {
+                int slot = vs_weapon_find(g, vs_list_i32(items, k));
+                if (slot < 0 || g->weapons[slot].level < req_level) { ok = 0; break; }
+            }
+        }
+        if (!ok) continue;
+        acc += (float)r.rarity;
+        types[n] = type; ws[n] = acc; n++;
+    }
+    int pick = weighted_from(g, types, ws, n, acc);
+    if (pick >= 0) {
+        for (int i = 0; i < lu->special_count; i++) if (lu->special[i] == pick) { memmove(&lu->special[i], &lu->special[i + 1], (size_t)(lu->special_count - i - 1) * sizeof lu->special[0]); lu->special_count--; break; }
+    }
+    vs_levelup_calculate_weights(g);
+    return pick;
+}
+
+int vs_levelup_pull_fixed(vs_game *g, int type) {
+    vs_levelup *lu = &g->levelup;
+    for (int i = 0; i < lu->weighted_count; i++) if (lu->weighted_type[i] == type) return type;
+    int gi = vs_table_find_group_enum(&g->weapons_table, type);
+    if (gi >= 0) {
+        vs_group grp; vs_table_group(&g->weapons_table, (uint32_t)gi, &grp);
+        vs_weapons_rec r; vs_table_record(&g->weapons_table, grp.first, &r);
+        if (r.isEvolution) {
+            for (int i = 0; i < lu->special_count; i++) if (lu->special[i] == type) {
+                memmove(&lu->special[i], &lu->special[i + 1], (size_t)(lu->special_count - i - 1) * sizeof lu->special[0]); lu->special_count--;
+                return type;
+            }
+        }
+    }
+    return -1;
+}
