@@ -118,10 +118,10 @@ Headless/regression runs (no window): `--headless --no-render --frames 18000
 
 ## Step 5: Xbox 360
 
-See **[docs/XBOX360_GUIDE.md](docs/XBOX360_GUIDE.md)** for the console
-prerequisites (RGH/JTAG + XeLL), building the free60 toolchain, building
-`vsdemake.elf32`, the USB layout and the first-boot checklist. The console
-backend is written but not yet verified on hardware.
+See **[docs/XBOX360_GUIDE.md](docs/XBOX360_GUIDE.md)**: prerequisites
+(RGH/JTAG console, Visual Studio 2010 + Xbox 360 XDK), building
+`default.xex`, installing it for Aurora/XeXMenu, and the first-boot
+checklist. The console backend is written but not yet verified on hardware.
 
 ## Development
 

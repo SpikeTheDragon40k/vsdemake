@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/vs_compat.h"
 #include "core/vs_pack.h"
 #include "core/vs_platform.h"
 #include "game/game.h"
@@ -43,16 +44,21 @@ static uint32_t scripted_buttons(const char *script, size_t *pos, int *left) {
     return current;
 }
 
-#ifdef VS_XENON
+#if defined(VS_XENON) || defined(VS_XDK)
 /* No command line on the console: look for the pack next to the ELF on USB or HDD. */
 static const char *xenon_find_pack(void) {
+#ifdef VS_XDK
+    /* game:\ is the folder the XEX was launched from */
+    static const char *candidates[] = { "game:\\vsdata.vspack", "game:\\data\\vsdata.vspack", "hdd1:\\vsdemake\\vsdata.vspack", "usb0:\\vsdemake\\vsdata.vspack", NULL };
+#else
     static const char *candidates[] = { "uda:/vsdemake/vsdata.vspack", "uda:/vsdata.vspack", "sda:/vsdemake/vsdata.vspack", "sda:/vsdata.vspack", "udb:/vsdata.vspack", NULL };
+#endif
     for (int i = 0; candidates[i]; i++) { FILE *f = fopen(candidates[i], "rb"); if (f) { fclose(f); return candidates[i]; } }
     return NULL;
 }
 #endif
 
-int main(int argc, char **argv) {
+static int vs_main(int argc, char **argv) {
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL;
     int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0;
     uint64_t seed = 1;
@@ -69,7 +75,7 @@ int main(int argc, char **argv) {
         else if (argv[i][0] != '-') pack_path = argv[i];
         else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
     }
-#ifdef VS_XENON
+#if defined(VS_XENON) || defined(VS_XDK)
     if (!pack_path) pack_path = xenon_find_pack();
     scale = 1;
 #endif
@@ -131,3 +137,10 @@ int main(int argc, char **argv) {
     vs_plat_shutdown();
     return 0;
 }
+
+#ifdef VS_XDK
+/* XDK entry point: no command line */
+int main(void) { return vs_main(0, NULL); }
+#else
+int main(int argc, char **argv) { return vs_main(argc, argv); }
+#endif

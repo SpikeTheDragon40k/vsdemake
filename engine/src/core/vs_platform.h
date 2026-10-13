@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/vs_compat.h"
+
 typedef struct vs_texture vs_texture;
 
 typedef struct {

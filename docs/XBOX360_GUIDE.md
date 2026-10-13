@@ -1,23 +1,22 @@
-# Xbox 360 guide: setup, toolchain, patching, build and launch
+# Xbox 360 guide: setup, XDK, patching, build and launch
 
-This is the end-to-end procedure for running vsdemake on a real Xbox 360.
-Read the status box first.
+This is the end-to-end procedure for running vsdemake on a real Xbox 360
+from **Aurora, XeXMenu or FreeStyle Dash** as a normal `default.xex`.
 
-> **Status (2026-10-13):** the console backend
-> (`engine/src/platform/xenon/`) has been written against libxenon's headers
-> but has **never been compiled or run**: the development container could
-> not build the free60 toolchain (no access to the GNU mirrors). Expect the
-> first `make` to show errors and the first boot to need the fixes listed in
-> `notes/toolchain.md` §"What the backend assumes". Treat this document as
-> the intended path, and report what actually happens so the notes can be
-> corrected.
+> **Status (2026-10-13):** the XDK backend (`engine/src/platform/xdk/`,
+> `engine/xdk/`) was written without the XDK at hand and has **never been
+> compiled or run**. Expect the first build to need small fixes (header
+> names, library names, project-file quirks). §7 lists what to verify. The
+> older libxenon/XeLL backend is kept in `engine/src/platform/xenon/` and
+> `notes/toolchain.md` as a fallback for people without the XDK; it is not
+> the plan.
 
 The whole flow:
 
 ```
  [PC]  Steam depot ──vspatch build──▶ vsdata.vspack ─┐
- [PC]  engine/ ──xenon-gcc (free60)──▶ vsdemake.elf32 ─┼──▶ USB stick ──▶ [Xbox 360 + XeLL]
-                                                       ┘
+ [PC]  engine/xdk ──VS2010 + XDK──▶ default.xex ───┼──▶ HDD or USB ──▶ Aurora / XeXMenu
+                                                   ┘
 ```
 
 ---
@@ -26,83 +25,48 @@ The whole flow:
 
 | Item | Notes |
 | --- | --- |
-| Xbox 360 with RGH or JTAG | Any revision that can run unsigned code. Setting this up is out of scope; follow a current RGH guide for your board. |
-| XeLL (Xenon Linux Loader) | Normally installed with the RGH/JTAG hack. It boots `.elf32` files from USB and shows a text console. Hold the eject button (or use the dashboard's "launch XeLL") to start it. |
-| USB stick, FAT32 | 1 GB is plenty. The console reads FAT32 only; exFAT/NTFS won't mount. |
-| A PC with Linux (or WSL2 / Docker on Windows or macOS) | Needed to build the free60 toolchain and the engine. |
-| Steam account that owns Vampire Survivors + the Steam client | For the data (step 3). |
+| Xbox 360 with RGH or JTAG | Any revision that runs unsigned XEX files. Setting this up is out of scope; follow a current RGH guide for your board. |
+| A dashboard: Aurora, XeXMenu or FreeStyle Dash | Any of them launches `default.xex` from a folder. |
+| Windows PC with Visual Studio 2010 and the **Xbox 360 XDK** | See §2. |
+| Steam account that owns Vampire Survivors + the Steam client | For the data (§3). |
 | Node.js 20+ | For the patcher. |
-| Wired Xbox 360 controller (or wireless + receiver) | libxenon reads controller 0 over USB. |
+| USB stick (FAT32) or FTP access to the console (Aurora has an FTP server) | To copy the two files over. |
+| Xbox 360 controller | XInput, controller 0. |
 
 Nothing from the game is ever downloaded by this project; the data pack is
 built on your PC from your own Steam copy.
 
 ---
 
-## 2. Build the free60 toolchain (once, ~30–60 min)
+## 2. The Xbox 360 XDK
 
-The toolchain is a cross GCC for the 360's PowerPC core plus libxenon (the
-bare-metal library: video, USB, FAT, controller, sound).
+The XDK is Microsoft's proprietary development kit for the 360: Visual
+Studio integration, the PowerPC compiler, Direct3D/XInput/XAudio2 headers
+and libraries, and tools (`imagexex`, `xbcp`, `xbwatson`). Microsoft only
+distributed it to registered developers under NDA and the program is
+closed, so this project cannot point you at a download; you need a copy you
+already hold, and only Microsoft's licence terms govern its use. This guide
+assumes the last release, **XDK 21256.3** (Visual Studio 2010 integration);
+older 2008-era releases differ in paths and the shader compiler.
 
-### 2a. Linux (Debian/Ubuntu)
+Install facts you'll need:
 
-```bash
-sudo apt-get install build-essential git wget flex bison texinfo gcc-multilib \
-     libgmp-dev libmpfr-dev libmpc-dev libz-dev python3
-
-git clone https://github.com/Free60Project/libxenon.git
-cd libxenon/toolchain
-export DEVKITXENON=/usr/local/xenon
-export PATH=$DEVKITXENON/bin:$PATH
-sudo mkdir -p $DEVKITXENON && sudo chown $USER $DEVKITXENON
-
-./build-xenon-toolchain toolchain     # binutils 2.32, gcc 16.2.0, newlib 3.1.0
-./build-xenon-toolchain libxenon      # libxenon + libfat into $DEVKITXENON
-```
-
-Downloads come from `mirror.netcologne.de` and `sourceware.org`; if a
-mirror is down, edit the `*_DL` variables at the top of the script.
-
-Put the two `export` lines in your shell profile. Check:
-
-```bash
-xenon-gcc --version
-ls $DEVKITXENON/usr/include/xenos/xe.h $DEVKITXENON/usr/lib/libxenon.a
-```
-
-### 2b. Docker (any OS)
-
-The libxenon repo ships `toolchain.dockerfile` and `libxenon.dockerfile`:
-
-```bash
-cd libxenon
-docker build -f toolchain.dockerfile -t xenon-toolchain .
-docker build -f libxenon.dockerfile  -t xenon-libxenon .
-```
-
-Then run builds inside the image with the vsdemake checkout mounted:
-
-```bash
-docker run --rm -it -v "$PWD/../vsdemake:/src" -w /src xenon-libxenon bash
-# inside: export DEVKITXENON=/usr/local/xenon; export PATH=$DEVKITXENON/bin:$PATH
-```
-
-(Check the Dockerfiles for the exact install prefix they use.)
-
-### 2c. Windows
-
-Use WSL2 (Ubuntu) and follow 2a, or Docker Desktop and follow 2b. Building
-the toolchain natively on Windows is not supported.
+- Install Visual Studio 2010 (Professional or better; Express has no
+  Xbox 360 platform) **before** the XDK.
+- Default install folder: `C:\Program Files (x86)\Microsoft Xbox 360 SDK\`.
+  The installer sets the environment variable `XEDK` to it. Headers are in
+  `include\xbox`, libraries in `lib\xbox`, tools in `bin\win32`.
+- After installing, Visual Studio shows an **"Xbox 360"** platform in the
+  configuration manager and an "Xbox 360 > Console Application" wizard.
+- Optional: "Xbox 360 Neighborhood" (`xbwatson`, `xbcp`) talks to a devkit
+  over the network; a retail RGH console does not expose that, so use FTP
+  or USB to copy files.
 
 ---
 
 ## 3. Build the data pack (on the PC)
 
-This is the same as the PC workflow in the README, repeated here so this
-guide is complete.
-
-1. In Steam, open the console (`Win+R` → `steam://open/console`, or
-   `steam steam://open/console` on Linux/macOS) and run:
+1. In Steam, open the console (`Win+R` → `steam://open/console`) and run:
 
    ```
    download_depot 1794680 1794681 8292959317163221061
@@ -113,11 +77,11 @@ guide is complete.
 
 2. Build the pack:
 
-   ```bash
-   cd vsdemake/patcher
+   ```bat
+   cd vsdemake\patcher
    npm install
-   node bin/vspatch.js verify "<folder>"
-   node bin/vspatch.js build  "<folder>" --out ../vsdata.vspack
+   node bin\vspatch.js verify "<folder>"
+   node bin\vspatch.js build  "<folder>" --out ..\vsdata.vspack
    ```
 
    `verify` must print `ok: manifest 8292959317163221061, 70 files match`.
@@ -128,113 +92,104 @@ guide is complete.
 
 ---
 
-## 4. Build the engine for the console
+## 4. Build `default.xex`
 
-```bash
-cd vsdemake/engine/xenon
-export DEVKITXENON=/usr/local/xenon
-export PATH=$DEVKITXENON/bin:$PATH
-make
-```
+1. Open `engine\xdk\vsdemake.sln` in Visual Studio 2010.
+2. Pick the **Release | Xbox 360** configuration.
+3. Build. Output: `engine\xdk\out\Release\default.xex` (the project runs
+   `imagexex` on `default.exe` as the last step).
 
-Output: `vsdemake.elf32` (the loadable image; `vsdemake.elf` is the
-unstripped one for debugging with `xenon-objdump`/`xenon-gdb`).
+Project settings worth knowing (all in `vsdemake.vcxproj`):
 
-The Makefile includes `$(DEVKITXENON)/rules`, which provides `MACHDEP`
-(`-m32 -maltivec -mpowerpc64 -fno-pic -mhard-float`), the include/lib
-paths and `app.lds`. It links `-lxenon -lfat -lm`.
+- The game core is C99 and is compiled **as C++** (`CompileAs=CompileAsCpp`)
+  because Visual C++ 2010 has no C99 mode. `core/vs_compat.h` maps
+  `snprintf`/`strtoull` to the MSVC names.
+- Defines: `_XBOX`, `VS_XDK=1`, `VS_BIG_ENDIAN=1`.
+- Libraries: `xapilib.lib d3d9.lib d3dx9.lib xgraphics.lib xboxkrnl.lib`
+  (debug: the `…d.lib` variants).
+- Shaders are two tiny HLSL programs compiled at start-up with
+  `D3DXCompileShader` (`vs_3_0`/`ps_3_0`), so no offline shader step.
 
-### If it does not build
+If the `.vcxproj` refuses to load (XDK integration versions differ), create
+a new "Xbox 360 > Console Application" from the wizard, delete its
+generated `main.cpp`, add every file listed in `vsdemake.vcxproj`
+(`..\src\core\*.c`, `..\src\game\*.c`, `..\src\main.c`,
+`..\src\platform\xdk\vs_platform_xdk.cpp`), and copy the settings above into
+the project properties (C/C++ → Advanced → Compile As: C++; Preprocessor
+definitions; Linker → Input).
 
-Likely first failures and what to do:
+### Likely first-build errors
 
 | Error | Fix |
 | --- | --- |
-| `libfat/fat.h: No such file` or `cannot find -lfat` | libfat was not installed into `$DEVKITXENON`. Re-run `./build-xenon-toolchain libxenon`, or check the header path (`find $DEVKITXENON -name fat.h`) and adjust the `#include` and `LIBS` in `engine/xenon/Makefile`. |
-| Unknown function in `vs_platform_xenon.c` | The backend was written against the libxenon headers of October 2026 (`drivers/xenos/xe.h`, `drivers/input/input.h`, `drivers/usb/usbmain.h`, `drivers/ppc/timebase.h`). Compare with your installed headers; the needed calls are listed in `notes/toolchain.md`. |
-| Warnings about `-std=gnu99` or AltiVec | Harmless. |
-| Link errors about `read`/`_start`/`exc_base` | Add `-u read -u _start -u exc_base` to `LDFLAGS` (older rules files needed this). |
-
-Before touching the console you can sanity-check the core on the PC build
-(`engine/build/test_pack`, `vsdemake-sdl2 --headless …`), which shares all
-code except the platform file.
+| `xgraphics.h` not found / `XGetVideoMode` undefined | Remove the `XGetVideoMode` block in `vs_plat_init` and hard-code 1280×720, or use `XGetVideoMode` from `xtl.h` only. |
+| `D3DFMT_LIN_A8R8G8B8` undefined | Use `D3DFMT_A8R8G8B8` and tile the texture with `XGTileTextureLevel`, or create with `D3DUSAGE_...` linear flags per your XDK's `d3d9.h`. |
+| `DrawPrimitiveUP` missing | Replace with a dynamic vertex buffer (`CreateVertexBuffer` + `Lock`, `SetStreamSource`, `DrawPrimitive`). |
+| C++ errors in the core (`void*` conversions) | Add the cast; report it so the PC side gets the same fix. |
+| `_vsnprintf` warnings | Harmless. |
 
 ---
 
-## 5. Put it on the USB stick
+## 5. Install on the console
 
-Format the stick FAT32. Create this layout:
+Create one folder containing both files:
 
 ```
-USB:/
-└── vsdemake/
-    ├── vsdemake.elf32
-    └── vsdata.vspack
+Hdd1:\Games\vsdemake\          (or Usb0:\Games\vsdemake\)
+├── default.xex
+└── vsdata.vspack
 ```
 
-The engine looks for the pack at `uda:/vsdemake/vsdata.vspack`,
-`uda:/vsdata.vspack`, `sda:/vsdemake/vsdata.vspack`, `sda:/vsdata.vspack`,
-`udb:/vsdata.vspack` in that order (`uda:` = first USB drive, `sda:` =
-internal HDD). The ELF can also live on the HDD if you prefer.
+The engine looks for the pack at `game:\vsdata.vspack` (the folder the XEX
+was launched from), then `game:\data\vsdata.vspack`,
+`hdd1:\vsdemake\vsdata.vspack`, `usb0:\vsdemake\vsdata.vspack`.
 
-Eject the stick cleanly; FAT32 corruption shows up on the console as a
-missing pack.
+How to copy:
 
----
-
-## 6. Launch on the console
-
-1. Plug the USB stick and a wired controller into the console.
-2. Boot into XeLL (eject-button boot on most RGH setups, or your
-   dashboard's XeLL/"launch homebrew" entry).
-3. XeLL scans USB for a bootable ELF. Depending on your XeLL build either:
-   - it lists files and you pick `vsdemake/vsdemake.elf32`, or
-   - it only auto-boots `xenon.elf`/`updflash.bin` from the root. In that
-     case copy `vsdemake.elf32` to `USB:/xenon.elf` as well (and keep the pack
-     path above), then reboot into XeLL.
-   - Alternatively use a homebrew file browser (the libxenon `browser`
-     example, or the dashboard's homebrew launcher) to run the ELF.
-4. The console prints a few lines (`pack: 56 entries, manifest
-   8292959317163221061`) on the XeLL text console, then switches to the
-   game. Title screen: **Start/A** to begin, d-pad/stick to pick character
-   and stage (left/right switches Mad Forest / Inlaid Library), **A** to
-   confirm. In game: stick or d-pad to move; level-up choices with
-   up/down + A. **Guide button** exits back to XeLL.
-
-Video mode is whatever XeLL/libxenon negotiated (`VIDEO_MODE_AUTO`, HDMI or
-component). The 810×456 game area is integer-scaled and letterboxed.
+- **FTP** (recommended): Aurora/FSD run an FTP server; connect with any FTP
+  client to the console's IP (user/password `xbox`/`xbox` by default) and
+  upload the folder to `Hdd1:\Games\`.
+- **USB**: format FAT32, copy the folder, plug it in. The pack is 27 MB so a
+  FAT32 stick is fine.
 
 ---
 
-## 7. First-boot checklist (things to verify and report)
+## 6. Launch
 
-Because nothing has been run on hardware yet, confirm these in order and
-note the result in `notes/toolchain.md`:
+- **Aurora**: Settings → Content → add `Hdd1:\Games` as a scan path (or
+  the folder itself), run a scan; vsdemake appears as a title. Or use
+  Aurora's file manager to browse to `default.xex` and launch it.
+- **XeXMenu**: browse to the folder and press A on `default.xex`.
+- **FreeStyle Dash**: add the folder as a game path and scan.
 
-1. **Boots and prints the pack line.** If it stops at `cannot read`, the
-   pack path/USB mount is wrong (try the HDD or the root of the stick).
-2. **Picture orientation.** If the title is upside down or mirrored, the
-   ortho matrix in `vs_plat_begin_frame` has the wrong sign convention (see
-   `notes/toolchain.md` item 2). Flip the sign of the translation terms
-   first.
-3. **Textures.** Garbage colours mean the texture format flag is wrong
-   (try `XE_FMT_8888 | XE_FMT_BGRA`, or tiled textures). Black sprites with
-   correct shapes mean the brightness/normal trick isn't working: set
-   `lightDirection` to `(1,1,1,0)` and `normal` to `(b,0,0)` → still `b`.
-4. **Transparency.** Sprites with opaque black boxes mean blending isn't
-   enabled; check the `Xe_SetBlendControl` call order relative to
-   `Xe_InvalidateState`.
-5. **Controller.** If the stick is inverted, remove the negation on
-   `pad->ly`.
-6. **Speed.** Watch the HUD clock against a stopwatch; 60 Hz is assumed.
-   If the game runs slow, start with the O(n²) enemy separation in
-   `enemy.c` (switch to a grid) and the per-frame vertex buffer lock.
+Controls: Start/A begins; d-pad or stick picks character, left/right
+switches Mad Forest / Inlaid Library, A confirms. In game: stick or d-pad
+to move; level-up choices with up/down + A. The guide button returns to
+the dashboard as usual.
 
-Known limitations of this first backend: colour tints show as brightness,
-per-sprite alpha fades are dropped (sprites below alpha 64 vanish instead of
-fading), no audio. All three go away once a 2D Xenos shader with a COLOR
-input is compiled (needs the XNA shader compiler, see the libxenon cube
-example README) and a mixer is added.
+Optional for Aurora: add `nxeart` (a 64×64 PNG) next to `default.xex` for
+an icon, and a title in Aurora's details. Don't use the real game's art.
+
+---
+
+## 7. First-boot checklist
+
+Nothing has run on hardware yet. Confirm these in order and report:
+
+1. **It boots and the pack loads.** A black screen that returns to the
+   dashboard means `vs_plat_init` or the pack read failed; check the
+   folder layout in §5. (Debug output goes to `OutputDebugString`; without a
+   devkit you won't see it, so a missing-pack check will be added as an
+   on-screen message once the first build works.)
+2. **Picture orientation and size.** The 810×456 game area should be
+   integer-scaled and centred. Upside down → flip the `1.0 - y` term in
+   `VS_SRC`.
+3. **Colours.** Swapped channels (blue Antonio) → the texture format; try
+   tiled `D3DFMT_A8R8G8B8` with `XGTileTextureLevel`, or `D3DFMT_LIN_A8B8G8R8`.
+4. **Transparency.** Black boxes around sprites → `D3DRS_ALPHABLENDENABLE`
+   isn't taking; make sure it is set after `BeginScene`.
+5. **Controller.** Inverted stick → remove the negation on `ly`.
+6. **Speed.** HUD clock vs a stopwatch; it should be 60 Hz.
 
 ---
 
@@ -242,12 +197,12 @@ example README) and a mixer is added.
 
 - New patcher version → rebuild `vsdata.vspack` (the engine refuses packs
   whose table layout differs: "table … layout mismatch").
-- New engine → rebuild `vsdemake.elf32`, copy over the old one.
-- The pack and the ELF are independent; you only need to redo the one that
-  changed.
+- New engine → rebuild `default.xex`, copy it over.
 
-## 9. Packaging as XEX/GOD (not done)
+## 9. Fallback: libxenon / XeLL
 
-A libxenon ELF runs from XeLL, not from the dashboard. Wrapping it for
-dashboard launch (XEX or GOD container) is not researched yet; see
-`notes/toolchain.md` §Packaging. Until then XeLL is the launcher.
+Without the XDK the only route is the bare-metal libxenon ELF booted from
+XeLL. `engine/xenon/Makefile` and `notes/toolchain.md` cover it (free60
+toolchain build from source, `vsdemake.elf32` on USB, boot into XeLL). That
+backend has no colour tint, no alpha fades and no audio until a Xenos
+shader is compiled for it.

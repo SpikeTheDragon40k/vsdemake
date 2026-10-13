@@ -1,5 +1,24 @@
 # Xbox 360 toolchain and port notes
 
+**Decision 2026-10-13:** the console target is the Microsoft XDK
+(`engine/src/platform/xdk/vs_platform_xdk.cpp`, `engine/xdk/`), producing a
+`default.xex` for Aurora/XeXMenu. The libxenon notes below stay as the
+fallback for people without the XDK. See `docs/XBOX360_GUIDE.md`.
+
+## XDK backend assumptions (verify on first build)
+
+- Direct3D 9-style API from `xtl.h`: `Direct3DCreate9`, `CreateDevice`
+  with a 1280×720 A8R8G8B8 back buffer, `D3DPRESENT_INTERVAL_ONE`.
+- Shaders compiled at run time with `D3DXCompileShader` (vs_3_0/ps_3_0);
+  vertex = POSITION float3 (framebuffer px), COLOR D3DCOLOR, TEXCOORD float2.
+- Textures `D3DFMT_LIN_A8R8G8B8`, pool DEFAULT, rows copied with the
+  locked pitch; the pack's big-endian ARGB words are the native layout.
+- `DrawPrimitiveUP` per texture batch; `Clear`/`BeginScene`/`EndScene`/`Present`.
+- `XInputGetState(0)`; `GetTickCount`/`Sleep`; `fopen` on `game:\\`.
+- Entry point `int main(void)` (no argv on the console); the core is compiled as C++
+  (`vs_compat.h`).
+
+
 ## Toolchain (free60)
 
 Source: https://github.com/Free60Project/libxenon (BSD; the makefile

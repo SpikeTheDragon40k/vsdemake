@@ -49,11 +49,11 @@ git-ignored). Recon was redone and written to `notes/depot-report.md`.
 - Enemy explosions (SelfDestruct `MakeExplosion`) not implemented.
 - The level-up/chest/menu UI uses our placeholder font; the original's
   nine-slice panels are not drawn.
-- Xbox 360 backend: written but **never compiled or run**
-  (`engine/src/platform/xenon`, `engine/xenon/Makefile`,
-  `notes/toolchain.md`). It passes a host syntax check against the real
-  libxenon headers. Uses the cube example's shaders: brightness-only tint,
-  no per-sprite alpha, until a 2D shader is compiled for Xenos.
+- Xbox 360: two backends, both **never compiled or run on hardware**.
+  The plan is the XDK one (`platform/xdk`, `engine/xdk/*.sln`, real
+  tint/alpha shaders, Aurora/XeXMenu-launchable `default.xex`; the core
+  compiles as C++ and passes a g++ -std=c++03 syntax check). The libxenon
+  one (`platform/xenon`) is the fallback for people without the XDK.
 - A real window was never opened here (no display); headless path only.
 - Balance check: scripted strafing dies in 30–70 s; a human kiting should
   do far better, but compare against the real game early.

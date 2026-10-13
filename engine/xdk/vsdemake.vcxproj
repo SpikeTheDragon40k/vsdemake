@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Xbox 360 XDK project (Visual Studio 2010 with the XDK integration).
+     The core is C99; it is compiled as C++ here (CompileAs=CompileAsCpp)
+     because VC++ 2010 has no C99 mode. If this file does not load in your
+     XDK version, create "Xbox 360 > Console Application" from the wizard and
+     add the same sources/settings by hand (see docs/XBOX360_GUIDE.md). -->
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Xbox 360">
+      <Configuration>Debug</Configuration>
+      <Platform>Xbox 360</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Xbox 360">
+      <Configuration>Release</Configuration>
+      <Platform>Xbox 360</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{7C3E3F30-5A5B-4D1C-9C2E-2B6A1D5C9E01}</ProjectGuid>
+    <RootNamespace>vsdemake</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(Configuration)\</IntDir>
+    <TargetName>default</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalIncludeDirectories>..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_XBOX;VS_XDK=1;VS_BIG_ENDIAN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <WarningLevel>Level3</WarningLevel>
+      <FloatingPointModel>Fast</FloatingPointModel>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>xapilib.lib;d3d9.lib;d3dx9.lib;xgraphics.lib;xboxkrnl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)default.exe</OutputFile>
+    </Link>
+    <ImageXex>
+      <OutputFile>$(OutDir)default.xex</OutputFile>
+    </ImageXex>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>xapilibd.lib;d3d9d.lib;d3dx9d.lib;xgraphicsd.lib;xboxkrnl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\core\vs_pack.c" />
+    <ClCompile Include="..\src\core\vs_rng.c" />
+    <ClCompile Include="..\src\core\vs_text.c" />
+    <ClCompile Include="..\src\game\game.c" />
+    <ClCompile Include="..\src\game\timer.c" />
+    <ClCompile Include="..\src\game\player.c" />
+    <ClCompile Include="..\src\game\enemy.c" />
+    <ClCompile Include="..\src\game\stage.c" />
+    <ClCompile Include="..\src\game\render.c" />
+    <ClCompile Include="..\src\game\weapon.c" />
+    <ClCompile Include="..\src\game\pickup.c" />
+    <ClCompile Include="..\src\game\levelup.c" />
+    <ClCompile Include="..\src\game\tilemap.c" />
+    <ClCompile Include="..\src\game\fx.c" />
+    <ClCompile Include="..\src\main.c" />
+    <ClCompile Include="..\src\platform\xdk\vs_platform_xdk.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\core\vs_compat.h" />
+    <ClInclude Include="..\src\core\vs_pack.h" />
+    <ClInclude Include="..\src\core\vs_platform.h" />
+    <ClInclude Include="..\src\core\vs_rng.h" />
+    <ClInclude Include="..\src\core\vs_text.h" />
+    <ClInclude Include="..\src\core\vs_tables.h" />
+    <ClInclude Include="..\src\core\vs_enums.h" />
+    <ClInclude Include="..\src\game\game.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

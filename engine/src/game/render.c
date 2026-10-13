@@ -54,7 +54,7 @@ void vs_render_sprite(vs_game *g, int tex, const vs_frame *f, float x, float y, 
 }
 
 static int cmp(const void *a, const void *b) {
-    const queued *x = a, *y = b;
+    const queued *x = (const queued *)a, *y = (const queued *)b;
     if (x->depth < y->depth) return -1;
     if (x->depth > y->depth) return 1;
     return x->order < y->order ? -1 : x->order > y->order;
