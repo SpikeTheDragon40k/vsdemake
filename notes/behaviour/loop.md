@@ -18,6 +18,14 @@ For the demake: fixed 60 Hz step, `delta = 1000/60` ms, and a timer list
 keyed in ms. Phaser timers fire when `elapsed >= delay` on the frame that
 crosses it, so with a fixed step every timer fires on a frame boundary.
 
+## Render size (line 11446, 11509)
+
+Game scenes run at **456 px high** (landscape), width = 456 × window aspect
+(≈ 811 px at 16:9), then scaled to the window (Phaser FIT). Portrait builds
+use 342 wide. Menus use a separate 1366-wide resolution. `PixelScale = 1`,
+so one art pixel is one logical pixel; "W, H" in these notes are this
+logical size.
+
 ## Per-frame order (scene `update`, line 6956)
 
 1. `maxSpeed = PlayerPxSpeed × player.moveSpeed` (PlayerPxSpeed is the stage-

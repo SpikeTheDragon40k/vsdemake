@@ -7,13 +7,15 @@ const { openSource, verify, BUNDLE, LocateError } = require('../src/locate');
 const { deobfuscate, DeobfuscateError } = require('../src/deobfuscate');
 const { extract, ExtractError } = require('../src/extract');
 const { validateAll } = require('../src/validate');
+const { buildPack } = require('../src/pack');
 
 const USAGE = `usage:
   vspatch verify  <game>                 check the files against known builds
   vspatch deob    <game> [--out FILE]    write the de-obfuscated bundle (debug)
   vspatch extract <game> [--out DIR] [--allow-unknown] [--debug]
                                          write game tables as JSON
-  vspatch build   <game> --out FILE      (planned) write the data pack
+  vspatch build   <game> --out FILE [--verbose] [--allow-unknown]
+                                         write the data pack
 
 <game> is the folder Steam downloaded (…/depot_1794681), or its resources/app
 folder, or resources/app.asar. Nothing is written into it.`;
@@ -96,9 +98,23 @@ function main(argv) {
       console.error(`extracted ${Object.keys(r.data).length} tables → ${outDir}` + (errors.length ? ` with ${errors.length} schema error(s)` : ''));
       return errors.length ? 1 : 0;
     }
-    case 'build':
-      console.error('build: not implemented yet (Phase 4)');
-      return 2;
+    case 'build': {
+      if (!args.flags.out) { console.error('build: --out FILE is required'); return 2; }
+      const { code } = loadBundle(source, args.flags);
+      const deob = deobfuscate(code);
+      const r = extract(deob.code);
+      for (const w of r.warnings) console.error('  warn: ' + w);
+      const errors = validateAll(r.data);
+      for (const e of errors) console.error('  schema: ' + e);
+      if (errors.length) { console.error('build: extracted data does not match the schemas; aborting'); return 1; }
+      const { buffer, entries } = buildPack(source, r, args.flags.verbose ? (m) => console.error('  ' + m) : () => {});
+      fs.mkdirSync(path.dirname(path.resolve(args.flags.out)), { recursive: true });
+      fs.writeFileSync(args.flags.out, buffer);
+      const kinds = entries.reduce((a, e) => ((a[e.kind] = (a[e.kind] || 0) + 1), a), {});
+      console.error(`wrote ${args.flags.out}: ${(buffer.length / 1048576).toFixed(1)} MB, ${entries.length} entries (${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(', ')})`);
+      console.error('This file is made from your copy of the game. Keep it to yourself.');
+      return 0;
+    }
     default:
       console.error(USAGE);
       return 2;

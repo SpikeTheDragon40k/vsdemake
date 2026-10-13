@@ -3,17 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "description": "Converts a user's own copy of Vampire Survivors (Steam, v0.2.10) into a data pack for the vsdemake engine",
-  "bin": { "vspatch": "bin/vspatch.js" },
+  "bin": {
+    "vspatch": "bin/vspatch.js"
+  },
   "scripts": {
     "test": "node --test test/*.test.js",
     "gen-schema": "node tools/gen-schema.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT",
   "dependencies": {
     "@electron/asar": "^3.2.10",
     "acorn": "^8.12.1",
     "acorn-walk": "^8.3.4",
-    "ajv": "^8.17.1"
+    "ajv": "^8.17.1",
+    "pngjs": "^7.0.0"
   }
 }
