@@ -233,16 +233,37 @@ void vs_game_render(vs_game *g) {
         vs_render_sprite(g, g->tex_enemies, &f, e->x, e->y, 0.5f, 1.0f, e->scale, e->dir_x > 0, 0, angle, tint, (uint8_t)(e->alpha * 255), e->y - p->y);
     }
 
-    /* bullets (depth just above the player) */
+    /* garlic ring (weapon visual) and bullets */
+    for (int i = 0; i < VS_MAX_WEAPONS; i++) {
+        vs_weapon *w = &g->weapons[i];
+        if (!w->active || w->type != VS_WEAPONS_GARLIC) continue;
+        vs_frame f;
+        if (vs_atlas_find(&g->atl_vfx, "Rings3.png", &f) == 0)
+            vs_render_sprite(g, g->tex_vfx, &f, p->x, p->y, 0.5f, 0.5f, 2.0f * vs_weapon_p_area(g, w), 0, 0, fmodf(g->tick * VS_TICK_MS / 6000.0f * 360.0f, 360.0f), 0xffffff, 60, -g->logical_h * 0.5f);
+    }
     for (int i = 0; i < VS_MAX_BULLETS; i++) {
         vs_bullet *b = &g->bullets[i];
-        if (!b->active) continue;
+        if (!b->active || !b->visible) continue;
+        const char *fname; float ox = 0.5f, oy = 0.5f, depth = 1; int tex = g->tex_vfx; const vs_atlas *atl = &g->atl_vfx;
+        switch (b->type) {
+        case VS_WEAPONS_WHIP: fname = "slash.png"; break;
+        case VS_WEAPONS_MAGIC_MISSILE: case VS_WEAPONS_HOLY_MISSILE: fname = "ProjectileHoly1.png"; break;
+        case VS_WEAPONS_KNIFE: case VS_WEAPONS_THOUSAND: fname = "ProjectileKnife3.png"; break;
+        case VS_WEAPONS_AXE: fname = "ProjectileAxe1.png"; break;
+        case VS_WEAPONS_FIREBALL: fname = "ProjectileFireball2.png"; break;
+        case VS_WEAPONS_CROSS: fname = "ProjectileCross2.png"; depth = 2.0f * g->logical_h; break;
+        case VS_WEAPONS_HOLYBOOK: fname = "HolyBook.png"; break;
+        case VS_WEAPONS_VESPERS: fname = "Page2.png"; break;
+        case VS_WEAPONS_HOLYWATER: fname = b->state == 0 ? "HolyWater.png" : "circle.png"; tex = b->state == 0 ? g->tex_items : g->tex_vfx; atl = b->state == 0 ? &g->atl_items : &g->atl_vfx; depth = b->state == 0 ? g->logical_h : -0.5f * g->logical_h; break;
+        default: fname = "ProjectileHoly1.png"; break;
+        }
         vs_frame f;
-        const char *fname = b->type == VS_WEAPONS_WHIP ? "slash.png" : "ProjectileHoly1.png";
-        if (vs_atlas_find(&g->atl_vfx, fname, &f) != 0) continue;
+        if (vs_atlas_find(atl, fname, &f) != 0) continue;
         float scale = b->scale;
-        if (b->type == VS_WEAPONS_WHIP && b->age_ms < 100) scale *= b->age_ms / 100.0f; /* scale-in tween */
-        vs_render_sprite(g, g->tex_vfx, &f, b->x, b->y, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, 0xffffff, b->alpha, 1);
+        uint32_t tint = 0xffffff; uint8_t alpha = b->alpha;
+        if (b->type == VS_WEAPONS_WHIP && b->age_ms < 100) scale *= b->age_ms / 100.0f;
+        if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) { scale = b->body_r * 2 / 256.0f; tint = 0x4040ff; alpha = 60; }
+        vs_render_sprite(g, tex, &f, b->x, b->y, ox, oy, scale, b->flip_x, b->flip_y, b->angle, tint, alpha, depth);
     }
 
     /* player at depth 0 */

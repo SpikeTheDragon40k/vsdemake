@@ -103,6 +103,9 @@ typedef struct {
     /* passive bonuses (reset and reapplied per level) */
     float b_power, b_area, b_speed, b_cooldown, b_amount, b_maxHp, b_moveSpeed, b_growth, b_magnet, b_luck, b_armor, b_greed, b_regen, b_duration;
     float stats_damage, stats_lifetime;
+    /* Santa Water: 12 angle slots and shuffled radii */
+    float hw_radii[12]; int hw_angle_i, hw_radius_i;
+    int target_uid;         /* Fire Wand: random target picked at Fire */
 } vs_weapon;
 
 typedef struct {
@@ -121,6 +124,12 @@ typedef struct {
     float body_w, body_h;   /* else rectangle centred on (x, y) */
     uint32_t hit[VS_BULLET_HITS];
     int hit_count;
+    float hit_reset_ms;     /* HitboxTimer accumulator */
+    int state;              /* per-type phase (e.g. Santa Water flying/broken) */
+    float ax, ay, bx, by;   /* per-type: tween start/end, initial velocity */
+    float f0, f1;           /* per-type scalars (accel, orbit angle, …) */
+    int cullable;
+    int visible;
 } vs_bullet;
 
 /* ---- pickups (notes/behaviour/pickups.md) */
