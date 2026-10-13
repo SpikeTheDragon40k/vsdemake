@@ -54,5 +54,24 @@ Phase 2 (same session, later): wrote `notes/behaviour/` `loop.md`,
 sections for the other 25 weapons, and the items marked **verify** in
 `pickups.md`.
 
-Next: `treasure.md`, then Phase 3 (SDL2 skeleton; needs `libsdl2-dev` or a
-vendored SDL2 in this container).
+Phases 3–4 (same session, later):
+
+- `notes/pack-format.md` written; `vspatch build` produces a 27 MB
+  `vsdata.vspack` (19 TEX, 10 ATL, 2 MAP, 1 FNT, 12 ENM, 12 TAB). Audio
+  (`SND`) is not in the pack yet: Node has no built-in OGG decoder; pick a
+  pure-JS/WASM Vorbis decoder with a permissive licence before adding it.
+- Table layouts are declared once in `patcher/src/tables.js`; the C structs
+  (`engine/src/core/vs_tables.h`) and enum ids (`vs_enums.h`) are generated
+  from it with `node patcher/tools/gen-c-header.js` and committed. The
+  engine checks the field names at load.
+- `libsdl2-dev` installed in the container (`apt-get update` was needed
+  first). Engine builds with CMake; `test_pack` passes; the headless run
+  (`--headless --frames N --input RRDD --screenshot x.bmp`) shows Antonio
+  walking on `bg_forest` at the right speed (82.5 px/s). A real window was
+  not tested (no display here).
+- `notes/behaviour/stage-map.md` and `treasure.md` added.
+
+Next: Phase 5 gameplay on PC in the guide's order: player stats → enemy
+pool/chase/knockback → spawner with minute rows → Whip and Magic Wand →
+gems/magnet/XP/level-up screen. Then the tilemap renderer and collision
+(both shipped stages use the tileset).

@@ -81,8 +81,10 @@ The weapon class adds nothing; all behaviour is the bullet.
   handling: unlimited pierce). `hitsWalls` false in data, so it ignores walls.
 - Sound: whip, detune −100 × index, volume 1.7, rate 2.
 - Stats per level from the table (`weapons.json` WHIP): interval 1350,
-  repeatInterval 100, power 10, area 1, amount 1, knockback 0.5 at level 1;
-  later levels add power/area/amount (data).
+  repeatInterval 100, power 1, area 1, speed 1, amount 1, poolLimit 10,
+  `hitsWalls` false at level 1; later levels add amount/power/area (data).
+  The hitbox is the sprite's rectangle (147×22 source pixels × `PArea`),
+  centred on the spawn point (origin 0.5, 0.5).
 
 ## Magic Wand (MAGIC_MISSILE; weapon 5491, bullet 3109)
 

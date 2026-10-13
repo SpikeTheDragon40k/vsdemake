@@ -1,10 +1,11 @@
 /* Entry point: fixed 60 Hz simulation, render every frame.
  *
- *   vsdemake-sdl2 <vsdata.vspack> [--scale N] [--headless --frames N --screenshot out.bmp]
+ *   vsdemake-sdl2 <vsdata.vspack> [--scale N] [--headless --frames N --screenshot out.bmp] [--auto-pick]
  *                                 [--input "RRRRDDLL"] [--seed N]
  *
- * --input feeds one direction per tick (U/D/L/R, '.' = none) for headless
- * runs and replays. */
+ * --input is a scripted pad for headless runs and replays: tokens like
+ * "R120 D120 L120 U120" (direction letters U/D/L/R, '.' = idle, optional
+ * tick count), looped when exhausted. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,13 +17,39 @@
 #define LOGICAL_W 810
 #define LOGICAL_H 456
 
+/* Reads the next token of the input script; returns the pad buttons for one tick. */
+static uint32_t scripted_buttons(const char *script, size_t *pos, int *left) {
+    static uint32_t current;
+    if (*left <= 0) {
+        for (int wrapped = 0; wrapped < 2; wrapped++) {
+            while (script[*pos] == ' ') (*pos)++;
+            if (!script[*pos]) { *pos = 0; continue; }
+            current = 0;
+            for (; script[*pos] && script[*pos] != ' ' && (script[*pos] < '0' || script[*pos] > '9'); (*pos)++) {
+                char c = script[*pos];
+                if (c == 'U') current |= VS_BTN_UP;
+                if (c == 'D') current |= VS_BTN_DOWN;
+                if (c == 'L') current |= VS_BTN_LEFT;
+                if (c == 'R') current |= VS_BTN_RIGHT;
+                if (c == 'A') current |= VS_BTN_A;
+            }
+            *left = script[*pos] >= '0' && script[*pos] <= '9' ? (int)strtol(script + *pos, NULL, 10) : 1;
+            while (script[*pos] >= '0' && script[*pos] <= '9') (*pos)++;
+            break;
+        }
+    }
+    (*left)--;
+    return current;
+}
+
 int main(int argc, char **argv) {
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL;
-    int scale = 2, headless = 0, frames = -1;
+    int scale = 2, headless = 0, frames = -1, auto_pick = 0;
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) scale = atoi(argv[++i]);
         else if (strcmp(argv[i], "--headless") == 0) headless = 1;
+        else if (strcmp(argv[i], "--auto-pick") == 0) auto_pick = 1;
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) frames = atoi(argv[++i]);
         else if (strcmp(argv[i], "--screenshot") == 0 && i + 1 < argc) screenshot = argv[++i];
         else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) input = argv[++i];
@@ -44,12 +71,15 @@ int main(int argc, char **argv) {
     vs_plat_log("pack: %u entries, manifest %llu", pack.count, (unsigned long long)pack.manifest);
 
     vs_game game;
+    memset(&game, 0, sizeof game);
+    game.auto_pick = auto_pick || headless;
     if (vs_game_init(&game, &pack, LOGICAL_W, LOGICAL_H, seed) != 0) { fprintf(stderr, "game init failed\n"); return 1; }
 
     const float tick_ms = VS_TICK_MS;
     uint64_t prev = vs_plat_time_ms();
     float acc = 0;
     size_t input_pos = 0;
+    int input_left = 0;
     int rendered = 0;
     for (;;) {
         vs_pad pad = {0};
@@ -66,14 +96,7 @@ int main(int argc, char **argv) {
             while (acc >= tick_ms) { acc -= tick_ms; steps++; }
         }
         for (int s = 0; s < steps; s++) {
-            if (input) {
-                char c = input[input_pos] ? input[input_pos++] : '.';
-                pad.buttons = 0;
-                if (c == 'U') pad.buttons |= VS_BTN_UP;
-                if (c == 'D') pad.buttons |= VS_BTN_DOWN;
-                if (c == 'L') pad.buttons |= VS_BTN_LEFT;
-                if (c == 'R') pad.buttons |= VS_BTN_RIGHT;
-            }
+            if (input) pad.buttons = scripted_buttons(input, &input_pos, &input_left);
             vs_game_update(&game, &pad);
         }
         vs_game_render(&game);
@@ -85,7 +108,7 @@ int main(int argc, char **argv) {
         if (vs_plat_screenshot(screenshot) == 0) vs_plat_log("wrote %s", screenshot);
         else vs_plat_log("screenshot failed");
     }
-    vs_plat_log("ticks %u, player at (%.1f, %.1f)", game.tick, game.player.x, game.player.y);
+    vs_plat_log("ticks %u, %02d:%02d, player at (%.1f, %.1f) hp %.0f lv %d kills %u gold %.0f, state hash %08x%s", game.tick, game.survived_seconds / 60, game.survived_seconds % 60, game.player.x, game.player.y, game.player.hp, game.player.level, game.kills, game.coins, vs_game_state_hash(&game), game.game_over ? " GAME OVER" : "");
     vs_game_shutdown(&game);
     vs_plat_free(data);
     vs_plat_shutdown();

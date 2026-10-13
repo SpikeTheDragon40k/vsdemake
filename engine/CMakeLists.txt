@@ -12,7 +12,16 @@ set(VS_PLATFORM "sdl2" CACHE STRING "Platform backend: sdl2 or xenon")
 set(VS_CORE_SOURCES
   src/core/vs_pack.c
   src/core/vs_rng.c
+  src/core/vs_text.c
   src/game/game.c
+  src/game/timer.c
+  src/game/player.c
+  src/game/enemy.c
+  src/game/stage.c
+  src/game/render.c
+  src/game/weapon.c
+  src/game/pickup.c
+  src/game/levelup.c
   src/main.c)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")

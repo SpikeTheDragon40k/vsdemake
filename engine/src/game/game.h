@@ -1,4 +1,5 @@
-/* Game state and simulation. Fixed 60 Hz step; rendering reads state only. */
+/* Game state and simulation. Fixed 60 Hz step; rendering reads state only.
+ * All pools are fixed-size arrays: no allocation after init. */
 #ifndef VS_GAME_H
 #define VS_GAME_H
 
@@ -7,40 +8,299 @@
 #include "core/vs_pack.h"
 #include "core/vs_platform.h"
 #include "core/vs_rng.h"
+#include "core/vs_tables.h"
 
 #define VS_TICK_MS (1000.0f / 60.0f)
 
+#define VS_MAX_ENEMIES 1024
+#define VS_MAX_BULLETS 512
+#define VS_MAX_PICKUPS 1024
+#define VS_MAX_WEAPONS 16
+#define VS_MAX_TIMERS 128
+#define VS_MAX_STAGE_ROWS 32
+#define VS_MAX_POOLS 32
+#define VS_MAX_TEXTURES 32
+#define VS_MAX_SPRITES 4096
+#define VS_MAX_GEMS 400
+#define VS_BULLET_HITS 64
+
+/* ---- timers (ms, Phaser-like: elapsed accumulates, loops keep the remainder) */
+typedef struct {
+    int active;
+    float elapsed, delay;
+    int repeat;      /* remaining repeats; -1 = loop forever */
+    int kind;        /* VS_TIMER_* */
+    int32_t a, b;    /* payload */
+} vs_timer;
+enum { VS_TIMER_NONE = 0, VS_TIMER_TICKER, VS_TIMER_SPAWN, VS_TIMER_DESTRUCTIBLE, VS_TIMER_REGEN, VS_TIMER_WEAPON_FIRE, VS_TIMER_WEAPON_REPEAT, VS_TIMER_EVENT, VS_TIMER_EVENT_END, VS_TIMER_TIMESTOP, VS_TIMER_PLAYER_BLINK, VS_TIMER_SELFDESTRUCT };
+
+/* ---- player */
 typedef struct {
     float x, y, vx, vy;
+    float last_dir_x, last_dir_y;   /* lastFacedDirection */
     int facing_left;
-    float anim_t;         /* ms into the walk animation */
+    float anim_t;
     int walking_frames;
-    char sprite_prefix[40]; /* e.g. "Antonio_" */
-    float move_speed;     /* stat multiplier */
+    char sprite_prefix[40];
     int character_enum;
+
+    /* stats (notes/behaviour/player.md) */
+    float hp, maxHp, power, area, speed, cooldown, amount, moveSpeed, growth, duration, luck, greed, armor, regen;
+    int shields;
+    float shieldInvulTime;
+    int level;
+    float xp;
+    int startingWeapon;
+    float magnet_bonus;     /* from the character row, applied to the magnet */
+
+    float invul_ms;         /* IsInvul while > 0 */
+    int receiving_damage;   /* blink window */
+    int is_dead;
+    float body_r, body_ox, body_oy;   /* circle collider relative to (x, y) */
 } vs_player;
 
+/* ---- enemies */
+typedef struct {
+    int active, is_dead, dying;
+    uint32_t uid;
+    int type;               /* enemy enum */
+    float x, y, vx, vy;
+    float dir_x, dir_y;     /* _currentDirection */
+    float hp, maxHp, data_maxHp, power, knockback, maxKnockback, deathKB, damageKB, xp, speed, default_speed;
+    float scale, alpha;
+    float res_Freeze, res_Rosary, res_Debuffs;
+    int hp_x_level, fixed_direction, medusa, self_destruct, pass_through_walls;
+    float medusa_elapsed;
+    int sd_triggered;
+    float more_x, more_y;
+    int cullable, teleport_on_cull, time_stopped, receiving_damage;
+    float blink_ms;         /* > 0 while blinking */
+    int treasure_row;       /* stage row index whose treasure is attached, or -1 */
+    int from_event;         /* counted in eventSpawned */
+    int32_t event_token;
+    /* sprite */
+    char frame_prefix[32];  /* e.g. "Bat1_" */
+    int frame_end;          /* death frames 0..end */
+    int idle_frames;        /* idle frames 1..n */
+    float anim_t;
+    int anim_frame_start;
+    float body_r, body_ox, body_oy; /* collider relative to (x, y) (origin 0.5, 1) */
+    float src_w, src_h;
+    int wobble;             /* which of the 10 shared wobble phases */
+    uint32_t hit_tint;      /* current tint while blinking */
+} vs_enemy;
+
+/* ---- weapons and bullets (notes/behaviour/weapons.md) */
+typedef struct {
+    int active;
+    int type;               /* weapon enum */
+    int level;
+    int is_power_up;
+    /* accumulated stats (the weapon object's fields) */
+    float interval, repeatInterval, power, area, speed, amount, duration, critChance, critMul, hitBoxDelay, knockback, chance, shieldInvulTime, volume;
+    float penetrating;
+    int charges, hitVFX, hitsWalls, intervalDependsOnDuration, poolLimit, bounces;
+    /* passive bonuses (reset and reapplied per level) */
+    float b_power, b_area, b_speed, b_cooldown, b_amount, b_maxHp, b_moveSpeed, b_growth, b_magnet, b_luck, b_armor, b_greed, b_regen, b_duration;
+    float stats_damage, stats_lifetime;
+} vs_weapon;
+
+typedef struct {
+    int active;
+    int weapon;             /* slot in vs_game.weapons */
+    int type;               /* weapon enum */
+    int index;              /* indexInWeapon */
+    float x, y, vx, vy;
+    float age_ms;
+    float penetrating;
+    float scale;
+    int flip_x, flip_y;
+    float angle;
+    uint8_t alpha;
+    float body_r;           /* circle if > 0 */
+    float body_w, body_h;   /* else rectangle centred on (x, y) */
+    uint32_t hit[VS_BULLET_HITS];
+    int hit_count;
+} vs_bullet;
+
+/* ---- pickups (notes/behaviour/pickups.md) */
+typedef struct {
+    int active;
+    int type;               /* pickup enum */
+    float x, y, vx, vy;
+    float value;
+    int go_to_player, stationary;
+    float speed;
+    float t, t_from, tween_ms;  /* "time" tween: t_from → 1 over 500 ms */
+    int treasure_level;     /* chests */
+    int treasure_row;
+} vs_pickup;
+
+typedef struct { float radius, percentage; } vs_magnet;
+
+/* ---- level-up factory (notes/behaviour/levelup.md) */
+typedef struct {
+    int store[512]; int store_count;        /* WeaponStore multiset */
+    uint8_t excluded[64];                   /* ExcludedWeapons by enum */
+    int special[16]; int special_count;     /* SpecialWeapons */
+    int weighted_type[64]; float weighted_w[64]; int weighted_count; float acc;
+    float current_xp_factor, previous_xp_factor;
+    int pending;            /* level-up screen open */
+    int options[4]; int option_count; int selected;
+    int items_mode;         /* store empty: offering items */
+    int item_options[2];
+} vs_levelup;
+
+/* ---- stage */
+typedef struct {
+    int type;               /* enemy enum */
+    int enabled;
+    int is_boss;
+} vs_pool;
+
+typedef struct {
+    vs_stages_rec rec;
+    int row_index;          /* record index in the table */
+} vs_stage_row;
+
+typedef struct {
+    int stage_enum;
+    vs_table table, events_table, treasure_table;
+    vs_stage_row rows[VS_MAX_STAGE_ROWS];
+    int row_count;
+    int minute;
+    float frequency; int minimum, maximum, startingSpawns, pause;
+    float minimumMultiplier;
+    float destructibleFreq, destructibleChance, destructibleChanceMax; int maxDestructibles, destructibleType;
+    int enemies[32], enemy_count;
+    int bosses[8], boss_count;
+    int has_treasure; vs_stages_treasure_rec treasure;
+    int treasure_attached;
+    int spawn_type; int has_tileset; int day_night;
+    vs_pool pools[VS_MAX_POOLS]; int pool_count;
+    float rect_outer_x, rect_outer_y, rect_outer_w, rect_outer_h;
+    float rect_inner_x, rect_inner_y, rect_inner_w, rect_inner_h;
+    int event_spawned;      /* enemies alive from events */
+    int spawner_count; float spawner_y[64];
+    float start_x, start_y;
+} vs_stage;
+
+/* ---- game */
 typedef struct {
     const vs_pack *pack;
     vs_rng rng;
     uint32_t tick;
-    float survived_ms;
+    int update_tick;        /* Core.updateTick (mod 4) */
+    int survived_seconds;
+    int logical_w, logical_h;
 
-    /* constants */
-    float player_px_speed, enemy_speed, projectile_speed;
+    float base_player_px_speed, base_enemy_speed, base_projectile_speed;
+    float player_px_speed, enemy_speed, projectile_speed, gold_multiplier, enemy_health_multiplier;
 
     vs_player player;
+    vs_magnet magnet;
+    vs_enemy enemies[VS_MAX_ENEMIES];
+    int enemy_count;
+    uint32_t next_uid;
+    int cull_index;
+    vs_weapon weapons[VS_MAX_WEAPONS];
+    vs_bullet bullets[VS_MAX_BULLETS];
+    vs_pickup pickups[VS_MAX_PICKUPS];
+    vs_levelup levelup;
+    vs_stage stage;
+    vs_timer timers[VS_MAX_TIMERS];
+    int time_stopped;
+    int game_over;
+    uint32_t kills;
+    float coins;
+    int auto_pick;          /* headless: take the first level-up option */
+    uint32_t prev_buttons;
+
+    vs_table enemies_table, characters_table, hitvfx_table, weapons_table, pickups_table;
 
     /* render resources */
-    vs_atlas chars_atlas;
-    vs_texture *chars_tex;
-    vs_texture *bg_tex;
-    int logical_w, logical_h;
+    vs_texture *textures[VS_MAX_TEXTURES];
+    int texture_count;
+    int tex_characters, tex_enemies, tex_bg, tex_items, tex_vfx;
+    vs_atlas atl_characters, atl_enemies, atl_items, atl_vfx;
 } vs_game;
 
 int vs_game_init(vs_game *g, const vs_pack *pack, int logical_w, int logical_h, uint64_t seed);
 void vs_game_update(vs_game *g, const vs_pad *pad);
-void vs_game_render(const vs_game *g);
+void vs_game_render(vs_game *g);
 void vs_game_shutdown(vs_game *g);
+uint32_t vs_game_state_hash(const vs_game *g);
+
+/* timers */
+vs_timer *vs_timer_add(vs_game *g, int kind, float delay_ms, int repeat, int32_t a, int32_t b);
+void vs_timer_cancel(vs_game *g, int kind, int32_t a);
+void vs_timers_step(vs_game *g);
+
+/* player */
+int vs_player_init(vs_game *g, int character_enum);
+void vs_player_update(vs_game *g, const vs_pad *pad);
+int vs_player_level_up(vs_game *g);   /* returns 1 when the row had a cooldown field */
+void vs_player_get_damaged(vs_game *g, float dmg);
+void vs_player_recover_hp(vs_game *g, float n);
+int vs_player_is_invul(const vs_game *g);
+
+/* enemies */
+vs_enemy *vs_enemy_spawn(vs_game *g, int type, float x, float y, int from_event);
+void vs_enemy_get_damaged(vs_game *g, vs_enemy *e, float dmg, int hit_type, float kb);
+void vs_enemy_die(vs_game *g, vs_enemy *e);
+void vs_enemy_disappear(vs_game *g, vs_enemy *e);
+void vs_enemies_update(vs_game *g);
+void vs_enemies_cull_step(vs_game *g);
+int vs_enemies_permanent(const vs_game *g);
+void vs_enemy_time_stop_all(vs_game *g, int stopped);
+vs_enemy *vs_enemy_closest_to_player(vs_game *g);
+
+/* stage */
+int vs_stage_init(vs_game *g, int stage_enum);
+void vs_stage_check_minute(vs_game *g);
+void vs_stage_spawn_round(vs_game *g);
+void vs_stage_spawn_boss(vs_game *g);
+int vs_stage_event_trigger(vs_game *g, int event_record);
+void vs_stage_event_end(vs_game *g, int32_t token);
+
+/* weapons */
+int vs_weapon_add(vs_game *g, int type, int from_levelup);
+int vs_weapon_find(const vs_game *g, int type);
+int vs_weapon_level_up(vs_game *g, int slot);        /* returns 0 when maxed */
+void vs_weapon_fire(vs_game *g, int slot);
+void vs_weapon_fire_one(vs_game *g, int slot, int index);
+void vs_weapons_reset_timers(vs_game *g);
+void vs_weapons_update(vs_game *g);
+void vs_bullets_update(vs_game *g);
+void vs_bullets_cull(vs_game *g);
+float vs_weapon_p_power(const vs_game *g, const vs_weapon *w);
+float vs_weapon_p_area(const vs_game *g, const vs_weapon *w);
+float vs_weapon_p_interval(const vs_game *g, const vs_weapon *w);
+int vs_weapon_p_amount(const vs_game *g, const vs_weapon *w);
+void vs_weapon_remove(vs_game *g, int type);
+
+/* pickups */
+void vs_pickup_make_gem(vs_game *g, float x, float y, float value);
+vs_pickup *vs_pickup_make(vs_game *g, float x, float y, int type);
+void vs_pickups_update(vs_game *g);      /* slow block (every 4th frame) */
+void vs_pickups_physics(vs_game *g);     /* every frame: move, overlaps */
+void vs_pickups_vacuum_all(vs_game *g);
+
+/* level-up */
+void vs_levelup_init(vs_game *g);
+void vs_levelup_calculate_xp_factor(vs_game *g);
+void vs_levelup_remove_from_store(vs_game *g, int type);
+void vs_levelup_calculate_weights(vs_game *g);
+void vs_levelup_add_late_weapon(vs_game *g, int type);
+void vs_levelup_open(vs_game *g);
+void vs_levelup_choose(vs_game *g, int option);
+void vs_levelup_input(vs_game *g, const vs_pad *pad);
+void vs_level_weapon_up(vs_game *g, int type, int from_levelup);
+
+/* render */
+void vs_render_begin(vs_game *g, float cam_x, float cam_y);
+void vs_render_sprite(vs_game *g, int tex, const vs_frame *f, float x, float y, float ox, float oy, float scale, int flip_x, int flip_y, float angle, uint32_t tint, uint8_t alpha, float depth);
+void vs_render_end(vs_game *g);
+const char *vs_weapon_name(const vs_game *g, int type);
 
 #endif
