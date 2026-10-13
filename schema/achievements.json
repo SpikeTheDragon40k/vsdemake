@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vsdemake:achievements",
+  "title": "Achievements and what they unlock",
+  "type": "object",
+  "minProperties": 1,
+  "propertyNames": {
+    "pattern": "^[A-Za-z0-9_]+$"
+  },
+  "additionalProperties": {
+    "type": "object",
+    "properties": {
+      "description": {
+        "type": "string"
+      },
+      "achieved": {
+        "type": "boolean"
+      },
+      "weaponToUnlock": {
+        "type": "string"
+      },
+      "stageToUnlock": {
+        "type": "string"
+      },
+      "characterToUnlock": {
+        "type": "string"
+      },
+      "hyperToUnlock": {
+        "type": "string"
+      },
+      "goldPrize": {
+        "type": "integer"
+      },
+      "weaponIcon": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "description"
+    ],
+    "additionalProperties": false
+  }
+}

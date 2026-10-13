@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vsdemake:stages",
+  "title": "Stages, one array of minute rows per stage; row 0 also holds the stage header",
+  "type": "object",
+  "minProperties": 1,
+  "propertyNames": {
+    "pattern": "^[A-Z0-9_]+$"
+  },
+  "additionalProperties": {
+    "type": "array",
+    "minItems": 1,
+    "items": {
+      "type": "object",
+      "properties": {
+        "stageName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "uiTexture": {
+          "type": "string"
+        },
+        "uiFrame": {
+          "type": "string"
+        },
+        "texture": {
+          "type": "string"
+        },
+        "frameName": {
+          "type": "string"
+        },
+        "frameNameUnlock": {
+          "type": "string"
+        },
+        "unlocked": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "BGM": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "legacyBGM": {
+          "type": "string"
+        },
+        "tips": {
+          "type": "string"
+        },
+        "hyperTips": {
+          "type": "string"
+        },
+        "mods": {
+          "type": "object",
+          "properties": {
+            "PlayerPxSpeed": {
+              "type": "number"
+            },
+            "EnemySpeed": {
+              "type": "number"
+            },
+            "ProjectileSpeed": {
+              "type": "number"
+            },
+            "GoldMultiplier": {
+              "type": "number"
+            },
+            "EnemyHealth": {
+              "type": "number"
+            },
+            "EnemyMinimumMul": {
+              "type": "number"
+            },
+            "StartingSpawns": {
+              "type": "number"
+            },
+            "BGM_rate": {
+              "type": "number"
+            },
+            "BGM_detune": {
+              "type": "number"
+            },
+            "LuckBonus": {
+              "type": "number"
+            },
+            "unlocked": {
+              "type": "boolean"
+            },
+            "BGM_ignoreModsForNewSoundtrack": {
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "hyper": {
+          "type": "object",
+          "properties": {
+            "PlayerPxSpeed": {
+              "type": "number"
+            },
+            "EnemySpeed": {
+              "type": "number"
+            },
+            "ProjectileSpeed": {
+              "type": "number"
+            },
+            "GoldMultiplier": {
+              "type": "number"
+            },
+            "EnemyHealth": {
+              "type": "number"
+            },
+            "EnemyMinimumMul": {
+              "type": "number"
+            },
+            "StartingSpawns": {
+              "type": "number"
+            },
+            "BGM_rate": {
+              "type": "number"
+            },
+            "BGM_detune": {
+              "type": "number"
+            },
+            "LuckBonus": {
+              "type": "number"
+            },
+            "unlocked": {
+              "type": "boolean"
+            },
+            "BGM_ignoreModsForNewSoundtrack": {
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "tileset": {
+          "type": "object",
+          "properties": {
+            "setKey": {
+              "type": "string"
+            },
+            "setPath": {
+              "type": "string"
+            },
+            "mapKey": {
+              "type": "string"
+            },
+            "mapPath": {
+              "type": "string"
+            },
+            "isTiling": {
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "tilemapTiledJSON": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "tilemapTiledIMG": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "tilemapPos": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "startingSpawns": {
+          "type": "integer"
+        },
+        "destructibleType": {
+          "type": "string"
+        },
+        "destructibleFreq": {
+          "type": "number"
+        },
+        "destructibleChance": {
+          "type": "number"
+        },
+        "destructibleChanceMax": {
+          "type": "number"
+        },
+        "maxDestructibles": {
+          "type": "integer"
+        },
+        "BGTextureName": {
+          "type": "string"
+        },
+        "dayNight": {
+          "type": "boolean"
+        },
+        "spawnType": {
+          "type": "string"
+        },
+        "randomMinutes": {
+          "type": "boolean"
+        },
+        "minute": {
+          "type": "integer"
+        },
+        "minimum": {
+          "type": "integer"
+        },
+        "frequency": {
+          "type": "number"
+        },
+        "enemies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bosses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "treasure": {
+          "type": "object",
+          "properties": {
+            "chances": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "level": {
+              "type": "integer"
+            },
+            "prizeTypes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "fixedPrizes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "eventType": {
+                "type": "string"
+              },
+              "delay": {
+                "type": "number"
+              },
+              "repeat": {
+                "type": "integer"
+              },
+              "chance": {
+                "type": "number"
+              },
+              "duration": {
+                "type": "number"
+              },
+              "moreX": {
+                "type": "number"
+              },
+              "moreY": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "eventType"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "minute"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

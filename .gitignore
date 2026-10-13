@@ -1,0 +1,10 @@
+# Game files and anything derived from them: never commit.
+vs-1.0/
+work/
+*.asar
+*.vspack
+vs-1.0.sha256
+
+build/
+out/
+node_modules/

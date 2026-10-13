@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vsdemake:pickups",
+  "title": "Pickups (gems, coins, chicken, …)",
+  "type": "object",
+  "minProperties": 1,
+  "propertyNames": {
+    "pattern": "^[A-Z0-9_]+$"
+  },
+  "additionalProperties": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "tips": {
+        "type": "string"
+      },
+      "texture": {
+        "type": "string"
+      },
+      "frameName": {
+        "type": "string"
+      },
+      "pickedupAmount": {
+        "type": "integer"
+      },
+      "rarity": {
+        "type": "number"
+      },
+      "unlocksAt": {
+        "type": "number"
+      },
+      "value": {
+        "type": "number"
+      },
+      "inTreasures": {
+        "type": "boolean"
+      },
+      "seen": {
+        "type": "boolean"
+      },
+      "hidden": {
+        "type": "boolean"
+      },
+      "isRare": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name",
+      "texture",
+      "frameName",
+      "rarity",
+      "value"
+    ],
+    "additionalProperties": false
+  }
+}

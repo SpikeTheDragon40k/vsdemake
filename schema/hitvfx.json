@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vsdemake:hitvfx",
+  "title": "Hit effects by weapon hit type",
+  "type": "object",
+  "minProperties": 1,
+  "propertyNames": {
+    "pattern": "^[A-Z0-9_]+$"
+  },
+  "additionalProperties": {
+    "type": "object",
+    "properties": {
+      "isTintFill": {
+        "type": "boolean"
+      },
+      "targetTint": {
+        "type": "integer"
+      },
+      "hitFrameName": {
+        "type": "string"
+      },
+      "impactFrameName": {
+        "type": "string"
+      },
+      "duration": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "isTintFill",
+      "targetTint",
+      "duration"
+    ],
+    "additionalProperties": false
+  }
+}

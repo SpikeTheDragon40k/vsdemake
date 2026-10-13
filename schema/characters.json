@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vsdemake:characters",
+  "title": "Characters, one array of per-level bonuses per character",
+  "type": "object",
+  "minProperties": 1,
+  "propertyNames": {
+    "pattern": "^[A-Z0-9_]+$"
+  },
+  "additionalProperties": {
+    "type": "array",
+    "minItems": 1,
+    "prefixItems": [
+      {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "integer"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "startingWeapon": {
+            "type": "string"
+          },
+          "charName": {
+            "type": "string"
+          },
+          "surname": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "spriteName": {
+            "type": "string"
+          },
+          "portraitName": {
+            "type": "string"
+          },
+          "walkingFrames": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isBought": {
+            "type": "boolean"
+          },
+          "price": {
+            "type": "integer"
+          },
+          "showcase": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "debugTime": {
+            "type": "number"
+          },
+          "debugEnemies": {
+            "type": "number"
+          },
+          "power": {
+            "type": "number"
+          },
+          "cooldown": {
+            "type": "number"
+          },
+          "area": {
+            "type": "number"
+          },
+          "speed": {
+            "type": "number"
+          },
+          "duration": {
+            "type": "number"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "luck": {
+            "type": "number"
+          },
+          "growth": {
+            "type": "number"
+          },
+          "greed": {
+            "type": "number"
+          },
+          "magnet": {
+            "type": "number"
+          },
+          "moveSpeed": {
+            "type": "number"
+          },
+          "armor": {
+            "type": "number"
+          },
+          "regen": {
+            "type": "number"
+          },
+          "maxHp": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "level",
+          "startingWeapon",
+          "charName",
+          "spriteName",
+          "walkingFrames",
+          "maxHp"
+        ],
+        "additionalProperties": false
+      }
+    ],
+    "items": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "integer"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "startingWeapon": {
+          "type": "string"
+        },
+        "charName": {
+          "type": "string"
+        },
+        "surname": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "spriteName": {
+          "type": "string"
+        },
+        "portraitName": {
+          "type": "string"
+        },
+        "walkingFrames": {
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "isBought": {
+          "type": "boolean"
+        },
+        "price": {
+          "type": "integer"
+        },
+        "showcase": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "debugTime": {
+          "type": "number"
+        },
+        "debugEnemies": {
+          "type": "number"
+        },
+        "power": {
+          "type": "number"
+        },
+        "cooldown": {
+          "type": "number"
+        },
+        "area": {
+          "type": "number"
+        },
+        "speed": {
+          "type": "number"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "luck": {
+          "type": "number"
+        },
+        "growth": {
+          "type": "number"
+        },
+        "greed": {
+          "type": "number"
+        },
+        "magnet": {
+          "type": "number"
+        },
+        "moveSpeed": {
+          "type": "number"
+        },
+        "armor": {
+          "type": "number"
+        },
+        "regen": {
+          "type": "number"
+        },
+        "maxHp": {
+          "type": "number"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  }
+}

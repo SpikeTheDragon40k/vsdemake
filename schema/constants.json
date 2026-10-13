@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vsdemake:constants",
+  "title": "Global tuning constants",
+  "type": "object",
+  "properties": {
+    "PlayerPxSpeed": {
+      "type": "number"
+    },
+    "EnemySpeed": {
+      "type": "number"
+    },
+    "ProjectileSpeed": {
+      "type": "number"
+    },
+    "PixelScale": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "PlayerPxSpeed",
+    "EnemySpeed",
+    "ProjectileSpeed",
+    "PixelScale"
+  ],
+  "additionalProperties": {
+    "type": "number"
+  }
+}

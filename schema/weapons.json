@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vsdemake:weapons",
+  "title": "Weapon and passive item tables, one array of per-level deltas per item",
+  "type": "object",
+  "minProperties": 1,
+  "propertyNames": {
+    "pattern": "^[A-Z0-9_]+$"
+  },
+  "additionalProperties": {
+    "type": "array",
+    "minItems": 1,
+    "prefixItems": [
+      {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "integer"
+          },
+          "bulletType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tips": {
+            "type": "string"
+          },
+          "desc": {
+            "type": "string"
+          },
+          "texture": {
+            "type": "string"
+          },
+          "frameName": {
+            "type": "string"
+          },
+          "isUnlocked": {
+            "type": "boolean"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "poolLimit": {
+            "type": "integer"
+          },
+          "rarity": {
+            "type": "integer"
+          },
+          "interval": {
+            "type": "number"
+          },
+          "repeatInterval": {
+            "type": "number"
+          },
+          "hitsWalls": {
+            "type": "boolean"
+          },
+          "addEvolvedWeapon": {
+            "type": "string"
+          },
+          "isEvolution": {
+            "type": "boolean"
+          },
+          "evolvesFrom": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiresLevel": {
+            "type": "integer"
+          },
+          "hitVFX": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "critChance": {
+            "type": "number"
+          },
+          "critMul": {
+            "type": "number"
+          },
+          "penetrating": {
+            "type": "number"
+          },
+          "volume": {
+            "type": "number"
+          },
+          "knockback": {
+            "type": "number"
+          },
+          "hitBoxDelay": {
+            "type": "number"
+          },
+          "intervalDependsOnDuration": {
+            "type": "boolean"
+          },
+          "chance": {
+            "type": "number"
+          },
+          "charges": {
+            "type": "integer"
+          },
+          "shieldInvulTime": {
+            "type": "number"
+          },
+          "isSpecialOnly": {
+            "type": "boolean"
+          },
+          "isPowerUp": {
+            "type": "boolean"
+          },
+          "price": {
+            "type": "integer"
+          },
+          "power": {
+            "type": "number"
+          },
+          "cooldown": {
+            "type": "number"
+          },
+          "area": {
+            "type": "number"
+          },
+          "speed": {
+            "type": "number"
+          },
+          "duration": {
+            "type": "number"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "luck": {
+            "type": "number"
+          },
+          "growth": {
+            "type": "number"
+          },
+          "greed": {
+            "type": "number"
+          },
+          "magnet": {
+            "type": "number"
+          },
+          "moveSpeed": {
+            "type": "number"
+          },
+          "armor": {
+            "type": "number"
+          },
+          "regen": {
+            "type": "number"
+          },
+          "maxHp": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "level",
+          "bulletType",
+          "name",
+          "texture",
+          "frameName",
+          "rarity"
+        ],
+        "additionalProperties": false
+      }
+    ],
+    "items": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "integer"
+        },
+        "bulletType": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "tips": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "texture": {
+          "type": "string"
+        },
+        "frameName": {
+          "type": "string"
+        },
+        "isUnlocked": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "poolLimit": {
+          "type": "integer"
+        },
+        "rarity": {
+          "type": "integer"
+        },
+        "interval": {
+          "type": "number"
+        },
+        "repeatInterval": {
+          "type": "number"
+        },
+        "hitsWalls": {
+          "type": "boolean"
+        },
+        "addEvolvedWeapon": {
+          "type": "string"
+        },
+        "isEvolution": {
+          "type": "boolean"
+        },
+        "evolvesFrom": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiresLevel": {
+          "type": "integer"
+        },
+        "hitVFX": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "critChance": {
+          "type": "number"
+        },
+        "critMul": {
+          "type": "number"
+        },
+        "penetrating": {
+          "type": "number"
+        },
+        "volume": {
+          "type": "number"
+        },
+        "knockback": {
+          "type": "number"
+        },
+        "hitBoxDelay": {
+          "type": "number"
+        },
+        "intervalDependsOnDuration": {
+          "type": "boolean"
+        },
+        "chance": {
+          "type": "number"
+        },
+        "charges": {
+          "type": "integer"
+        },
+        "shieldInvulTime": {
+          "type": "number"
+        },
+        "isSpecialOnly": {
+          "type": "boolean"
+        },
+        "isPowerUp": {
+          "type": "boolean"
+        },
+        "price": {
+          "type": "integer"
+        },
+        "power": {
+          "type": "number"
+        },
+        "cooldown": {
+          "type": "number"
+        },
+        "area": {
+          "type": "number"
+        },
+        "speed": {
+          "type": "number"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "luck": {
+          "type": "number"
+        },
+        "growth": {
+          "type": "number"
+        },
+        "greed": {
+          "type": "number"
+        },
+        "magnet": {
+          "type": "number"
+        },
+        "moveSpeed": {
+          "type": "number"
+        },
+        "armor": {
+          "type": "number"
+        },
+        "regen": {
+          "type": "number"
+        },
+        "maxHp": {
+          "type": "number"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  }
+}

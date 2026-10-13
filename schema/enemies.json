@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vsdemake:enemies",
+  "title": "Enemy types; each is a one-element array",
+  "type": "object",
+  "minProperties": 1,
+  "propertyNames": {
+    "pattern": "^[A-Za-z0-9_]+$"
+  },
+  "additionalProperties": {
+    "type": "array",
+    "minItems": 1,
+    "items": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "integer"
+        },
+        "maxHp": {
+          "type": "number"
+        },
+        "speed": {
+          "type": "number"
+        },
+        "maxSpeed": {
+          "type": "number"
+        },
+        "power": {
+          "type": "number"
+        },
+        "knockback": {
+          "type": "number"
+        },
+        "maxKnockback": {
+          "type": "number"
+        },
+        "deathKB": {
+          "type": "number"
+        },
+        "xp": {
+          "type": "number"
+        },
+        "idleFrameCount": {
+          "type": "integer"
+        },
+        "killedAmount": {
+          "type": "integer"
+        },
+        "textureName": {
+          "type": "string"
+        },
+        "end": {
+          "type": "integer"
+        },
+        "frameNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "alpha": {
+          "type": "number"
+        },
+        "moreX": {
+          "type": "number"
+        },
+        "moreY": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "passThroughWalls": {
+          "type": "boolean"
+        },
+        "res_Freeze": {
+          "type": "number"
+        },
+        "res_Rosary": {
+          "type": "number"
+        },
+        "res_Debuffs": {
+          "type": "number"
+        },
+        "res_Knockback": {
+          "type": "number"
+        },
+        "colliderOverride": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number"
+            },
+            "offsetY": {
+              "type": "number"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "level",
+        "maxHp",
+        "speed",
+        "power",
+        "knockback",
+        "xp",
+        "textureName",
+        "frameNames"
+      ],
+      "additionalProperties": false
+    },
+    "maxItems": 1
+  }
+}
