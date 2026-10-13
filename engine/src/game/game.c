@@ -394,6 +394,8 @@ void vs_game_render(vs_game *g) {
         case VS_WEAPONS_CROSS: fname = "ProjectileCross2.png"; depth = 2.0f * g->logical_h; break;
         case VS_WEAPONS_HOLYBOOK: fname = "HolyBook.png"; break;
         case VS_WEAPONS_VESPERS: fname = "Page2.png"; break;
+        case VS_WEAPONS_LIGHTNING: fname = "Lightning3.png"; depth = 1e6f; break;
+        case VS_WEAPONS_DIAMOND: fname = "Diamond2.png"; tex = g->tex_items; atl = &g->atl_items; break;
         case VS_WEAPONS_HOLYWATER:
             if (b->state == 0) { fname = "HolyWater.png"; tex = g->tex_items; atl = &g->atl_items; depth = (float)g->logical_h; }
             else { fname = "circle.png"; depth = -0.5f * g->logical_h; }
@@ -406,6 +408,7 @@ void vs_game_render(vs_game *g) {
         uint32_t tint = 0xffffff; uint8_t alpha = b->alpha;
         if (b->type == VS_WEAPONS_WHIP && b->age_ms < 100) scale *= b->age_ms / 100.0f;
         if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) { scale = b->body_r * 2 / 256.0f; tint = 0x4040ff; alpha = 60; }
+        if (b->type == VS_WEAPONS_LIGHTNING) { /* bolt from the top of the screen to the strike point */ vs_frame bolt; if (vs_atlas_find(&g->atl_vfx, "Lightning3.png", &bolt) == 0) { float len = b->y - b->ay; if (len > 1) vs_render_sprite(g, g->tex_vfx, &bolt, b->x, b->ay, 0.5f, 0.0f, len / (float)bolt.src_h, 0, 0, 0, 0xffffff, 255, 1e6f); } if (b->state == 0) continue; fname = "HitRed2.png"; if (vs_atlas_find(&g->atl_vfx, fname, &f) != 0) continue; }
         vs_render_sprite(g, tex, &f, b->x, b->y, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, tint, alpha, depth);
     }
 

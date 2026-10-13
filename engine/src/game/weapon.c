@@ -258,6 +258,30 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
     case VS_WEAPONS_GARLIC:
         b->body_r = 32.0f * area; b->visible = 0; b->cullable = 0;
         break;
+    case VS_WEAPONS_LIGHTNING: {
+        /* random enemy inside the screen rectangle; strike from above, hit for 60 ms */
+        int cand[64]; int n = 0;
+        for (int i = 0; i < g->enemy_count && n < 64; i++) {
+            vs_enemy *e = &g->enemies[i];
+            if (!e->active || e->is_dead) continue;
+            if (fabsf(e->x - p->x) < 0.5f * g->logical_w && fabsf(e->y - p->y) < 0.5f * g->logical_h) cand[n++] = i;
+        }
+        if (n == 0) { b->active = 0; return; }
+        vs_enemy *t = &g->enemies[cand[vs_rng_below(&g->rng, (uint32_t)n)]];
+        b->bx = t->x; b->by = t->y;
+        b->x = t->x; b->y = p->y - 0.6f * g->logical_h; b->ay = b->y;
+        b->body_r = 0; b->scale = 0.5f * area; b->cullable = 0; b->state = 0;
+        break;
+    }
+    case VS_WEAPONS_DIAMOND: {
+        b->body_r = 8.0f * area; b->scale = area; b->cullable = 0;
+        vs_enemy *t = enemy_by_uid(g, w->target_uid);
+        if (!t) t = vs_enemy_closest_to_player(g);
+        static const float offs[] = {0, 10, -10, 20, -20, 30, -30, 40, -40};
+        float base = t ? angle_from_target(g, t) : atan2f(p->last_dir_y, (p->last_dir_x == 0 && p->last_dir_y == 0) ? 1 : p->last_dir_x);
+        set_velocity_angle(b, base + DEG(offs[index % 9]), true_speed(g, w, 1.1f));
+        break;
+    }
     case VS_WEAPONS_HOLYWATER: {
         b->body_r = 0; b->scale = 1; b->cullable = 0; b->state = 0;
         b->x = p->x + (vs_rng_f32(&g->rng) - 0.5f) * g->logical_w * 0.5f;
@@ -385,6 +409,23 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
         b->x = p->x; b->y = p->y;
         if (b->age_ms >= vs_weapon_p_interval(g, w)) { b->active = 0; return; }
         break;
+    case VS_WEAPONS_LIGHTNING:
+        if (b->state == 0) {
+            float t = b->age_ms / 70.0f;
+            if (t >= 1) { t = 1; b->state = 1; b->f1 = b->age_ms; b->body_r = 16.0f * b->scale; b->hit_count = 0; }
+            b->y = b->ay + (b->by - b->ay) * t;
+        } else if (b->age_ms - b->f1 >= 60) { b->active = 0; return; }
+        break;
+    case VS_WEAPONS_DIAMOND: {
+        /* bounces on the screen edges (WorldBoxCollider), clearing its hit list */
+        float hw = 0.5f * g->logical_w, hh = 0.5f * g->logical_h;
+        if ((b->x < p->x - hw && b->vx < 0) || (b->x > p->x + hw && b->vx > 0)) { b->vx = -b->vx; b->hit_count = 0; }
+        if ((b->y < p->y - hh && b->vy < 0) || (b->y > p->y + hh && b->vy > 0)) { b->vy = -b->vy; b->hit_count = 0; }
+        b->angle = atan2f(b->vy, b->vx) * 180.0f / PI;
+        float dur = p_duration(g, w);
+        if (b->age_ms > dur) { b->alpha = (uint8_t)(255 * (1 - (b->age_ms - dur) / 100.0f)); if (b->age_ms >= dur + 100) { b->active = 0; return; } }
+        break;
+    }
     case VS_WEAPONS_HOLYWATER:
         if (b->state == 0) {
             float t = b->age_ms / 750.0f;

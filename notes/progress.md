@@ -27,7 +27,7 @@ git-ignored). Recon was redone and written to `notes/depot-report.md`.
   knockback, skills, death, culling, teleport-on-cull bosses); stage minute
   rows, spawn shapes, swarm check, bosses with treasure rolls, all 9 stage
   events; weapons Whip, Magic Wand, Knife, Axe, Fire Wand, King Bible, Cross,
-  Garlic, Santa Water; passives (generic); gems with cap/merge, magnet, XP;
+  Garlic, Santa Water, Lightning Ring, Runetracer; passives (generic); gems with cap/merge, magnet, XP;
   level-up factory and screen; chest prizes (pulls per treasure.md, no
   animation); destructibles + loot weights; tilemap with 4 scrolling copies
   and tile collision; damage numbers (BMFont digits) and hit flashes; HUD;
@@ -36,8 +36,8 @@ git-ignored). Recon was redone and written to `notes/depot-report.md`.
 
 ### Not done / known gaps
 
-- Weapons missing: Lightning Ring, Runetracer, Pentagram, Bone, Lancet,
-  Song of Mana/… and all evolutions' special behaviour (evolution objects
+- Weapons missing: Pentagram, Bone, Lancet, Clock Lancet, Song of Mana,
+  Laurel/Thorns shield, Nduja and all evolutions' special behaviour (evolution objects
   load from the table but use the base weapon's bullet; Holy Wand/Vespers
   share their base weapon's code which is correct for those two).
 - Audio: not in the pack (needs a permissively licensed Vorbis decoder for
@@ -49,8 +49,11 @@ git-ignored). Recon was redone and written to `notes/depot-report.md`.
 - Enemy explosions (SelfDestruct `MakeExplosion`) not implemented.
 - The level-up/chest/menu UI uses our placeholder font; the original's
   nine-slice panels are not drawn.
-- Xbox 360 backend: stub only (`engine/src/platform/xenon`). No free60
-  toolchain in this container.
+- Xbox 360 backend: written but **never compiled or run**
+  (`engine/src/platform/xenon`, `engine/xenon/Makefile`,
+  `notes/toolchain.md`). It passes a host syntax check against the real
+  libxenon headers. Uses the cube example's shaders: brightness-only tint,
+  no per-sprite alpha, until a 2D shader is compiled for Xenos.
 - A real window was never opened here (no display); headless path only.
 - Balance check: scripted strafing dies in 30–70 s; a human kiting should
   do far better, but compare against the real game early.
