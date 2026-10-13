@@ -1,5 +1,7 @@
 /* Platform layer. Everything the game needs from the machine; implemented
- * once per backend (platform/sdl2, platform/xenon). Keep it small. */
+ * once per backend (platform/sdl2, platform/xdk, platform/xenon). Keep it
+ * small. C linkage even when the core is compiled as C++ (XDK build), so the
+ * backends can define these with extern "C". */
 #ifndef VS_PLATFORM_H
 #define VS_PLATFORM_H
 
@@ -7,6 +9,10 @@
 #include <stdint.h>
 
 #include "core/vs_compat.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct vs_texture vs_texture;
 
@@ -45,7 +51,7 @@ void vs_plat_end_frame(void);
 enum {
     VS_BTN_UP = 1u << 0, VS_BTN_DOWN = 1u << 1, VS_BTN_LEFT = 1u << 2, VS_BTN_RIGHT = 1u << 3,
     VS_BTN_A = 1u << 4, VS_BTN_B = 1u << 5, VS_BTN_X = 1u << 6, VS_BTN_Y = 1u << 7,
-    VS_BTN_START = 1u << 8, VS_BTN_BACK = 1u << 9,
+    VS_BTN_START = 1u << 8, VS_BTN_BACK = 1u << 9
 };
 typedef struct {
     float lx, ly;      /* left stick, -1..1, y down */
@@ -63,5 +69,9 @@ void vs_plat_free(void *p);
 /* Dev aid: writes the last presented frame as BMP. -1 if unsupported. */
 int vs_plat_screenshot(const char *path);
 void vs_plat_log(const char *fmt, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

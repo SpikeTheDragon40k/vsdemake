@@ -16,8 +16,9 @@ git-ignored). Recon was redone and written to `notes/depot-report.md`.
   static table extraction, JSON Schemas, `vspatch verify/deob/extract`,
   golden tests.
 - **Phase 2**: `notes/behaviour/` loop, player, enemies, spawning,
-  stage-events, pickups, levelup, weapons (base + Whip + Magic Wand + notes
-  for 7 more in code comments), treasure, stage-map, physics.
+  stage-events, pickups, levelup, weapons (base + Whip + Magic Wand only;
+  the other implemented weapons follow the original code directly and have
+  no note yet), treasure, stage-map, physics.
 - **Phase 3–4**: `notes/pack-format.md`; `vspatch build` → 27 MB pack with
   textures, atlases, maps, font, enums and tables; C headers generated from
   `patcher/src/tables.js`; SDL2 engine with pack reader, platform layer,
@@ -44,16 +45,20 @@ git-ignored). Recon was redone and written to `notes/depot-report.md`.
   Node) and no mixer in the engine.
 - Save data / unlocks / shop / achievements: none (every bought-or-cheap
   character is selectable; Library selectable without unlock).
-- Revive, orologion/rosary pickups exist in code; Nduja Fritta and weapon
-  pickups do nothing yet.
+- Rosary, Orologion, Vacuum, Clover, Floor Chicken (incl. its 300 ms
+  invulnerability) and Little Heart pickups work. Not implemented: Revival,
+  Nduja Fritta, weapon pickups, and the map's `Weapon`/`Item` script
+  objects (bonus passives placed around the Forest/Library maps).
 - Enemy explosions (SelfDestruct `MakeExplosion`) not implemented.
 - The level-up/chest/menu UI uses our placeholder font; the original's
   nine-slice panels are not drawn.
 - Xbox 360: two backends, both **never compiled or run on hardware**.
   The plan is the XDK one (`platform/xdk`, `engine/xdk/*.sln`, real
-  tint/alpha shaders, Aurora/XeXMenu-launchable `default.xex`; the core
-  compiles as C++ and passes a g++ -std=c++03 syntax check). The libxenon
-  one (`platform/xenon`) is the fallback for people without the XDK.
+  tint/alpha shaders, Aurora/XeXMenu-launchable `default.xex`). Verified
+  here: the core compiles as strict C++03 and links against `extern "C"`
+  platform definitions exactly as the XDK project will; the console error
+  screen renders. The libxenon one (`platform/xenon`) is the fallback for
+  people without the XDK.
 - A real window was never opened here (no display); headless path only.
 - Balance check: scripted strafing dies in 30–70 s; a human kiting should
   do far better, but compare against the real game early.
@@ -62,7 +67,26 @@ git-ignored). Recon was redone and written to `notes/depot-report.md`.
 
 1. Open the PC build on a machine with a display and play Mad Forest; fix
    whatever feels off against the original.
-2. Xbox: install the free60 toolchain, write the xenon platform file
-   (Xenos sprite batch, pad input, USB file I/O), build the ELF, test on
-   hardware; then XEX packaging.
+2. Xbox: first XEX build and boot following `docs/FIRST_XEX_TEST.md`;
+   fix what it reports.
 3. Remaining weapons, explosions, audio, save file.
+
+## 2026-10-13 (later): documentation audit
+
+Checked every guide against the code and the original:
+
+- Fixed two defects that would have broken the first XEX: the platform API
+  had C++ linkage in the C++-compiled core but `extern "C"` definitions in
+  the XDK backend (unresolved externals; reproduced with g++ and fixed in
+  `vs_platform.h`), and the 604 KB `vs_game` lived on `main`'s stack
+  (now static).
+- Added an on-screen error for console boot failures (pack missing,
+  damaged, layout mismatch).
+- Floor Chicken now grants 300 ms invulnerability as in the original.
+- PC: Backspace = B; CTest marks the pack test *skipped* without a pack.
+- Doc fixes: README (XDK target, key bindings, ctest), Xbox guide (pack
+  lookup, mounts, FTP credentials, Aurora steps, removed a wrong artwork
+  claim, new build-error rows), pack format (header sizes, PlayerWall flag,
+  file names), depot report (atlas format, 31 OGG / 3 BGM), pickups and
+  spawning notes (all "verify" items resolved).
+- New: `docs/FIRST_XEX_TEST.md`.

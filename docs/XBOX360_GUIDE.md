@@ -6,7 +6,8 @@ from **Aurora, XeXMenu or FreeStyle Dash** as a normal `default.xex`.
 > **Status (2026-10-13):** the XDK backend (`engine/src/platform/xdk/`,
 > `engine/xdk/`) was written without the XDK at hand and has **never been
 > compiled or run**. Expect the first build to need small fixes (header
-> names, library names, project-file quirks). §7 lists what to verify. The
+> names, library names, project-file quirks). The step-by-step first test is
+> **[docs/FIRST_XEX_TEST.md](FIRST_XEX_TEST.md)**; §7 lists what to verify. The
 > older libxenon/XeLL backend is kept in `engine/src/platform/xenon/` and
 > `notes/toolchain.md` as a fallback for people without the XDK; it is not
 > the plan.
@@ -109,6 +110,13 @@ Project settings worth knowing (all in `vsdemake.vcxproj`):
   (debug: the `…d.lib` variants).
 - Shaders are two tiny HLSL programs compiled at start-up with
   `D3DXCompileShader` (`vs_3_0`/`ps_3_0`), so no offline shader step.
+- The platform API (`core/vs_platform.h`) has C linkage even when compiled
+  as C++, matching the `extern "C"` definitions in `vs_platform_xdk.cpp`.
+- The XEX step: with the XDK integration, Visual Studio turns
+  `default.exe` into `default.xex` automatically (the `ImageXex` tool). If
+  your project shows no `.xex`, check Configuration Properties → Xbox 360
+  Image Conversion, or run `imagexex /out:default.xex default.exe` from
+  the XDK command prompt.
 
 If the `.vcxproj` refuses to load (XDK integration versions differ), create
 a new "Xbox 360 > Console Application" from the wizard, delete its
@@ -125,6 +133,8 @@ definitions; Linker → Input).
 | `xgraphics.h` not found / `XGetVideoMode` undefined | Remove the `XGetVideoMode` block in `vs_plat_init` and hard-code 1280×720, or use `XGetVideoMode` from `xtl.h` only. |
 | `D3DFMT_LIN_A8R8G8B8` undefined | Use `D3DFMT_A8R8G8B8` and tile the texture with `XGTileTextureLevel`, or create with `D3DUSAGE_...` linear flags per your XDK's `d3d9.h`. |
 | `DrawPrimitiveUP` missing | Replace with a dynamic vertex buffer (`CreateVertexBuffer` + `Lock`, `SetStreamSource`, `DrawPrimitive`). |
+| `stdint.h` not found | Your XDK's CRT lacks it: add a `stdint.h` to `engine/src` with `typedef` lines for `int8_t`…`uint64_t` (`__int64` for 64-bit) and report it. |
+| `unresolved external symbol vs_plat_…` | The platform header lost its `extern "C"` block; it must wrap all declarations in `core/vs_platform.h`. |
 | C++ errors in the core (`void*` conversions) | Add the cast; report it so the PC side gets the same fix. |
 | `_vsnprintf` warnings | Harmless. |
 
@@ -141,14 +151,18 @@ Hdd1:\Games\vsdemake\          (or Usb0:\Games\vsdemake\)
 ```
 
 The engine looks for the pack at `game:\vsdata.vspack` (the folder the XEX
-was launched from), then `game:\data\vsdata.vspack`,
-`hdd1:\vsdemake\vsdata.vspack`, `usb0:\vsdemake\vsdata.vspack`.
+was launched from), then `game:\data\vsdata.vspack`. It also tries
+`hdd1:\vsdemake\…` and `usb0:\vsdemake\…`, but those drive names are not
+mounted for a homebrew XEX by default, so **keep the pack next to
+`default.xex`**. If the pack is missing or damaged, a red error screen
+says so (press BACK to return to the dashboard).
 
 How to copy:
 
 - **FTP** (recommended): Aurora/FSD run an FTP server; connect with any FTP
-  client to the console's IP (user/password `xbox`/`xbox` by default) and
-  upload the folder to `Hdd1:\Games\`.
+  client (passive mode off works best) to the console's IP. The user name
+  and password are shown in the dashboard's network/FTP settings. Upload
+  the folder to `Hdd1:\Games\`.
 - **USB**: format FAT32, copy the folder, plug it in. The pack is 27 MB so a
   FAT32 stick is fine.
 
@@ -156,19 +170,20 @@ How to copy:
 
 ## 6. Launch
 
-- **Aurora**: Settings → Content → add `Hdd1:\Games` as a scan path (or
-  the folder itself), run a scan; vsdemake appears as a title. Or use
-  Aurora's file manager to browse to `default.xex` and launch it.
+- **Aurora**: add `Hdd1:\Games` (or the folder itself) to the content scan
+  paths in Aurora's content settings and rescan; vsdemake appears as a
+  title. Or open Aurora's file manager, browse to `default.xex` and launch
+  it (fastest for a first test).
 - **XeXMenu**: browse to the folder and press A on `default.xex`.
 - **FreeStyle Dash**: add the folder as a game path and scan.
 
-Controls: Start/A begins; d-pad or stick picks character, left/right
-switches Mad Forest / Inlaid Library, A confirms. In game: stick or d-pad
-to move; level-up choices with up/down + A. The guide button returns to
+Controls: Start/A begins; the d-pad picks the character (up/down) and
+stage (left/right), A confirms. In game: stick or d-pad to move; level-up
+choices with d-pad up/down + A. Menus don't react to the stick yet. The guide button returns to
 the dashboard as usual.
 
-Optional for Aurora: add `nxeart` (a 64×64 PNG) next to `default.xex` for
-an icon, and a title in Aurora's details. Don't use the real game's art.
+A homebrew XEX has no title artwork; Aurora shows a generic tile. Don't
+add the real game's art to it.
 
 ---
 
@@ -176,19 +191,19 @@ an icon, and a title in Aurora's details. Don't use the real game's art.
 
 Nothing has run on hardware yet. Confirm these in order and report:
 
-1. **It boots and the pack loads.** A black screen that returns to the
-   dashboard means `vs_plat_init` or the pack read failed; check the
-   folder layout in §5. (Debug output goes to `OutputDebugString`; without a
-   devkit you won't see it, so a missing-pack check will be added as an
-   on-screen message once the first build works.)
-2. **Picture orientation and size.** The 810×456 game area should be
-   integer-scaled and centred. Upside down → flip the `1.0 - y` term in
+1. **It boots and the pack loads.** A red "cannot start" screen names the
+   problem (pack missing, damaged, or from another patcher version). An
+   immediate return to the dashboard with no screen means Direct3D or the
+   shaders failed in `vs_plat_init`; see FIRST_XEX_TEST.md §6.
+2. **Picture orientation and size.** The 810×456 game area should fill
+   the screen (aspect-fit, ~1.58× at 720p, point-sampled). Upside down → flip the `1.0 - y` term in
    `VS_SRC`.
 3. **Colours.** Swapped channels (blue Antonio) → the texture format; try
    tiled `D3DFMT_A8R8G8B8` with `XGTileTextureLevel`, or `D3DFMT_LIN_A8B8G8R8`.
 4. **Transparency.** Black boxes around sprites → `D3DRS_ALPHABLENDENABLE`
    isn't taking; make sure it is set after `BeginScene`.
-5. **Controller.** Inverted stick → remove the negation on `ly`.
+5. **Controller.** Inverted stick → remove the negation on `ly` in
+   `vs_plat_poll`.
 6. **Speed.** HUD clock vs a stopwatch; it should be 60 Hz.
 
 ---

@@ -8,14 +8,13 @@
 #include <xtl.h>
 #include <xgraphics.h>
 #include <d3dx9.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-extern "C" {
 #include "core/vs_platform.h"
-}
 
 struct vs_texture { IDirect3DTexture9 *t; int w, h; };
 
@@ -94,9 +93,10 @@ extern "C" int vs_plat_init(const vs_plat_config *cfg) {
     if (FAILED(g_d3d->CreateDevice(0, D3DDEVTYPE_HAL, NULL, D3DCREATE_HARDWARE_VERTEXPROCESSING, &pp, &g_dev))) return -1;
     if (compile_shaders() != 0) return -1;
 
+    /* aspect-fit: 810x456 → ~1.58x at 720p. An integer scale would be 1x
+     * (a small box in the middle of the TV); point sampling keeps pixels sharp */
     float sx = (float)g_fbw / g_lw, sy = (float)g_fbh / g_lh;
     g_scale = sx < sy ? sx : sy;
-    if (g_scale >= 1) g_scale = floorf(g_scale);
     g_off_x = (g_fbw - g_lw * g_scale) * 0.5f;
     g_off_y = (g_fbh - g_lh * g_scale) * 0.5f;
     g_verts = (vtx *)malloc(sizeof(vtx) * MAX_QUADS * VERTS_PER_QUAD);

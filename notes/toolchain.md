@@ -16,7 +16,9 @@ fallback for people without the XDK. See `docs/XBOX360_GUIDE.md`.
 - `DrawPrimitiveUP` per texture batch; `Clear`/`BeginScene`/`EndScene`/`Present`.
 - `XInputGetState(0)`; `GetTickCount`/`Sleep`; `fopen` on `game:\\`.
 - Entry point `int main(void)` (no argv on the console); the core is compiled as C++
-  (`vs_compat.h`).
+  (`vs_compat.h`); `vs_platform.h` has C linkage for the backend.
+- Aspect-fit scale (not integer) to the 1280×720 back buffer; `vs_game` is a
+  static (604 KB); boot failures show `fatal_screen` from `main.c`.
 
 
 ## Toolchain (free60)

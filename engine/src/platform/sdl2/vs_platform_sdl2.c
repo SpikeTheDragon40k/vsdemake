@@ -130,6 +130,7 @@ int vs_plat_poll(vs_pad *pad) {
     if (k[SDL_SCANCODE_RIGHT] || k[SDL_SCANCODE_D]) b |= VS_BTN_RIGHT;
     if (k[SDL_SCANCODE_RETURN] || k[SDL_SCANCODE_SPACE]) b |= VS_BTN_A;
     if (k[SDL_SCANCODE_ESCAPE]) b |= VS_BTN_START;
+    if (k[SDL_SCANCODE_BACKSPACE]) b |= VS_BTN_B;
     float lx = 0, ly = 0;
     if (g_pad) {
         if (SDL_GameControllerGetButton(g_pad, SDL_CONTROLLER_BUTTON_DPAD_UP)) b |= VS_BTN_UP;

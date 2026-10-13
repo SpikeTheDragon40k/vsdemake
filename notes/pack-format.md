@@ -1,6 +1,7 @@
 # Data pack format (`vsdata.vspack`), version 1
 
-Produced by `vspatch build`, read by `engine/src/core/pack.c`. Everything is
+Produced by `vspatch build` (`patcher/src/pack.js`), read by
+`engine/src/core/vs_pack.c`. Everything is
 **big-endian** and 16-byte aligned so the console reads it without swapping.
 All offsets are from the start of the file.
 
@@ -36,12 +37,13 @@ u32 height       (power of two)
 u32 format       1 = ARGB8 (one u32 per pixel, A in the high byte)
 u32 usedWidth    original image width
 u32 usedHeight   original image height
-u32 pixels[width*height]   row-major, big-endian words
+u32 reserved     0
+u32 pixels[width*height]   row-major, big-endian words  (header = 24 bytes)
 ```
 
 Pad pixels are transparent black. Textures are never resized, only padded,
 so atlas frame rectangles stay valid. PC loader byte-swaps once into an
-SDL surface; the Xenos backend uploads as is.
+SDL texture; the console backends upload the words as is.
 
 ## `ATL`: TexturePacker atlas → frame table
 
@@ -68,11 +70,12 @@ u32 tilesetTexture      directory index of the TEX
 u32 firstGid, columns, margin, spacing, tileCount
 u32 layerCount, objectGroupCount
 u32 collidesOffset      u8[tileCount], 1 if the tile has collides=true
-u32 layersOffset, objectGroupsOffset
+u32 layersOffset, objectGroupsOffset, reserved    (header = 64 bytes)
 Layer (at layersOffset, each):
   char[32] name
   u32 depth (i32)       draw depth from notes/behaviour/stage-map.md
-  u32 flags             bit0 collision layer, bit1 hidden in original
+  u32 flags             bit0 collision layer, bit1 hidden in original,
+                        bit2 collides for the player only (PlayerWall)
   u32 gids[width*height]   raw Tiled gid incl. flip bits (0 = empty)
 ObjectGroup (each):
   char[32] name
@@ -90,7 +93,7 @@ ObjectGroup (each):
 ```
 u32 textureEntry
 u32 lineHeight
-u32 glyphCount
+u32 glyphCount, reserved                          (header = 16 bytes)
 Glyph (each): u32 codepoint; u16 x, y, w, h; i16 xoff, yoff, xadvance, pad
 ```
 
@@ -98,7 +101,7 @@ Glyph (each): u32 codepoint; u16 x, y, w, h; i16 xoff, yoff, xadvance, pad
 
 ```
 u32 memberCount
-u32 stringsOffset, stringsSize
+u32 stringsOffset, stringsSize, reserved           (header = 16 bytes)
 Member (each): u32 nameOffset, u32 valueOffset (string value), i32 index
 ```
 
@@ -117,6 +120,7 @@ u32 recordSize          = 8 + 4*fieldCount
 u32 groupCount
 u32 recordCount
 u32 fieldsOffset, groupsOffset, recordsOffset, poolOffset, poolSize, stringsOffset, stringsSize
+(header padded to 48 bytes; each section 16-byte aligned)
 Field (each): char[32] name, u32 type
   type: 1 f32, 2 i32, 3 bool(i32 0/1), 4 string (u32 offset), 5 enum (i32 index, -1 = null),
         6 list (u32 pool offset; pool holds u32 count then count × u32 items),

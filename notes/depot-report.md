@@ -11,7 +11,7 @@ local machine was not available, so this is a fresh one. Line numbers refer to
 resources/app/.webpack/renderer/
 ├── main.bundle.js        899,336 B   game code + data, obfuscator.io string-array scheme
 └── assets/               (69 files, 8.5 MB)
-    ├── img/              TexturePacker atlases (PNG + JSON hash format): UI, characters,
+    ├── img/              TexturePacker atlases (PNG + JSON "multiatlas" format): UI, characters,
     │                     enemies, items, vfx, illustrations, angel, randomazzo;
     │                     plain PNGs: title, introBG, gameOver, stageComplete,
     │                     bg_forest, bg_green, bgTile1024B, hit1
@@ -20,7 +20,8 @@ resources/app/.webpack/renderer/
     ├── fonts/            damNum-export.png/.xml (BMFont, damage digits)
     ├── lang/             lang, weaponLang, itemLang, powerupLang, stageLang,
     │                     achievementLang (.json)
-    └── sfx/              32 OGG files (2 BGM tracks + title + effects)
+    └── sfx/              31 OGG files (3 BGM tracks: forest, library, library legacy;
+                          title, game over, treasure jingles, effects)
 ```
 
 Hashes of all 70 files: `patcher/known-builds/8292959317163221061.sha256`.

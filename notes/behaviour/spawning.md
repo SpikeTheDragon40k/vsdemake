@@ -18,10 +18,10 @@ Lines refer to `work/main.deob.js`. Stage class 5040–5289.
 | pause | 0 | rows (delays timer start) |
 | compressTime, randomMinutes | false | rows |
 
-Note: `minimumMultiplier` is a stage field but the `hyper.EnemyMinimumMul`
-value is only used when the hyper flag… it is **not** read in `Init`; only
-`hyper.StartingSpawns`, speeds, gold, health and `LuckBonus` are. Treat
-`EnemyMinimumMul` as unused in 0.2.10 unless found elsewhere.
+Note: `minimumMultiplier` is only ever set to 1 (constructor, line 5043),
+and `hyper.EnemyMinimumMul` appears in the stage data but is **never read**
+by the code (checked by search). Hyper mode uses `StartingSpawns`, the
+speed/gold/health multipliers and `LuckBonus` only.
 
 ## Init (line 5045)
 

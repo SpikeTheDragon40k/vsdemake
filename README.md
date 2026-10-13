@@ -1,7 +1,7 @@
 # vsdemake
 
-An unofficial **Xbox 360 homebrew demake of Vampire Survivors**, built on
-[libxenon](https://github.com/Free60Project/libxenon).
+An unofficial **Xbox 360 homebrew demake of Vampire Survivors**, built as a
+`default.xex` with the Xbox 360 XDK (plus an SDL2 build for PC development).
 
 This repository contains **no game code and no game assets**. It contains:
 
@@ -13,8 +13,10 @@ This repository contains **no game code and no game assets**. It contains:
 
 You need to own Vampire Survivors on Steam to use this project.
 
-> **Status: playable MVP on PC (SDL2); the Xbox 360 backend is not written
-> yet.** See `notes/progress.md` for what exists and what is missing.
+> **Status: playable MVP on PC (SDL2). The Xbox 360 (XDK) backend is
+> written but has not been compiled or run on a console yet**; the first
+> test procedure is in [docs/FIRST_XEX_TEST.md](docs/FIRST_XEX_TEST.md).
+> See `notes/progress.md` for what exists and what is missing.
 
 ---
 
@@ -41,8 +43,9 @@ any other build (`--allow-unknown` to try anyway).
 - [Node.js](https://nodejs.org/) 20 or newer, to run the patcher.
 - To play on PC: a C compiler, CMake 3.16+ and SDL2 development files
   (`libsdl2-dev` on Debian/Ubuntu).
-- For the console (later): an Xbox 360 able to run unsigned homebrew
-  (RGH/JTAG). This project does not cover modifying your console.
+- For the console: an Xbox 360 able to run unsigned code (RGH/JTAG) and a
+  Windows PC with Visual Studio 2010 + the Xbox 360 XDK. This project does
+  not cover modifying your console.
 
 ## Step 1: Download the old build from Steam
 
@@ -110,8 +113,9 @@ cmake .. && make
 ./vsdemake-sdl2 /path/to/vsdata.vspack --scale 3
 ```
 
-Keyboard: arrows or WASD move, Enter/Space confirm, Esc back/pause,
-Shift+Esc quit. Game controllers work through SDL2.
+Keyboard: arrows or WASD move, Enter/Space = A (confirm), Esc = Start,
+Backspace = B (back), Shift+Esc quits. There is no pause screen yet.
+Game controllers work through SDL2.
 
 Headless/regression runs (no window): `--headless --no-render --frames 18000
 --seed 3 --input "R240 L240" --screenshot last.bmp` prints a state hash.
@@ -127,7 +131,9 @@ checklist. The console backend is written but not yet verified on hardware.
 
 - `patcher/`: `npm test` runs the extraction and pack tests (they skip
   without a game folder; set `VSDEMAKE_GAME` or keep the depot in `vs-1.0/`).
-- `engine/`: `ctest` runs the pack-reader test against `work/vsdata.vspack`.
+- `engine/`: `ctest` (in `engine/build`) runs the pack-reader test against
+  `work/vsdata.vspack` (build it with `vspatch build vs-1.0 --out
+  work/vsdata.vspack`); it reports *skipped* when the pack is missing.
 - `notes/`: depot report, pack format, behaviour notes (one per system),
   progress log. `notes/FABLE_GUIDE.md` is the phase plan.
 - Table layouts live once in `patcher/src/tables.js`;

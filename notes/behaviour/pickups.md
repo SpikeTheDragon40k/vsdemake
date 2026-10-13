@@ -7,8 +7,8 @@ gem 602–649, vacuum 650–675, rosary 676–699, magnet 480–493, pools
 ## Common
 
 - Sprite from `items` atlas, frame and `value` from the `pickups` table.
-  Body circle radius 10. Cullable like enemies (same 0.7·W/0.8·H test is
-  **not** applied; pickups are only culled by the gem cap, see below).
+  Body circle radius 10. Pickups are not in the enemy culling list; gems
+  are only removed by the gem cap (below).
 - `Update` runs every 4th frame (`loop.md`): if `goToPlayer`, move toward
   the player.
 - `GoToPlayer` (line 574): `dir = normalize(player − (x, y) + (0, −8))`;
@@ -66,15 +66,14 @@ lifetime coins, then saved), logged in run pickups, coin sound. Depth `9 + y −
 
 | Type | Effect |
 | --- | --- |
-| ROAST (Floor Chicken) | `RecoverHp(30)` (value from table) |
+| ROAST (Floor Chicken) | `RecoverHp(30)` (value from table) and 300 ms invulnerability (line 765) |
 | ROSARY | `Core.RosaryDamage()` — on-screen enemies without `res_Rosary` take `max(66, maxHp)` |
 | OROLOGION | `Core.TimeStop()` — all enemies stopped (`enemies.md`); cleared after **10000 ms** (`TimeStopConfig`, line 6352); picking up another restarts the timer |
-| VACUUM | `Core.TurnOnVacuum()` — every live gem `goToPlayer = true` (no tween, `t` stays as it was: 0 for a landed gem → velocity 0 until… **verify**: landed gems have `t = 1` after the throw tween, so they home at full `speed`) |
-| CLOVER | luck +0.1 (value) |
-| LITTLEHEART | +1 HP (value 0 in table; the subclass heals 1 — **verify**) |
+| VACUUM | `Core.TurnOnVacuum()`: every live gem gets `goToPlayer = true`. A gem's `t` tween ran 0 → 1 once at creation, so landed gems home at full speed (no drift-away like the magnet's vacuum) |
+| CLOVER | `luck += value` (0.1) (line 751) |
+| LITTLEHEART | `RecoverHp(1)` (hard-coded; the table value is 0) (line 1351) |
 | TREASURE | opens the treasure screen (`treasure.md`) |
 | WEAPON | grants a weapon type set on the pickup |
 | NFT (Nduja Fritta) | temporary hidden weapon: flame cones (`weapons.md`) |
 
-Items marked **verify** were not read in this session; check the subclass
-`GetTaken` methods before implementing.
+All rows above were checked against the subclass `GetTaken` methods.

@@ -101,6 +101,7 @@ static void get_taken(vs_game *g, vs_pickup *p) {
         break;
     case VS_PICKUPS_ROAST:
         vs_player_recover_hp(g, p->value);
+        pl->invul_ms += 300;   /* SetInvulForMilliSeconds(300) */
         break;
     case VS_PICKUPS_LITTLEHEART:
         vs_player_recover_hp(g, 1);

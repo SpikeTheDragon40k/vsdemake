@@ -14,6 +14,7 @@
 #include "core/vs_compat.h"
 #include "core/vs_pack.h"
 #include "core/vs_platform.h"
+#include "core/vs_text.h"
 #include "game/game.h"
 
 #define LOGICAL_W 810
@@ -56,6 +57,26 @@ static const char *xenon_find_pack(void) {
     for (int i = 0; candidates[i]; i++) { FILE *f = fopen(candidates[i], "rb"); if (f) { fclose(f); return candidates[i]; } }
     return NULL;
 }
+
+/* Shows an error on screen until Back is pressed. On the console there is no
+ * stderr, so without this a boot failure just drops back to the dashboard.
+ * Uses only the built-in font, so it works without the pack. */
+static int fatal_screen(const char *msg) {
+    if (vs_text_init() != 0) return 1;
+    for (;;) {
+        vs_pad pad;
+        memset(&pad, 0, sizeof pad);
+        if (!vs_plat_poll(&pad) || (pad.buttons & VS_BTN_BACK)) break;
+        vs_plat_begin_frame(0x400000);
+        vs_text_draw(40, 40, 2, 0xffffff, "vsdemake: cannot start");
+        vs_text_draw(40, 80, 1.5f, 0xffff80, msg);
+        vs_text_draw(40, 400, 1.5f, 0xc0c0c0, "Press BACK to return to the dashboard");
+        vs_plat_end_frame();
+        vs_plat_sleep_ms(16);
+    }
+    vs_text_shutdown();
+    return 1;
+}
 #endif
 
 static int vs_main(int argc, char **argv) {
@@ -76,27 +97,53 @@ static int vs_main(int argc, char **argv) {
         else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
     }
 #if defined(VS_XENON) || defined(VS_XDK)
-    if (!pack_path) pack_path = xenon_find_pack();
     scale = 1;
-#endif
+#else
     if (!pack_path) { fprintf(stderr, "usage: vsdemake-sdl2 <vsdata.vspack> [options]\n"); return 2; }
+#endif
 
     vs_plat_config cfg = { LOGICAL_W, LOGICAL_H, scale, headless, "vsdemake" };
     if (vs_plat_init(&cfg) != 0) return 1;
+#if defined(VS_XENON) || defined(VS_XDK)
+    /* look for the pack after the platform is up, so a miss can be shown */
+    if (!pack_path) pack_path = xenon_find_pack();
+    if (!pack_path) return fatal_screen("vsdata.vspack not found.\n\nPut it in the same folder as default.xex\n(game:\\vsdata.vspack), then relaunch.");
+#endif
 
     size_t size;
     void *data = vs_plat_read_file(pack_path, &size);
-    if (!data) { fprintf(stderr, "cannot read %s\n", pack_path); return 1; }
+    if (!data) {
+        fprintf(stderr, "cannot read %s\n", pack_path);
+#if defined(VS_XENON) || defined(VS_XDK)
+        return fatal_screen("vsdata.vspack not found or unreadable.\n\nPut it in the same folder as default.xex\n(game:\\vsdata.vspack), then relaunch.");
+#endif
+        return 1;
+    }
     vs_pack pack;
     int rc = vs_pack_init(&pack, data, size);
-    if (rc != 0) { fprintf(stderr, "%s is not a valid pack (error %d)\n", pack_path, rc); return 1; }
+    if (rc != 0) {
+        fprintf(stderr, "%s is not a valid pack (error %d)\n", pack_path, rc);
+#if defined(VS_XENON) || defined(VS_XDK)
+        char msg[160];
+        snprintf(msg, sizeof msg, "vsdata.vspack is damaged or from another\nversion (error %d). Rebuild it with vspatch\nand copy it again.", rc);
+        return fatal_screen(msg);
+#endif
+        return 1;
+    }
     vs_plat_log("pack: %u entries, manifest %llu", pack.count, (unsigned long long)pack.manifest);
 
-    vs_game game;
+    /* static: vs_game is ~600 KB, far beyond a console thread's stack */
+    static vs_game game;
     memset(&game, 0, sizeof game);
     game.auto_pick = auto_pick || headless;
     game.menu_stage = stage;
-    if (vs_game_init(&game, &pack, LOGICAL_W, LOGICAL_H, seed) != 0) { fprintf(stderr, "game init failed\n"); return 1; }
+    if (vs_game_init(&game, &pack, LOGICAL_W, LOGICAL_H, seed) != 0) {
+        fprintf(stderr, "game init failed\n");
+#if defined(VS_XENON) || defined(VS_XDK)
+        return fatal_screen("Game init failed: the pack's table layout does\nnot match this build. Rebuild vsdata.vspack\nwith the patcher from the same commit.");
+#endif
+        return 1;
+    }
 
     const float tick_ms = VS_TICK_MS;
     uint64_t prev = vs_plat_time_ms();
