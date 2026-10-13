@@ -56,9 +56,9 @@ static void build_character_list(vs_game *g) {
 }
 
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
-    int auto_pick = g->auto_pick;
+    int auto_pick = g->auto_pick, menu_stage = g->menu_stage;
     memset(g, 0, sizeof *g);
-    g->auto_pick = auto_pick;
+    g->auto_pick = auto_pick; g->menu_stage = menu_stage;
     g->pack = pack;
     g->logical_w = lw;
     g->logical_h = lh;
@@ -73,6 +73,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (open_table(g, "hitvfx", &g->hitvfx_table, VS_HITVFX_FIELD_NAMES)) return -1;
     if (open_table(g, "weapons", &g->weapons_table, VS_WEAPONS_FIELD_NAMES)) return -1;
     if (open_table(g, "pickups", &g->pickups_table, VS_PICKUPS_FIELD_NAMES)) return -1;
+    if (open_table(g, "destructibles", &g->destructibles_table, VS_DESTRUCTIBLES_FIELD_NAMES)) return -1;
 
     if (load_atlas(g, "characters", &g->atl_characters, &g->tex_characters) != 0) return -1;
     if (load_atlas(g, "enemies", &g->atl_enemies, &g->tex_enemies) != 0) return -1;
@@ -88,7 +89,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (vs_text_init() != 0) return -1;
     build_character_list(g);
     g->selected_character = VS_CHARACTERS_ANTONIO;
-    g->selected_stage = VS_STAGES_FOREST;
+    g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
     g->screen = VS_SCREEN_TITLE;
     if (g->auto_pick) return vs_game_start_run(g, g->selected_character, g->selected_stage);
     return 0;
@@ -102,6 +103,7 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     memset(g->bullets, 0, sizeof g->bullets);
     memset(g->pickups, 0, sizeof g->pickups);
     memset(&g->levelup, 0, sizeof g->levelup);
+    memset(g->destructibles, 0, sizeof g->destructibles);
     memset(&g->stage, 0, sizeof g->stage);
     memset(&g->tilemap, 0, sizeof g->tilemap);
     memset(g->fx, 0, sizeof g->fx);
@@ -122,6 +124,7 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     vs_levelup_init(g);
     if (vs_stage_init(g, stage_enum) != 0) { vs_plat_log("stage init failed"); return -1; }
     vs_weapon_add(g, g->player.startingWeapon, 1);
+    vs_loot_recalculate(g);
     {
         vs_stage *s = &g->stage;
         vs_stages_rec *row0 = &s->rows[0].rec;
@@ -188,6 +191,7 @@ void vs_game_update(vs_game *g, const vs_pad *pad) {
     if (slow) {
         if (g->player.xp >= g->levelup.current_xp_factor) {
             if (vs_player_level_up(g)) vs_weapons_reset_timers(g);
+            vs_loot_recalculate(g);
             vs_levelup_calculate_xp_factor(g);
             vs_levelup_open(g);
         }
@@ -197,6 +201,7 @@ void vs_game_update(vs_game *g, const vs_pad *pad) {
     vs_weapons_update(g);
     vs_enemies_update(g);
     vs_pickups_physics(g);
+    vs_destructibles_update(g);
     vs_fx_update(g);
     vs_timers_step(g);
     g->tick++;
@@ -322,17 +327,26 @@ void vs_game_render(vs_game *g) {
     for (int i = 0; i < VS_MAX_PICKUPS; i++) {
         vs_pickup *pk = &g->pickups[i];
         if (!pk->active) continue;
-        const char *fname;
+        const char *fname = "CoinGold.png";
         if (pk->type == VS_PICKUPS_GEM) fname = pk->value <= 2 ? "GemBlue.png" : pk->value <= 9 ? "GemGreen.png" : "GemRed.png";
-        else if (pk->type == VS_PICKUPS_TREASURE) fname = "BoxOpen.png";
-        else if (pk->type == VS_PICKUPS_ROAST) fname = "Roast.png";
-        else fname = "CoinGold.png";
+        else {
+            int gi = vs_table_find_group_enum(&g->pickups_table, pk->type);
+            if (gi >= 0) { vs_group grp; vs_table_group(&g->pickups_table, (uint32_t)gi, &grp); vs_pickups_rec r; vs_table_record(&g->pickups_table, grp.first, &r); if (VS_HAS(&r, VS_PICKUPS_F_FRAMENAME)) fname = vs_table_str(&g->pickups_table, r.frameName); }
+        }
         vs_frame f;
         if (vs_atlas_find(&g->atl_items, fname, &f) != 0) continue;
         float depth = pk->type == VS_PICKUPS_GEM ? pk->y - p->y - g->logical_h : 9 + pk->y - p->y;
         vs_render_sprite(g, g->tex_items, &f, pk->x, pk->y, 0.5f, 0.5f, 1.0f, 0, 0, 0, 0xffffff, 255, depth);
     }
 
+    for (int i = 0; i < VS_MAX_DESTRUCTIBLES; i++) {
+        vs_destructible *d = &g->destructibles[i];
+        if (!d->active) continue;
+        char name[48]; vs_frame f;
+        snprintf(name, sizeof name, "%s%d.png", d->frame_prefix, 1 + (int)(g->tick * VS_TICK_MS / 100) % 3);
+        if (vs_atlas_find(&g->atl_items, name, &f) != 0) continue;
+        vs_render_sprite(g, g->tex_items, &f, d->x, d->y, 0.5f, 1.0f, 1.0f, 0, 0, 0, d->blink_ms > 0 ? 0xffffff : 0xffffff, d->is_dead ? 128 : 255, d->y - p->y);
+    }
     for (int i = 0; i < g->enemy_count; i++) {
         vs_enemy *e = &g->enemies[i];
         if (!e->active) continue;

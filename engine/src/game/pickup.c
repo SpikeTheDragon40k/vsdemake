@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "core/vs_enums.h"
@@ -210,4 +211,71 @@ void vs_treasure_open(vs_game *g, int level, int treasure_row) {
     g->coins += coins * g->gold_multiplier * pl->greed;
     pl->invul_ms += 1000;
     g->chests_opened++;
+}
+
+/* ---- loot (LootManager, line 6056) and destructibles (line 5974) ---- */
+
+void vs_loot_recalculate(vs_game *g) {
+    vs_loot *l = &g->loot;
+    l->count = 0; l->acc = 0;
+    for (uint32_t gi = 0; gi < g->pickups_table.group_count; gi++) {
+        vs_group grp; vs_table_group(&g->pickups_table, gi, &grp);
+        vs_pickups_rec r; vs_table_record(&g->pickups_table, grp.first, &r);
+        if (g->player.level < r.unlocksAt) continue;
+        l->acc += (VS_HAS(&r, VS_PICKUPS_F_ISRARE) && r.isRare) ? r.rarity * g->player.luck : r.rarity;
+        if (r.rarity > 0 && l->count < 32) { l->type[l->count] = grp.enum_index; l->w[l->count] = l->acc; l->count++; }
+    }
+}
+
+int vs_loot_random_item(vs_game *g) {
+    vs_loot *l = &g->loot;
+    float r = vs_rng_f32(&g->rng) * l->acc;
+    for (int i = 0; i < l->count; i++) if (l->w[i] >= r) return l->type[i];
+    return VS_PICKUPS_COIN;
+}
+
+static vs_destructible *furthest_destructible(vs_game *g) {
+    vs_destructible *best = NULL; float bd = -1;
+    for (int i = 0; i < VS_MAX_DESTRUCTIBLES; i++) {
+        vs_destructible *d = &g->destructibles[i];
+        if (!d->active) continue;
+        float dx = d->x - g->player.x, dy = d->y - g->player.y, dd = dx * dx + dy * dy;
+        if (dd > bd) { bd = dd; best = d; }
+    }
+    return best;
+}
+
+void vs_destructible_make(vs_game *g, int type, float x, float y, int has_pos) {
+    if (!has_pos) vs_stage_position_out_of_sight(g, (g->player.vx == 0 && g->player.vy == 0) ? 0 : 45, 0, &x, &y);
+    vs_destructible *d = NULL;
+    for (int i = 0; i < VS_MAX_DESTRUCTIBLES; i++) if (!g->destructibles[i].active) { d = &g->destructibles[i]; break; }
+    if (!d) { d = furthest_destructible(g); if (!d) return; }
+    memset(d, 0, sizeof *d);
+    int gi = vs_table_find_group_enum(&g->destructibles_table, type);
+    vs_destructibles_rec r; if (gi >= 0) { vs_group grp; vs_table_group(&g->destructibles_table, (uint32_t)gi, &grp); vs_table_record(&g->destructibles_table, grp.first, &r); }
+    d->active = 1; d->type = type; d->x = x; d->y = y;
+    d->maxHp = gi >= 0 ? r.maxHp : 1; d->hp = d->maxHp;
+    if (gi >= 0) strncpy(d->frame_prefix, vs_table_str(&g->destructibles_table, r.frameName), sizeof d->frame_prefix - 1);
+    vs_frame f; char name[48]; snprintf(name, sizeof name, "%s1.png", d->frame_prefix);
+    if (vs_atlas_find(&g->atl_items, name, &f) == 0) { d->src_w = f.src_w; d->src_h = f.src_h; } else { d->src_w = d->src_h = 32; }
+    int n = 0; for (int i = 0; i < VS_MAX_DESTRUCTIBLES; i++) n += g->destructibles[i].active;
+    while (n > g->stage.maxDestructibles) { vs_destructible *f2 = furthest_destructible(g); if (!f2) break; f2->active = 0; n--; }
+}
+
+void vs_destructible_damage(vs_game *g, vs_destructible *d, float dmg) {
+    if (d->is_dead) return;
+    d->hp -= dmg;
+    d->blink_ms = 120;
+    if (d->hp <= 0) {
+        d->is_dead = 1;
+        vs_pickup_make(g, d->x, d->y, vs_loot_random_item(g));
+    }
+}
+
+void vs_destructibles_update(vs_game *g) {
+    for (int i = 0; i < VS_MAX_DESTRUCTIBLES; i++) {
+        vs_destructible *d = &g->destructibles[i];
+        if (!d->active) continue;
+        if (d->blink_ms > 0) { d->blink_ms -= VS_TICK_MS; if (d->blink_ms <= 0) { d->blink_ms = 0; if (d->is_dead) d->active = 0; } }
+    }
 }

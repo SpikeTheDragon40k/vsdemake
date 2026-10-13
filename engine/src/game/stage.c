@@ -137,6 +137,7 @@ int vs_stage_init(vs_game *g, int stage_enum) {
                     vs_map_object o;
                     vs_map_object_next(&cur, &o);
                     if (strcmp(gname, "Spawners") == 0 && s->spawner_count < 64) s->spawner_y[s->spawner_count++] = o.y;
+                    if (strcmp(gname, "Destructibles") == 0 && s->destructible_count < 64) { s->destructible_x[s->destructible_count] = o.x; s->destructible_y[s->destructible_count++] = o.y; }
                     if (strcmp(gname, "Scripts") == 0 && strcmp(o.name, "PlayerStart") == 0) { s->start_x = o.x; s->start_y = o.y; }
                 }
             }
@@ -350,5 +351,43 @@ void vs_stage_event_end(vs_game *g, int32_t token) {
         e->from_event = 0;
         g->stage.event_spawned--;
         if (!e->is_dead) { e->cullable = 1; vs_enemy_disappear(g, e); }
+    }
+}
+
+/* GetPositionOutOfSight (line 6715). */
+void vs_stage_position_out_of_sight(vs_game *g, float spread_deg, float margin, float *x, float *y) {
+    vs_player *p = &g->player;
+    float a;
+    if (spread_deg <= 0) a = 2 * PI * vs_rng_f32(&g->rng);
+    else a = atan2f(p->vy, p->vx) + (vs_rng_f32(&g->rng) - 0.5f) * spread_deg * PI / 180.0f;
+    float c = cosf(a), s = sinf(a);
+    if (margin > 0) {
+        *x = p->x + 0.5f * c * g->logical_w + (c > 0 ? margin : c < 0 ? -margin : 0);
+        *y = p->y + 0.5f * s * g->logical_h + (s > 0 ? margin : s < 0 ? -margin : 0);
+    } else {
+        *x = p->x + 0.9f * c * g->logical_w;
+        *y = p->y + 0.9f * s * g->logical_h;
+    }
+}
+
+/* Destructible timer (line 5152). */
+void vs_stage_spawn_destructible(vs_game *g) {
+    vs_stage *s = &g->stage;
+    float chance = s->destructibleChance * g->player.luck;
+    if (chance > s->destructibleChanceMax) chance = s->destructibleChanceMax;
+    if (100 * vs_rng_f32(&g->rng) > chance) return;
+    if (s->has_tileset && s->destructible_count > 0) {
+        /* a random Destructibles location that is currently off-screen */
+        int cand[64]; int n = 0;
+        float ox = g->tilemap.origin_x[g->tilemap.cur], oy = g->tilemap.origin_y[g->tilemap.cur];
+        for (int i = 0; i < s->destructible_count; i++) {
+            float x = ox + s->destructible_x[i], y = oy + s->destructible_y[i];
+            if (x < g->player.x - 0.5f * g->logical_w || x > g->player.x + 0.5f * g->logical_w || y < g->player.y - 0.5f * g->logical_h || y > g->player.y + 0.5f * g->logical_h) cand[n++] = i;
+        }
+        if (n == 0) return;
+        int k = cand[vs_rng_below(&g->rng, (uint32_t)n)];
+        vs_destructible_make(g, s->destructibleType, ox + s->destructible_x[k], oy + s->destructible_y[k], 1);
+    } else {
+        vs_destructible_make(g, s->destructibleType, 0, 0, 0);
     }
 }

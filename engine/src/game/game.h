@@ -148,6 +148,17 @@ typedef struct {
 
 typedef struct { float radius, percentage; } vs_magnet;
 
+#define VS_MAX_DESTRUCTIBLES 16
+typedef struct {
+    int active, is_dead, type;
+    float x, y, hp, maxHp, blink_ms, src_w, src_h;
+    char frame_prefix[32];
+} vs_destructible;
+
+typedef struct {
+    int type[32]; float w[32]; int count; float acc;
+} vs_loot;
+
 /* ---- level-up factory (notes/behaviour/levelup.md) */
 typedef struct {
     int store[512]; int store_count;        /* WeaponStore multiset */
@@ -192,6 +203,7 @@ typedef struct {
     float rect_inner_x, rect_inner_y, rect_inner_w, rect_inner_h;
     int event_spawned;      /* enemies alive from events */
     int spawner_count; float spawner_y[64];
+    int destructible_count; float destructible_x[64], destructible_y[64];
     float start_x, start_y;
 } vs_stage;
 
@@ -237,6 +249,8 @@ typedef struct {
     vs_weapon weapons[VS_MAX_WEAPONS];
     vs_bullet bullets[VS_MAX_BULLETS];
     vs_pickup pickups[VS_MAX_PICKUPS];
+    vs_destructible destructibles[VS_MAX_DESTRUCTIBLES];
+    vs_loot loot;
     vs_levelup levelup;
     vs_stage stage;
     vs_tilemap tilemap;
@@ -255,7 +269,7 @@ typedef struct {
     uint64_t seed;
     uint32_t prev_buttons;
 
-    vs_table enemies_table, characters_table, hitvfx_table, weapons_table, pickups_table;
+    vs_table enemies_table, characters_table, hitvfx_table, weapons_table, pickups_table, destructibles_table;
 
     /* render resources */
     vs_texture *textures[VS_MAX_TEXTURES];
@@ -327,6 +341,13 @@ vs_pickup *vs_pickup_make(vs_game *g, float x, float y, int type);
 void vs_pickups_update(vs_game *g);      /* slow block (every 4th frame) */
 void vs_pickups_physics(vs_game *g);     /* every frame: move, overlaps */
 void vs_pickups_vacuum_all(vs_game *g);
+void vs_loot_recalculate(vs_game *g);
+int vs_loot_random_item(vs_game *g);
+void vs_destructible_make(vs_game *g, int type, float x, float y, int has_pos);
+void vs_destructible_damage(vs_game *g, vs_destructible *d, float dmg);
+void vs_destructibles_update(vs_game *g);
+void vs_stage_spawn_destructible(vs_game *g);
+void vs_stage_position_out_of_sight(vs_game *g, float spread_deg, float margin, float *x, float *y);
 
 /* level-up */
 void vs_levelup_init(vs_game *g);

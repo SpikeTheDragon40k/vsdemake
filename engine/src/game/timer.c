@@ -58,6 +58,9 @@ static void fire(vs_game *g, vs_timer *t) {
     case VS_TIMER_SPAWN:
         vs_stage_spawn_round(g);
         break;
+    case VS_TIMER_DESTRUCTIBLE:
+        vs_stage_spawn_destructible(g);
+        break;
     case VS_TIMER_REGEN:
         if (g->player.regen > 0) vs_player_recover_hp(g, g->player.regen);
         break;

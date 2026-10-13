@@ -415,6 +415,17 @@ void vs_bullets_update(vs_game *g) {
         if (b->body_r <= 0 && b->body_w <= 0) continue;
         int wall_sensitive = g->weapons[b->weapon].hitsWalls && b->type != VS_WEAPONS_HOLYBOOK && b->type != VS_WEAPONS_VESPERS && b->type != VS_WEAPONS_GARLIC && b->type != VS_WEAPONS_HOLYWATER;
         if (b->body_r > 0 && wall_sensitive && vs_tilemap_solid_at(g, b->x, b->y, 1)) { b->active = 0; continue; }
+        for (int k = 0; k < VS_MAX_DESTRUCTIBLES && b->active; k++) {
+            vs_destructible *d = &g->destructibles[k];
+            if (!d->active || d->is_dead) continue;
+            /* body: circle r=16 at the sprite's top-left (origin 0.5, 1) */
+            vs_enemy tmp = {0};
+            tmp.x = d->x; tmp.y = d->y; tmp.body_r = 16; tmp.body_ox = -0.5f * d->src_w + 16; tmp.body_oy = -d->src_h + 16;
+            if (!overlaps_enemy(b, &tmp)) continue;
+            uint32_t duid = 0x80000000u | (uint32_t)k;
+            if (already_hit(b, duid)) continue;
+            vs_destructible_damage(g, d, vs_weapon_p_power(g, &g->weapons[b->weapon]));
+        }
         for (int k = 0; k < g->enemy_count && b->active; k++) {
             vs_enemy *e = &g->enemies[k];
             if (!e->active || e->is_dead) continue;
