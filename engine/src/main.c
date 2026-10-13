@@ -3,6 +3,7 @@
  *   vsdemake-sdl2 <vsdata.vspack> [--scale N] [--headless --frames N --screenshot out.bmp] [--auto-pick]
  *                                 [--input "RRRRDDLL"] [--seed N]
  *
+ * --no-render skips drawing except the last frame (fast headless runs).
  * --input is a scripted pad for headless runs and replays: tokens like
  * "R120 D120 L120 U120" (direction letters U/D/L/R, '.' = idle, optional
  * tick count), looped when exhausted. */
@@ -44,12 +45,13 @@ static uint32_t scripted_buttons(const char *script, size_t *pos, int *left) {
 
 int main(int argc, char **argv) {
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL;
-    int scale = 2, headless = 0, frames = -1, auto_pick = 0;
+    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0;
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) scale = atoi(argv[++i]);
         else if (strcmp(argv[i], "--headless") == 0) headless = 1;
         else if (strcmp(argv[i], "--auto-pick") == 0) auto_pick = 1;
+        else if (strcmp(argv[i], "--no-render") == 0) no_render = 1;
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) frames = atoi(argv[++i]);
         else if (strcmp(argv[i], "--screenshot") == 0 && i + 1 < argc) screenshot = argv[++i];
         else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) input = argv[++i];
@@ -99,7 +101,7 @@ int main(int argc, char **argv) {
             if (input) pad.buttons = scripted_buttons(input, &input_pos, &input_left);
             vs_game_update(&game, &pad);
         }
-        vs_game_render(&game);
+        if (!no_render || (frames >= 0 && rendered + 1 >= frames)) vs_game_render(&game);
         rendered++;
         if (frames >= 0 && rendered >= frames) break;
         if (!headless && steps == 0) vs_plat_sleep_ms(1);

@@ -26,6 +26,7 @@ static int load_texture(vs_game *g, const char *name) {
     vs_texture *t = vs_plat_texture_create(ti.w, ti.h, ti.pixels);
     if (!t) return -1;
     g->textures[g->texture_count] = t;
+    g->texture_names[g->texture_count] = vs_pack_entry_name(g->pack, entry);
     return g->texture_count++;
 }
 
@@ -86,6 +87,8 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
         vs_stages_rec *row0 = &s->rows[0].rec;
         const char *bg = VS_HAS(row0, VS_STAGES_F_BGTEXTURENAME) ? vs_table_str(&s->table, row0->BGTextureName) : "bg_forest";
         g->tex_bg = load_texture(g, bg);
+        if (s->has_tileset && vs_tilemap_init(g, vs_table_str(&s->table, row0->tileset_mapKey)) != 0) vs_plat_log("tilemap failed to load");
+        vs_tilemap_update(g);
     }
     return g->tex_bg < 0 ? -1 : 0;
 }
@@ -102,6 +105,7 @@ void vs_game_update(vs_game *g, const vs_pad *pad) {
 
     /* notes/behaviour/loop.md */
     vs_player_update(g, pad);
+    vs_tilemap_update(g);
     vs_enemies_cull_step(g);
     vs_bullets_cull(g);
 
@@ -184,6 +188,7 @@ void vs_game_render(vs_game *g) {
     vs_plat_begin_frame(0x000000);
     vs_plat_draw_tiled(g->textures[g->tex_bg], p->x, p->y, day_night_tint(g));
     vs_render_begin(g, cam_x, cam_y);
+    vs_tilemap_render(g, cam_x, cam_y);
 
     /* pickups: depth 9 + y - player.y; gems behind everything (y - player.y - H) */
     for (int i = 0; i < VS_MAX_PICKUPS; i++) {

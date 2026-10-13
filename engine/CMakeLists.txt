@@ -22,6 +22,7 @@ set(VS_CORE_SOURCES
   src/game/weapon.c
   src/game/pickup.c
   src/game/levelup.c
+  src/game/tilemap.c
   src/main.c)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")

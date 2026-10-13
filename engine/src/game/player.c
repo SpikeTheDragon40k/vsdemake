@@ -78,6 +78,7 @@ void vs_player_update(vs_game *g, const vs_pad *pad) {
     if (p->vx != 0 || p->vy != 0) { p->last_dir_x = p->vx; p->last_dir_y = p->vy; }
     p->x += p->vx * (VS_TICK_MS / 1000.0f);
     p->y += p->vy * (VS_TICK_MS / 1000.0f);
+    { float cx = p->x + p->body_ox, cy = p->y + p->body_oy; vs_tilemap_collide(g, &cx, &cy, p->body_r, 3); p->x = cx - p->body_ox; p->y = cy - p->body_oy; }
 
     /* Player.Update */
     p->invul_ms -= VS_TICK_MS;

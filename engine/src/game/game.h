@@ -20,7 +20,7 @@
 #define VS_MAX_STAGE_ROWS 32
 #define VS_MAX_POOLS 32
 #define VS_MAX_TEXTURES 32
-#define VS_MAX_SPRITES 4096
+#define VS_MAX_SPRITES 16384
 #define VS_MAX_GEMS 400
 #define VS_BULLET_HITS 64
 
@@ -185,6 +185,15 @@ typedef struct {
     float start_x, start_y;
 } vs_stage;
 
+/* ---- tilemap (notes/behaviour/stage-map.md) */
+typedef struct {
+    int active;
+    vs_map map;
+    int tex;
+    int cur;
+    float origin_x[4], origin_y[4];
+} vs_tilemap;
+
 /* ---- game */
 typedef struct {
     const vs_pack *pack;
@@ -208,6 +217,7 @@ typedef struct {
     vs_pickup pickups[VS_MAX_PICKUPS];
     vs_levelup levelup;
     vs_stage stage;
+    vs_tilemap tilemap;
     vs_timer timers[VS_MAX_TIMERS];
     int time_stopped;
     int game_over;
@@ -220,6 +230,7 @@ typedef struct {
 
     /* render resources */
     vs_texture *textures[VS_MAX_TEXTURES];
+    const char *texture_names[VS_MAX_TEXTURES];
     int texture_count;
     int tex_characters, tex_enemies, tex_bg, tex_items, tex_vfx;
     vs_atlas atl_characters, atl_enemies, atl_items, atl_vfx;
@@ -296,6 +307,13 @@ void vs_levelup_open(vs_game *g);
 void vs_levelup_choose(vs_game *g, int option);
 void vs_levelup_input(vs_game *g, const vs_pad *pad);
 void vs_level_weapon_up(vs_game *g, int type, int from_levelup);
+
+/* tilemap */
+int vs_tilemap_init(vs_game *g, const char *map_key);
+void vs_tilemap_update(vs_game *g);
+void vs_tilemap_render(vs_game *g, float cam_x, float cam_y);
+int vs_tilemap_solid_at(const vs_game *g, float x, float y, int mask);
+void vs_tilemap_collide(const vs_game *g, float *x, float *y, float r, int mask);
 
 /* render */
 void vs_render_begin(vs_game *g, float cam_x, float cam_y);

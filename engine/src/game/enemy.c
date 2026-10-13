@@ -207,6 +207,7 @@ static void update_one(vs_game *g, vs_enemy *e) {
     e->vy = g->enemy_speed * e->speed * e->dir_y * k;
     e->x += e->vx * dt;
     e->y += e->vy * dt;
+    if (!e->pass_through_walls) { float cx = e->x + e->body_ox, cy = e->y + e->body_oy; vs_tilemap_collide(g, &cx, &cy, e->body_r, 1); e->x = cx - e->body_ox; e->y = cy - e->body_oy; }
     e->anim_t += VS_TICK_MS;
 }
 

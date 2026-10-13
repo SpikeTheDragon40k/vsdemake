@@ -194,7 +194,7 @@ static void spawn_in_random_location(vs_game *g) {
             vs_pool *p = &s->pools[k];
             if (!p->enabled || p->is_boss) continue;
             float edge = vs_rng_f32(&g->rng) < 0.5f ? s->rect_outer_x : s->rect_outer_x + s->rect_outer_w;
-            float y = s->spawner_y[vs_rng_below(&g->rng, (uint32_t)s->spawner_count)];
+            float y = g->tilemap.origin_y[g->tilemap.cur] + s->spawner_y[vs_rng_below(&g->rng, (uint32_t)s->spawner_count)];
             spawn_from_pool(g, p, g->player.x + edge, y);
         }
     }
@@ -300,7 +300,7 @@ static void column_spawn(vs_game *g, int type, int count, float duration, int wa
         float x = g->player.x + edge, y;
         if (wall) {
             int n = s->spawner_count - 1;
-            y = s->spawner_y[n > 0 ? i % n : 0];
+            y = g->tilemap.origin_y[g->tilemap.cur] + s->spawner_y[n > 0 ? i % n : 0];
         } else {
             y = g->player.y + 8.0f * (i - 0.5f * count);
         }

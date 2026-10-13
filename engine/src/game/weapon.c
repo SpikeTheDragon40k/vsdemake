@@ -266,6 +266,7 @@ void vs_bullets_update(vs_game *g) {
             break;
         default: break;
         }
+        if (b->body_r > 0 && g->weapons[b->weapon].hitsWalls && vs_tilemap_solid_at(g, b->x, b->y, 1)) { b->active = 0; continue; }
         /* overlaps (physics step) */
         for (int k = 0; k < g->enemy_count && b->active; k++) {
             vs_enemy *e = &g->enemies[k];
