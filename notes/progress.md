@@ -47,5 +47,12 @@ Blocked / not available:
   will need `libsdl2-dev` or a vendored build.
 - Nothing pushed; no GitHub repo created (needs the user's go-ahead).
 
-Next: Phase 1 is done when the user confirms the test counts; then Phase 2
-behaviour notes starting with `loop.md` and `player.md`.
+Phase 2 (same session, later): wrote `notes/behaviour/` `loop.md`,
+`player.md`, `enemies.md`, `spawning.md`, `stage-events.md`, `pickups.md`,
+`levelup.md`, `weapons.md` (base + Whip + Magic Wand). Still missing:
+`treasure.md`, `meta.md` (needs `.webpack/main/index.js`), per-weapon
+sections for the other 25 weapons, and the items marked **verify** in
+`pickups.md`.
+
+Next: `treasure.md`, then Phase 3 (SDL2 skeleton; needs `libsdl2-dev` or a
+vendored SDL2 in this container).
