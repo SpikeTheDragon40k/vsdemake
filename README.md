@@ -17,15 +17,45 @@ The project does not distribute the original Vampire Survivors source
 code, game assets, or generated data packs. You must own Vampire Survivors
 on Steam and supply the supported game files yourself.
 
-> **Status: work in progress.** A playable MVP exists on PC using SDL2,
-> and the first XDK-built Xbox 360 executable has successfully booted on
-> hardware. Console compatibility, performance, and gameplay accuracy
-> remain under testing. Audio, save data, and several gameplay systems
-> are not yet implemented.
+> **Status: work in progress.** The game is playable on PC (SDL2) and on
+> Xbox 360 hardware (XDK build): two stages, weapons and evolutions, the
+> level-up screen, saves with unlocks and achievements, and sound and
+> music. Gameplay accuracy, console performance and the remaining content
+> are still being worked on.
 >
 > See `notes/progress.md` for the latest development status.
 
 ---
+
+## Features
+
+- **Stages:** Mad Forest and Inlaid Library, with their music. The Library
+  unlocks as in the original (reach level 20 in Mad Forest).
+- **Characters:** the starting characters, plus hidden ones once their
+  unlock is earned. Characters whose starting weapon is not implemented yet
+  are not listed.
+- **Weapons:** Whip, Magic Wand, Knife, Axe, Cross, King Bible, Fire Wand,
+  Garlic, Santa Water, Runetracer and Lightning Ring.
+- **Evolutions:** Bloody Tear, Holy Wand, Thousand Edge, Death Spiral,
+  Heaven Sword, Unholy Vespers, Hellfire and Soul Eater. They come from
+  treasure chests, with the original's rules (max-level weapon plus the
+  matching passive item).
+- **Passive items:** all 14, with their effect on every stat.
+- **Level-up screen:** like the original's. Each choice shows its icon,
+  name, "New!" or its level, and what the item does or what this level
+  adds (for example "Base damage up by 5"). The text is built from the
+  game's own English strings when the pack is made.
+- **Pickups:** gems, gold, coin bags, Floor Chicken, hearts, Vacuum,
+  Rosary, Orologion and treasure chests.
+- **Saves and unlocks:** gold, lifetime totals, the original's 40
+  achievements, unlocked items, characters and stages (see
+  [Saves and unlocks](#saves-and-unlocks)).
+- **Sound and music:** the original's sound effects and stage tracks,
+  played with the original's volume, pitch and repeat rules (see
+  [Sound and music](#sound-and-music)).
+- **Platforms:** PC (Linux, Windows, macOS via SDL2) and Xbox 360 (XDK).
+  The PC build doubles as a test tool: headless runs, fixed seeds, state
+  hashes, screenshots, frame and audio recording.
 
 ## How it works
 
@@ -43,8 +73,9 @@ Your supported Steam depot files
 ```
 
 The patcher reads the game files without executing the original game.
-It converts textures, atlases, maps, fonts, language strings, and gameplay
-tables into a single binary pack.
+It converts textures, atlases, maps, fonts, language strings and gameplay
+tables, and copies the game's OGG Vorbis sounds unchanged, into a single
+binary pack. The engine decodes the sounds itself at run time.
 
 The title-screen lettering is also generated locally: the patcher
 assembles the “VSDEMAKE” title from the user's original title image.
@@ -165,9 +196,12 @@ The patcher:
 2. Reads gameplay tables without running the original game.
 3. Converts supported assets into engine-readable formats.
 4. Generates the demake title texture from the user's title image.
-5. Writes `vsdata.vspack`, currently about 27 MB.
+5. Adds the game's sound effects and music (30 OGG files, unchanged).
+6. Writes `vsdata.vspack`, currently about 32 MB with 88 entries.
 
-Audio conversion is not implemented yet.
+Packs made by an older patcher must be rebuilt: the engine refuses
+outdated table layouts. A pack without sounds still works, but the game is
+silent and the title screen says so.
 
 The generated pack contains content derived from your game files.
 Keep it local; do not upload it to the repository, attach it to issues,
@@ -200,15 +234,19 @@ cmake --build engine/build
 
 ### Controls
 
-| Action | Keyboard |
-| --- | --- |
-| Move | Arrow keys / WASD |
-| Confirm / A | Enter / Space |
-| Start | Esc |
-| Back / B | Backspace |
-| Quit | Shift + Esc |
+| Action | Keyboard | Controller (PC and Xbox 360) |
+| --- | --- | --- |
+| Move | Arrow keys / WASD | D-pad / left stick |
+| Confirm | Enter / Space | A |
+| Start | Esc | Start |
+| Back | Backspace | B |
+| Quit (PC) | Shift + Esc | |
 
-Controllers are supported through SDL2. A pause screen is not implemented yet.
+Controllers work through SDL2 on PC. A pause screen is not implemented yet.
+
+The title screen also has a sound test: **Y** plays the level-up sound and
+**X** plays a plain beep. On Xbox 360, **B** swaps the byte order of the
+sound output, which is only a diagnostic.
 
 ### Development options
 
@@ -227,6 +265,10 @@ Controllers are supported through SDL2. A pause screen is not implemented yet.
 | `--audio-dump FILE.wav` | Write the mixed sound of the run to a WAV file (works headless) |
 | `--mute` | No sound |
 | `--record DIR` | Save every rendered frame as BMP in `DIR` (for videos); `--record-from N` starts at frame N |
+| `--headless` / `--no-render` | Run without a window, or without drawing |
+| `--frames N`, `--seed N`, `--input "R240 L240"` | Run length, random seed and scripted input for reproducible runs |
+| `--screenshot FILE.bmp` | Save the last frame |
+| `--scale N` | Window size multiplier |
 
 Example headless regression run:
 
@@ -236,7 +278,15 @@ Example headless regression run:
   --seed 3 --input "R240 L240" --screenshot last.bmp
 ```
 
-The engine prints a state hash for regression comparisons.
+The engine prints a state hash for regression comparisons. Sound never
+changes the gameplay: the hash is the same with and without audio.
+
+Example of a recorded run with its sound:
+
+```bash
+./engine/build/vsdemake-sdl2 /path/to/vsdata.vspack \
+  --headless --frames 600 --seed 3 --record frames/ --audio-dump run.wav
+```
 
 ## Step 5: Play on Xbox 360
 
@@ -248,8 +298,8 @@ See:
 The current workflow builds `default.xex` using the Xbox 360 XDK and
 launches it through a compatible homebrew dashboard or launcher.
 
-The first executable has successfully booted on hardware. This is an
-early development milestone, not a guarantee of compatibility,
+Gameplay and saves are confirmed on hardware; sound output through
+XAudio2 is new and being tested. This is not a guarantee of compatibility,
 performance, or stability.
 
 Transfer your locally generated `vsdata.vspack` according to the guide.
@@ -259,15 +309,18 @@ Do not include it in a shared executable package.
 
 The implementation is incomplete. Known gaps include:
 
-- Sound and music play on PC; the Xbox 360 audio output is new and still
-  untested on hardware. There is no options screen for the volumes yet
-  (they are stored in the save file, default 50 %).
 - No shop yet: unlocked characters are playable without buying them, and
-  gold can't be spent.
-- Incomplete weapon coverage.
-- Some enemy and pickup behaviours remain unimplemented.
-- Menus and presentation are still being refined.
-- Xbox 360 testing and performance validation are ongoing.
+  gold only accumulates.
+- No options or pause screen; the volumes can only be changed in the save
+  file.
+- Weapons not implemented yet: Peachone, Ebony Wings, Vandalier,
+  Pentagram, Clock Lancet, Laurel and Bone. They are never offered, and the
+  characters who start with them are not listed.
+- Some enemy behaviours (exploding enemies and their sounds) and the
+  treasure-chest opening animation are missing.
+- The interface uses a simple built-in font, not the original's.
+- The libxenon build has no sound.
+- Xbox 360 sound and performance validation are ongoing.
 
 ## Saves and unlocks
 
@@ -281,6 +334,25 @@ starting characters and the items that are unlocked from the beginning.
 The original's 40 achievements are checked after each run and unlock the
 rest; the game-over screen lists what a run unlocked. Runs are recorded when
 they end (game over), so quitting mid-run does not save that run.
+
+Advanced: the save holds `sound_volume` and `music_volume` (0 to 1,
+default 0.5). Editing the file by hand breaks its checksum, and the game
+then falls back to the backup or a new save, so wait for the options
+screen.
+
+## Sound and music
+
+- The game's own sounds, decoded on the console or PC by stb_vorbis and
+  mixed by the engine: 44.1 kHz stereo, 32 voices, with the volume, pitch
+  and "no more than N copies at once" rules of the original.
+- Weapons, hits, pickups, chests, level-up and menu clicks have their
+  sounds. The stage track loops during a run, fades down on the level-up
+  screen, and the game-over jingle plays at the end. The start-up jingle
+  plays on the title screen; the menus have no looping music, as in the
+  original.
+- Output: SDL2 audio on PC, XAudio2 on Xbox 360. `--mute` turns it off.
+- The title screen shows the sound status: how many sounds were loaded,
+  whether the output works, and live levels.
 
 See `notes/progress.md` for detailed implementation status.
 
@@ -319,7 +391,8 @@ node patcher/bin/vspatch.js build vs-1.0 --out work/vsdata.vspack
 - `patcher/`: verification, static extraction, asset conversion, and packing.
 - `engine/`: gameplay engine and platform backends.
 - `schema/`: data schemas.
-- `notes/`: depot report, behaviour descriptions, pack format, and progress.
+- `notes/`: depot report, behaviour descriptions (`notes/behaviour/`,
+  including audio, saves and evolutions), pack format, and progress.
 - `docs/`: build, installation, and testing guides.
 - `work/`: ignored local generated output.
 
@@ -367,6 +440,11 @@ assets, SDK components, or console binaries.
 | Engine reports a table-layout mismatch | Rebuild the pack with the current patcher. |
 | Sprites are offset from their hitboxes | Update the engine and rebuild the pack; an earlier atlas-trimming bug affected sprite placement. |
 | Console fails to load the pack | Follow the path and first-boot checks in the Xbox 360 guides. |
+| Title says "NO SOUNDS IN THE PACK" | Rebuild `vsdata.vspack` with the current patcher (88 entries, 30 sounds). |
+| Title says "NO AUDIO OUTPUT" | The sound device failed to open; check the system's audio device (PC). |
+| Sound loaded but silent, title shows `vol 0.00/0.00` | Update the engine: an earlier build wrote new saves with the volume at 0. The current build repairs such saves when loading them. |
+| Title says "SAVE FAILED" | The folder next to the pack (or `default.xex`) isn't writable; the reason is shown on screen. |
+| Xbox 360 link error `XLFQueue…` | Use the current `engine/xdk/vsdemake.vcxproj`, which links `xmcore.lib`. |
 
 ## Legal and attribution
 
@@ -389,6 +467,8 @@ law and license terms.
 Any license applied to this project's code covers only material the
 project is entitled to license. It does not grant rights to
 Vampire Survivors content or proprietary SDK components.
+
+The project's own code is released under the MIT License (`LICENSE`).
 
 Third-party code: `engine/src/third_party/stb_vorbis.c` (Sean Barrett,
 public domain or MIT, at your choice) decodes the game's OGG Vorbis sounds;
