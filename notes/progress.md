@@ -207,3 +207,14 @@ resume in a fresh session).
 - Title diagnostics: Y = LevelUp sound, X = plain 440 Hz tone, B = swap the
   byte order of the XAudio2 output; a line with volumes, voices, play
   requests (and why the last one was refused) and the LevelUp sound's data.
+
+## 2026-10-14: Lightning Ring drawing
+
+- Reported from the video: the bolt was drawn across the whole screen and
+  not where it hit. The 480 × 17 bolt image was scaled uniformly by
+  path length / 17, so it became ~16 times too wide, and the invisible
+  bullet sprite (HitRed2) was drawn too. Now drawn as the original's trail:
+  a 17 px strip from the start point to the strike, plus the small
+  coloured impact circle; the bullet itself stays invisible. Behaviour in
+  `notes/behaviour/weapons.md`. New `vs_render_stretched` (separate width
+  and height). Gameplay unchanged (rendering only).

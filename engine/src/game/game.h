@@ -448,6 +448,8 @@ void vs_tilemap_collide(const vs_game *g, float *x, float *y, float r, int mask)
 /* render */
 void vs_render_begin(vs_game *g, float cam_x, float cam_y);
 void vs_render_sprite(vs_game *g, int tex, const vs_frame *f, float x, float y, float ox, float oy, float scale, int flip_x, int flip_y, float angle, uint32_t tint, uint8_t alpha, float depth);
+void vs_render_stretched(vs_game *g, int tex, const vs_frame *f, float cx, float cy, float w, float h,
+                         float angle, uint32_t tint, uint8_t alpha, float depth);
 void vs_render_end(vs_game *g);
 const char *vs_weapon_name(const vs_game *g, int type);
 
