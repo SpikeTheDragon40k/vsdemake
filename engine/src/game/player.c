@@ -114,6 +114,7 @@ void vs_player_recover_hp(vs_game *g, float n) {
     if (p->is_dead) return;
     float heal = p->maxHp - p->hp;
     if (n < heal) heal = n;
+    g->recovered_hp += heal;
     p->hp += heal;
     if (p->hp > p->maxHp) p->hp = p->maxHp;
 }

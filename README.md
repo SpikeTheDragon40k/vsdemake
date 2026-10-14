@@ -122,6 +122,10 @@ Headless/regression runs (no window): `--headless --no-render --frames 18000
 `--char N` starts with character N (1 Antonio, 2 Imelda, ...) and
 `--hitboxes` outlines colliders (green enemies, yellow bullets, cyan player).
 `--menu` stays on the title screen in headless mode (for screenshots).
+`--give NAME[:LEVEL]` (repeatable, names as in the weapons enum, e.g.
+`WHIP:8`, `MAXHEALTH`, `VAMPIRICA`) adds items at the start, `--chest`
+opens one treasure chest right away and logs what the player owns, and
+`--locked` keeps locked items out of level-ups as on a fresh save.
 
 ## Step 5: Xbox 360
 

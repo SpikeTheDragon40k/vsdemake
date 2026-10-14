@@ -57,8 +57,13 @@ void vs_levelup_init(vs_game *g) {
         vs_weapons_rec r;
         vs_table_record(&g->weapons_table, grp.first, &r);
         int type = grp.enum_index;
+        /* No save/unlock system yet: everything counts as unlocked (the
+         * original's own debug switch does the same) unless locked_items.
+         * Weapons without behaviour in the demake are never offered. */
+        int unlocked = r.isUnlocked || !g->locked_items;
         if (r.isEvolution) lu->excluded[type] = 1;
-        else if (r.isUnlocked) { if (r.rarity == 0 || r.isSpecialOnly) lu->excluded[type] = 1; }
+        else if (!r.isPowerUp && !vs_weapon_implemented(type)) lu->excluded[type] = 1;
+        else if (unlocked) { if (r.rarity == 0 || r.isSpecialOnly) lu->excluded[type] = 1; }
         else lu->excluded[type] = 1;
         for (uint32_t k = 0; k < grp.count && lu->store_count < 512; k++) lu->store[lu->store_count++] = type;
     }

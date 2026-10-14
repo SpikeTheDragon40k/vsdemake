@@ -99,8 +99,9 @@ The weapon class adds nothing; the base `Fire` runs with no explicit target.
 - `OnHasHitWall`: despawn (default).
 - Emits a holy particle each frame (cosmetic). Sound: magic, detune
   −100 × index, volume `weapon.volume || 0.15`.
-- Holy Wand (HOLY_MISSILE) uses the same bullet class with its own table
-  entry and a weapon class to be documented with the evolutions.
+- Holy Wand (HOLY_MISSILE) uses a subclass of this bullet with no overrides
+  (line 3137) and a plain weapon class: only its table entry differs. Other
+  evolutions: `evolutions.md`.
 
 ## Other weapons
 

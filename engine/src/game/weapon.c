@@ -43,9 +43,26 @@ static void apply_entry(vs_weapon *w, const vs_weapons_rec *r, int set) {
 #undef B
 }
 
-float vs_weapon_p_area(const vs_game *g, const vs_weapon *w) { return (w->type == VS_WEAPONS_AXE ? 1.3f : 1.0f) * g->player.area * w->area; }
-int vs_weapon_p_amount(const vs_game *g, const vs_weapon *w) { return w->type == VS_WEAPONS_GARLIC ? 1 : (int)(g->player.amount + w->amount); }
-float vs_weapon_p_power(const vs_game *g, const vs_weapon *w) { return g->player.power * w->power; }
+float vs_weapon_p_area(const vs_game *g, const vs_weapon *w) {
+    float k = w->type == VS_WEAPONS_AXE ? 1.3f : w->type == VS_WEAPONS_SCYTHE ? 1.2f : 1.0f;
+    return k * g->player.area * w->area;
+}
+int vs_weapon_p_amount(const vs_game *g, const vs_weapon *w) {
+    return (w->type == VS_WEAPONS_GARLIC || w->type == VS_WEAPONS_VORTEX) ? 1 : (int)(g->player.amount + w->amount);
+}
+float vs_weapon_p_power(const vs_game *g, const vs_weapon *w) { return g->player.power * w->power + w->recovered_bonus; }
+
+int vs_weapon_implemented(int type) {
+    switch (type) {
+    case VS_WEAPONS_WHIP: case VS_WEAPONS_VAMPIRICA: case VS_WEAPONS_MAGIC_MISSILE: case VS_WEAPONS_HOLY_MISSILE:
+    case VS_WEAPONS_KNIFE: case VS_WEAPONS_THOUSAND: case VS_WEAPONS_AXE: case VS_WEAPONS_SCYTHE:
+    case VS_WEAPONS_CROSS: case VS_WEAPONS_HEAVENSWORD: case VS_WEAPONS_HOLYBOOK: case VS_WEAPONS_VESPERS:
+    case VS_WEAPONS_FIREBALL: case VS_WEAPONS_HELLFIRE: case VS_WEAPONS_GARLIC: case VS_WEAPONS_VORTEX:
+    case VS_WEAPONS_HOLYWATER: case VS_WEAPONS_DIAMOND: case VS_WEAPONS_LIGHTNING:
+        return 1;
+    default: return 0;
+    }
+}
 static float p_speed(const vs_game *g, const vs_weapon *w) { return g->player.speed * w->speed; }
 static float p_duration(const vs_game *g, const vs_weapon *w) { return g->player.duration * w->duration; }
 float vs_weapon_p_interval(const vs_game *g, const vs_weapon *w) { return (g->player.cooldown > 0.1f ? g->player.cooldown : 0.1f) * w->interval; }
@@ -102,6 +119,7 @@ int vs_weapon_add(vs_game *g, int type, int from_levelup) {
         uint32_t n = vs_table_list(&g->weapons_table, r.evolvesFrom, &items);
         for (uint32_t i = 0; i < n; i++) vs_weapon_remove(g, vs_list_i32(items, i));
     }
+    if (type == VS_WEAPONS_VORTEX) g->recovered_hp = 0;
     w->level = 1;
     if (w->is_power_up) passive_apply(g, w);
     else reset_firing_timer(g, slot);
@@ -206,7 +224,7 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
     float area = vs_weapon_p_area(g, w);
     int amount = vs_weapon_p_amount(g, w);
     switch (w->type) {
-    case VS_WEAPONS_WHIP: {
+    case VS_WEAPONS_WHIP: case VS_WEAPONS_VAMPIRICA: {
         int side_left = p->facing_left ? (index % 2 != 1) : (index % 2 == 1);
         b->x = p->x + (side_left ? -64.0f : 64.0f);
         b->y = p->y - 16.0f - 16.0f * index;
@@ -235,6 +253,27 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
         b->ax = b->vx; b->ay = b->vy > -600 ? b->vy : -600;
         break;
     }
+    case VS_WEAPONS_SCYTHE:
+        /* Death Spiral: evenly spread over a full circle, straight out */
+        b->body_r = 16.0f * area; b->scale = area;
+        set_velocity_angle(b, DEG(360.0f / amount * index - 90.0f), true_speed(g, w, 1.0f));
+        break;
+    case VS_WEAPONS_HELLFIRE: {
+        b->body_r = 16.0f * area; b->scale = 0;
+        vs_enemy *t = enemy_by_uid(g, w->target_uid);
+        if (!t) t = vs_enemy_closest_to_player(g);
+        static const float hoffs[] = {0, 10, -10, 20, -20, 30, -30, 40, -40};
+        float base = t ? angle_from_target(g, t) : atan2f(p->last_dir_y, (p->last_dir_x == 0 && p->last_dir_y == 0) ? 1 : p->last_dir_x);
+        set_velocity_angle(b, base + DEG(hoffs[index % 9]), true_speed(g, w, 1.0f));
+        break;
+    }
+    case VS_WEAPONS_HEAVENSWORD:
+        b->body_r = 12.0f * area; b->scale = area; b->cullable = 0;
+        b->x += (vs_rng_f32(&g->rng) - 0.5f) * index * 20.0f * area;
+        b->y += (vs_rng_f32(&g->rng) - 0.5f) * index * 20.0f * area;
+        aim_for_nearest_enemy(g, b, true_speed(g, w, 1.0f));
+        b->ax = b->vx; b->ay = b->vy;
+        break;
     case VS_WEAPONS_FIREBALL: {
         b->body_r = 12.0f * area; b->scale = 0; b->y -= 16;
         vs_enemy *t = enemy_by_uid(g, w->target_uid);
@@ -255,7 +294,7 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
         b->body_r = 0; b->scale = 0; b->cullable = 0;
         b->f0 = 2 * PI / amount * index;
         break;
-    case VS_WEAPONS_GARLIC:
+    case VS_WEAPONS_GARLIC: case VS_WEAPONS_VORTEX:
         b->body_r = 32.0f * area; b->visible = 0; b->cullable = 0;
         break;
     case VS_WEAPONS_LIGHTNING: {
@@ -304,6 +343,7 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
 void vs_weapon_fire(vs_game *g, int slot) {
     vs_weapon *w = &g->weapons[slot];
     if (!w->active || w->is_power_up) return;
+    if (w->type == VS_WEAPONS_VORTEX) w->recovered_bonus = g->recovered_hp / 600.0f < 6 ? g->recovered_hp / 600.0f : 6;
     if (w->type == VS_WEAPONS_FIREBALL || w->type == VS_WEAPONS_DIAMOND || w->type == VS_WEAPONS_HELLFIRE) {
         int n = 0;
         for (int i = 0; i < g->enemy_count; i++) if (g->enemies[i].active && !g->enemies[i].pass_through_walls) n++;
@@ -322,7 +362,12 @@ void vs_weapon_fire(vs_game *g, int slot) {
 }
 
 void vs_weapons_update(vs_game *g) {
-    for (int i = 0; i < VS_MAX_WEAPONS; i++) if (g->weapons[i].active) g->weapons[i].stats_lifetime += VS_TICK_MS;
+    for (int i = 0; i < VS_MAX_WEAPONS; i++) {
+        vs_weapon *w = &g->weapons[i];
+        if (!w->active) continue;
+        w->stats_lifetime += VS_TICK_MS;
+        if (w->heal_cd_ms > 0) w->heal_cd_ms -= VS_TICK_MS;
+    }
 }
 
 static int already_hit(vs_bullet *b, uint32_t uid) {
@@ -345,16 +390,25 @@ static int overlaps_enemy(const vs_bullet *b, const vs_enemy *e) {
     return dx * dx + dy * dy < r * r;
 }
 
-static void on_hit(vs_game *g, vs_bullet *b, vs_enemy *e) {
+static void on_hit(vs_game *g, vs_bullet *b, vs_enemy *e, float crit) {
     vs_weapon *w = &g->weapons[b->weapon];
     int was_alive = !e->is_dead;
-    if (b->type == VS_WEAPONS_GARLIC && was_alive && e->res_Debuffs < 1) {
+    if ((b->type == VS_WEAPONS_GARLIC || b->type == VS_WEAPONS_VORTEX) && was_alive && e->res_Debuffs < 1) {
         if (e->knockback < e->maxKnockback) e->knockback += 0.3f;
         if (e->res_Freeze > 0) e->res_Freeze -= 0.1f;
     }
-    float dmg = vs_weapon_p_power(g, w);
+    float dmg = vs_weapon_p_power(g, w) * crit;
     vs_enemy_get_damaged(g, e, dmg, w->hitVFX, w->knockback);
     w->stats_damage += dmg;
+    /* Soul Eater: a kill may drop a Little Heart that flies to the player */
+    if (b->type == VS_WEAPONS_VORTEX && was_alive && e->is_dead) {
+        float r = vs_rng_f32(&g->rng);
+        if (vs_weapon_p_power(g, w) / 7.0f * 0.15f > r) {
+            float o = 10.0f * (r - 0.5f);
+            vs_pickup *h = vs_pickup_make(g, e->x + o, e->y - o, VS_PICKUPS_LITTLEHEART);
+            if (h) { h->go_to_player = 1; h->t = 1; }
+        }
+    }
     switch (b->type) {
     case VS_WEAPONS_MAGIC_MISSILE: case VS_WEAPONS_HOLY_MISSILE: case VS_WEAPONS_KNIFE: case VS_WEAPONS_THOUSAND:
     case VS_WEAPONS_AXE: case VS_WEAPONS_FIREBALL:
@@ -374,6 +428,31 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
         if (b->age_ms >= 200) { b->active = 0; return; }
         b->alpha = b->age_ms < 100 ? 255 : (uint8_t)(255 * (1.0f - (b->age_ms - 100) / 100.0f));
         break;
+    case VS_WEAPONS_VAMPIRICA:   /* fades over 200 ms instead of 100 */
+        if (b->age_ms >= 300) { b->active = 0; return; }
+        b->alpha = b->age_ms < 100 ? 255 : (uint8_t)(255 * (1.0f - (b->age_ms - 100) / 200.0f));
+        break;
+    case VS_WEAPONS_SCYTHE:
+        b->angle += 720.0f * dt;
+        break;
+    case VS_WEAPONS_HELLFIRE:
+        b->scale = area * (b->age_ms < 200 ? b->age_ms / 200.0f : 1);
+        b->angle = atan2f(b->vy, b->vx) * 180.0f / PI;
+        break;
+    case VS_WEAPONS_HEAVENSWORD: {
+        /* accel 2 -> 0 over 500 ms, then turn back (0 -> -2 over 500 ms),
+         * spinning, with a fresh hit list; cullable 500 ms after turning */
+        float accel;
+        if (b->age_ms < 500) accel = 2.0f - 2.0f * b->age_ms / 500.0f;
+        else {
+            if (b->state == 0) { b->state = 1; b->hit_count = 0; }
+            accel = b->age_ms < 1000 ? -2.0f * (b->age_ms - 500) / 500.0f : -2.0f;
+            b->angle += 360.0f * dt;
+            if (b->age_ms >= 1000) b->cullable = 1;
+        }
+        b->vx = b->ax * accel; b->vy = b->ay * accel;
+        break;
+    }
     case VS_WEAPONS_AXE:
         b->ay += VS_TICK_MS * 0.625f;
         b->vx = b->ax; b->vy = b->ay;
@@ -405,7 +484,7 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
         if (b->hit_reset_ms >= w->hitBoxDelay) { b->hit_reset_ms -= w->hitBoxDelay; b->hit_count = 0; }
         break;
     }
-    case VS_WEAPONS_GARLIC:
+    case VS_WEAPONS_GARLIC: case VS_WEAPONS_VORTEX:
         b->x = p->x; b->y = p->y;
         if (b->age_ms >= vs_weapon_p_interval(g, w)) { b->active = 0; return; }
         break;
@@ -454,7 +533,7 @@ void vs_bullets_update(vs_game *g) {
         b->x += b->vx * dt;
         b->y += b->vy * dt;
         if (b->body_r <= 0 && b->body_w <= 0) continue;
-        int wall_sensitive = g->weapons[b->weapon].hitsWalls && b->type != VS_WEAPONS_HOLYBOOK && b->type != VS_WEAPONS_VESPERS && b->type != VS_WEAPONS_GARLIC && b->type != VS_WEAPONS_HOLYWATER;
+        int wall_sensitive = g->weapons[b->weapon].hitsWalls && b->type != VS_WEAPONS_HOLYBOOK && b->type != VS_WEAPONS_VESPERS && b->type != VS_WEAPONS_GARLIC && b->type != VS_WEAPONS_VORTEX && b->type != VS_WEAPONS_HOLYWATER;
         if (b->body_r > 0 && wall_sensitive && vs_tilemap_solid_at(g, b->x, b->y, 1)) { b->active = 0; continue; }
         for (int k = 0; k < VS_MAX_DESTRUCTIBLES && b->active; k++) {
             vs_destructible *d = &g->destructibles[k];
@@ -471,8 +550,21 @@ void vs_bullets_update(vs_game *g) {
             vs_enemy *e = &g->enemies[k];
             if (!e->active || e->is_dead) continue;
             if (!overlaps_enemy(b, e)) continue;
+            /* Bloody Tear / Heaven Sword roll a crit on every overlap, as the
+             * original's onBulletOverlapsEnemy; a Bloody Tear crit heals 8 HP
+             * (once per second) even when the hit itself is already spent. */
+            float crit = 1;
+            if (b->type == VS_WEAPONS_VAMPIRICA || b->type == VS_WEAPONS_HEAVENSWORD) {
+                vs_weapon *w = &g->weapons[b->weapon];
+                if (vs_rng_f32(&g->rng) < w->critChance * g->player.luck) crit = w->critMul;
+                if (b->type == VS_WEAPONS_VAMPIRICA && crit > 1 && w->heal_cd_ms <= 0) {
+                    w->heal_cd_ms = 1000;
+                    vs_player_recover_hp(g, 8);
+                    vs_fx_damage_number(g, g->player.x, g->player.y, -8);
+                }
+            }
             if (already_hit(b, e->uid)) continue;
-            on_hit(g, b, e);
+            on_hit(g, b, e, crit);
         }
     }
 }

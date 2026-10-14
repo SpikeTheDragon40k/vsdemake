@@ -37,10 +37,9 @@ git-ignored). Recon was redone and written to `notes/depot-report.md`.
 
 ### Not done / known gaps
 
-- Weapons missing: Pentagram, Bone, Lancet, Clock Lancet, Song of Mana,
-  Laurel/Thorns shield, Nduja and all evolutions' special behaviour (evolution objects
-  load from the table but use the base weapon's bullet; Holy Wand/Vespers
-  share their base weapon's code which is correct for those two).
+- Weapons missing: Peachone, Ebony Wings, Vandalier, Pentagram, Clock
+  Lancet, Laurel, Bone, Nduja (evolutions of the implemented weapons are done,
+  see the 2026-10-14 entry).
 - Audio: not in the pack (needs a permissively licensed Vorbis decoder for
   Node) and no mixer in the engine.
 - Save data / unlocks / shop / achievements: none (every bought-or-cheap
@@ -113,3 +112,20 @@ Checked every guide against the code and the original:
 - Title screen shows "VSDEMAKE" in the original logo's gold/red style,
   built by the patcher from the user's own title.png (`logo.js`; nothing
   derived from the game is committed). New flag `--menu`.
+
+## 2026-10-14: evolutions and passive items
+
+- Five evolutions now have their own behaviour (`notes/behaviour/evolutions.md`):
+  Bloody Tear (crits, heal on crit), Death Spiral, Hellfire, Heaven Sword
+  (crits, boomerang), Soul Eater (power from healing, heart drops). Holy
+  Wand, Thousand Edge and Unholy Vespers were already done.
+- All 14 passive items checked against the original's passive class.
+- Items locked on a fresh save (most passives, so most evolutions) are now
+  offered: the demake has no save yet and behaves like the original's
+  unlock-all developer switch. `--locked` restores the fresh-save rule.
+- Unimplemented weapons (Peachone, Ebony Wings, Vandalier, Pentagram, Clock
+  Lancet, Laurel, Bone) are no longer offered; Laurel used to be offered and
+  fired a plain shot.
+- Dev options: `--give NAME[:LEVEL]`, `--chest`, `--locked`.
+- Checked: chest after Whip 8 + Hollow Heart gives Bloody Tear; Whip 7 or no
+  Hollow Heart gives none; ASan/UBSan runs clean; C++03 check clean.

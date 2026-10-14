@@ -107,6 +107,8 @@ typedef struct {
     /* Santa Water: 12 angle slots and shuffled radii */
     float hw_radii[12]; int hw_angle_i, hw_radius_i;
     int target_uid;         /* Fire Wand: random target picked at Fire */
+    float heal_cd_ms;       /* Bloody Tear: heal on crit at most once per 1000 ms */
+    float recovered_bonus;  /* Soul Eater: min(6, recovered HP / 600), taken at Fire */
 } vs_weapon;
 
 typedef struct {
@@ -264,6 +266,8 @@ typedef struct {
     int chests_opened;
     int auto_pick;          /* headless: take the first level-up option */
     int debug_hitboxes;     /* dev aid: outline colliders */
+    int locked_items;       /* 1 = honour isUnlocked (fresh save); default: all unlocked */
+    float recovered_hp;     /* HP actually recovered (Soul Eater's onHPRecoveryCallback) */
     int screen;             /* VS_SCREEN_* */
     int menu_sel, menu_stage, menu_char_list[16], menu_char_count;
     int selected_character, selected_stage;
@@ -323,6 +327,8 @@ void vs_stage_event_end(vs_game *g, int32_t token);
 /* weapons */
 int vs_weapon_add(vs_game *g, int type, int from_levelup);
 int vs_weapon_find(const vs_game *g, int type);
+/* 1 if the demake has this weapon's own behaviour (others fall back to a plain shot) */
+int vs_weapon_implemented(int type);
 int vs_weapon_level_up(vs_game *g, int slot);        /* returns 0 when maxed */
 void vs_weapon_fire(vs_game *g, int slot);
 void vs_weapon_fire_one(vs_game *g, int slot, int index);

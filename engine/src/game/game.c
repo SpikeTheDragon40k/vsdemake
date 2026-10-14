@@ -56,10 +56,10 @@ static void build_character_list(vs_game *g) {
 }
 
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
-    int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes;
+    int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes, locked_items = g->locked_items;
     int selected_character = g->selected_character;
     memset(g, 0, sizeof *g);
-    g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes;
+    g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes; g->locked_items = locked_items;
     g->selected_character = selected_character;
     g->pack = pack;
     g->logical_w = lw;
@@ -426,17 +426,30 @@ void vs_game_render(vs_game *g) {
 
     for (int i = 0; i < VS_MAX_WEAPONS; i++) {
         vs_weapon *w = &g->weapons[i];
-        if (!w->active || w->type != VS_WEAPONS_GARLIC) continue;
+        if (!w->active) continue;
         vs_frame f;
-        if (vs_atlas_find(&g->atl_vfx, "Rings3.png", &f) == 0)
+        if (w->type == VS_WEAPONS_GARLIC && vs_atlas_find(&g->atl_vfx, "Rings3.png", &f) == 0)
             vs_render_sprite(g, g->tex_vfx, &f, p->x, p->y, 0.5f, 0.5f, 2.0f * vs_weapon_p_area(g, w), 0, 0, fmodf(g->tick * VS_TICK_MS / 6000.0f * 360.0f, 360.0f), 0xffffff, 60, -g->logical_h * 0.5f);
+        if (w->type == VS_WEAPONS_VORTEX && vs_atlas_find(&g->atl_vfx, "circle.png", &f) == 0) {
+            /* Soul Eater: a black disc (alpha 0.6) and an inner one that pulses
+             * 0.1..0.6 every second and shrinks to nothing every 6 s */
+            float full = 2.0f * vs_weapon_p_area(g, w) * 36.0f / 256.0f;
+            float ms = (float)g->tick * VS_TICK_MS;
+            float pulse = fmodf(ms, 2200.0f), a = pulse < 1000 ? 0.1f + 0.5f * pulse / 1000 : pulse < 1100 ? 0.6f : pulse < 2100 ? 0.6f - 0.5f * (pulse - 1100) / 1000 : 0.1f;
+            float inner = full * (1.0f - fmodf(ms, 6000.0f) / 6000.0f);
+            vs_render_sprite(g, g->tex_vfx, &f, p->x, p->y, 0.5f, 0.5f, full, 0, 0, 0, 0x000000, 153, -g->logical_h * 0.5f);
+            vs_render_sprite(g, g->tex_vfx, &f, p->x, p->y, 0.5f, 0.5f, inner, 0, 0, 0, 0x000000, (uint8_t)(255 * a), -g->logical_h * 0.5f + 0.01f);
+        }
     }
     for (int i = 0; i < VS_MAX_BULLETS; i++) {
         vs_bullet *b = &g->bullets[i];
         if (!b->active || !b->visible) continue;
         const char *fname; float depth = 1; int tex = g->tex_vfx; const vs_atlas *atl = &g->atl_vfx;
         switch (b->type) {
-        case VS_WEAPONS_WHIP: fname = "slash.png"; break;
+        case VS_WEAPONS_WHIP: case VS_WEAPONS_VAMPIRICA: fname = "slash.png"; break;
+        case VS_WEAPONS_SCYTHE: fname = "ProjectileScythe.png"; break;
+        case VS_WEAPONS_HELLFIRE: fname = "ProjectileHellfireLarge.png"; depth = b->y - p->y + g->logical_h; break;
+        case VS_WEAPONS_HEAVENSWORD: fname = "Sword.png"; depth = b->y - p->y + 2.0f * g->logical_h; break;
         case VS_WEAPONS_MAGIC_MISSILE: case VS_WEAPONS_HOLY_MISSILE: fname = "ProjectileHoly1.png"; break;
         case VS_WEAPONS_KNIFE: case VS_WEAPONS_THOUSAND: fname = "ProjectileKnife3.png"; break;
         case VS_WEAPONS_AXE: fname = "ProjectileAxe1.png"; break;
@@ -456,7 +469,13 @@ void vs_game_render(vs_game *g) {
         if (vs_atlas_find(atl, fname, &f) != 0) continue;
         float scale = b->scale;
         uint32_t tint = 0xffffff; uint8_t alpha = b->alpha;
-        if (b->type == VS_WEAPONS_WHIP && b->age_ms < 100) scale *= b->age_ms / 100.0f;
+        if ((b->type == VS_WEAPONS_WHIP || b->type == VS_WEAPONS_VAMPIRICA) && b->age_ms < 100) scale *= b->age_ms / 100.0f;
+        if (b->type == VS_WEAPONS_VAMPIRICA) {
+            /* Bloody Tear: near-black slash over a red ghost (+4, +2) and a purple one (-4, -2) */
+            vs_render_sprite(g, tex, &f, b->x + 4, b->y + 2, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, 0xff0000, alpha, depth);
+            vs_render_sprite(g, tex, &f, b->x - 4, b->y - 2, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, 0x660066, alpha, depth);
+            tint = 0x110011;
+        }
         if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) { scale = b->body_r * 2 / 256.0f; tint = 0x4040ff; alpha = 60; }
         if (b->type == VS_WEAPONS_LIGHTNING) { /* bolt from the top of the screen to the strike point */ vs_frame bolt; if (vs_atlas_find(&g->atl_vfx, "Lightning3.png", &bolt) == 0) { float len = b->y - b->ay; if (len > 1) vs_render_sprite(g, g->tex_vfx, &bolt, b->x, b->ay, 0.5f, 0.0f, len / (float)bolt.src_h, 0, 0, 0, 0xffffff, 255, 1e6f); } if (b->state == 0) continue; fname = "HitRed2.png"; if (vs_atlas_find(&g->atl_vfx, fname, &f) != 0) continue; }
         vs_render_sprite(g, tex, &f, b->x, b->y, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, tint, alpha, depth);
