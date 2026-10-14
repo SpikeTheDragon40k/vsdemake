@@ -92,11 +92,13 @@ static void sound_init(vs_game *g) {
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
     int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes, unlock_all = g->unlock_all, show_gameover = g->show_gameover;
     int selected_character = g->selected_character;
-    char save_path[sizeof g->save_path];
+    char save_path[sizeof g->save_path], audio_status[sizeof g->audio_status];
     memcpy(save_path, g->save_path, sizeof save_path);
+    memcpy(audio_status, g->audio_status, sizeof audio_status);
     memset(g, 0, sizeof *g);
     g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes; g->unlock_all = unlock_all; g->show_gameover = show_gameover;
     g->selected_character = selected_character;
+    memcpy(g->audio_status, audio_status, sizeof audio_status);
     g->pack = pack;
     g->logical_w = lw;
     g->logical_h = lh;
@@ -500,6 +502,7 @@ static void render_menu(vs_game *g) {
         vs_text_draw(g->logical_w * 0.5f - 140, 400, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
         const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
         vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 425, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
+        if (g->audio_status[0]) vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, g->audio_status)), 438, 1, strstr(g->audio_status, "Sound: ") == g->audio_status && !strstr(g->audio_status, "NO ") ? 0x60a060 : 0xff4040, g->audio_status);
     } else if (g->screen == VS_SCREEN_SELECT) {
         vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
         for (int i = 0; i < g->menu_char_count; i++) {

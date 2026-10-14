@@ -170,8 +170,16 @@ static int vs_main(int argc, char **argv) {
     /* Sounds: loaded unless the run is headless (then only for --audio-dump). */
     int audio_live = 0;
     FILE *audio_dump = NULL;
-    if (!mute && (!headless || audio_dump_path)) vs_audio_init(&pack);
+    int sounds = 0;
+    if (!mute && (!headless || audio_dump_path)) sounds = vs_audio_init(&pack);
     if (!mute && !headless) audio_live = vs_plat_audio_open(VS_AUDIO_RATE) == 0;
+    if (mute) snprintf(game.audio_status, sizeof game.audio_status, "Sound: muted");
+    else if (!headless) {
+        if (sounds == 0) snprintf(game.audio_status, sizeof game.audio_status, "Sound: NO SOUNDS IN THE PACK (rebuild vsdata.vspack)");
+        else if (!audio_live) snprintf(game.audio_status, sizeof game.audio_status, "Sound: %d sounds, NO AUDIO OUTPUT (device failed)", sounds);
+        else snprintf(game.audio_status, sizeof game.audio_status, "Sound: %d sounds, output on", sounds);
+    }
+    if (game.audio_status[0]) vs_plat_log("%s", game.audio_status);
     if (audio_dump_path) {
         audio_dump = fopen(audio_dump_path, "wb");
         if (audio_dump) { static const uint8_t blank[44] = {0}; fwrite(blank, 1, 44, audio_dump); }   /* WAV header written at the end */
