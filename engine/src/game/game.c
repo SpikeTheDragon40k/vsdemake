@@ -453,6 +453,8 @@ static void render_menu(vs_game *g) {
     if (g->screen == VS_SCREEN_TITLE) {
         vs_text_draw(g->logical_w * 0.5f - 60, 260, 1.5f, 0xffffff, "PRESS START");
         vs_text_draw(g->logical_w * 0.5f - 140, 400, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
+        const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
+        vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 425, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
     } else if (g->screen == VS_SCREEN_SELECT) {
         vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
         for (int i = 0; i < g->menu_char_count; i++) {

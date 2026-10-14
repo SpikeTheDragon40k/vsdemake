@@ -4,6 +4,7 @@
  * names, so it survives pack rebuilds and can be read by hand, ending with a
  * CRC32 line. Writes go to <path>.tmp, the old file becomes <path>.bak, then
  * the new file takes its place. */
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -229,12 +230,16 @@ static void put_counts(sbuf *b, const vs_pack *p, const char *enum_name, const c
     for (int i = 0; i < count && (uint32_t)i < e.count; i++) if (v[i]) put(b, "%s.%s=%lu\n", key, vs_enum_value(&e, (uint32_t)i), (unsigned long)v[i]);
 }
 
+static int g_last_errno;   /* errno of the last failed write, for the on-screen status */
+
 static int write_whole(const char *path, const char *data, size_t n) {
+    errno = 0;
     FILE *f = fopen(path, "wb");
-    if (!f) return -1;
+    if (!f) { g_last_errno = errno; return -1; }
     size_t w = fwrite(data, 1, n, f);
     int rc = fclose(f);
-    return (rc != 0 || w != n) ? -2 : 0;
+    if (rc != 0 || w != n) { g_last_errno = errno; return -2; }
+    return 0;
 }
 
 /* No rename: the console's CRT can't be relied on for it. The current save
@@ -273,7 +278,7 @@ int vs_save_write(vs_game *g) {
     int rc = write_file_safely(g->save_path, b.buf, b.len);
     free(b.buf);
     if (rc == 0) snprintf(g->save_status, sizeof g->save_status, "Progress saved");
-    else snprintf(g->save_status, sizeof g->save_status, "SAVE FAILED (%s %s)", rc == -1 ? "cannot create" : "cannot write", g->save_path);
+    else snprintf(g->save_status, sizeof g->save_status, "SAVE FAILED: %s %s (%s, errno %d)", rc == -1 ? "cannot create" : "cannot write", g->save_path, g_last_errno ? strerror(g_last_errno) : "no reason given", g_last_errno);
     vs_plat_log("save: %s", g->save_status);
     return rc;
 }
@@ -342,11 +347,8 @@ int vs_save_load(vs_game *g, const char *path) {
     if (!path || !*path) return -1;
     char bak[300];
     snprintf(bak, sizeof bak, "%s.bak", path);
-    int rc = load_one(g, path);
-    if (rc != 0) {
-        rc = load_one(g, bak);
-        vs_plat_log(rc == 0 ? "save: %s damaged or missing, using the backup" : "save: none at %s, starting fresh", path);
-    } else vs_plat_log("save: loaded %s", path);
+    int rc = load_one(g, path), from_backup = 0;
+    if (rc != 0) { rc = load_one(g, bak); from_backup = rc == 0; }
     if (rc != 0) {
         memset(&g->save, 0, sizeof g->save);
         g->save.selected_character = VS_CHARACTERS_ANTONIO;
@@ -354,6 +356,13 @@ int vs_save_load(vs_game *g, const char *path) {
     }
     g->save.stage_unlocked[VS_STAGES_FOREST] = 1;
     restore_achievement_unlocks(g);
+    /* A new save is written right away, so a folder that can't be written is
+     * reported on the title screen instead of after a whole run. */
+    if (rc == 0) snprintf(g->save_boot_status, sizeof g->save_boot_status, "Save: %s (%s)", path, from_backup ? "restored from backup" : "loaded");
+    else if (vs_save_write(g) == 0) snprintf(g->save_boot_status, sizeof g->save_boot_status, "Save: %s (new save created)", path);
+    else snprintf(g->save_boot_status, sizeof g->save_boot_status, "%s", g->save_status);
+    g->save_status[0] = 0;
+    vs_plat_log("%s", g->save_boot_status);
     return rc;
 }
 

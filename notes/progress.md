@@ -163,3 +163,8 @@ Checked every guide against the code and the original:
   `rename` (copy to `.bak`, then overwrite in place); the game-over timer is
   reset each run (only the first run after launch used to save); the
   game-over screen now shows the save result and path.
+- Second console report: still no save, and no way to tell why. The title
+  screen now shows the save path and its state (loaded / new save created /
+  restored from backup / SAVE FAILED with the C library's error reason and
+  errno). A missing save is created immediately at start-up, so a folder
+  that can't be written shows on the title, without playing a run.
