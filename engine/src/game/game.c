@@ -268,11 +268,11 @@ static void render_hud(vs_game *g) {
         bar.scale_x = 32 * (p->hp > 0 ? p->hp / p->maxHp : 0); bar.tint = 0xe00808; vs_plat_draw(&bar);
     }
     snprintf(buf, sizeof buf, "LV %d", p->level);
-    vs_text_draw(g->logical_w - 40, 3, 1, 0xffffff, buf);
+    vs_text_draw((float)(g->logical_w - 40), 3, 1, 0xffffff, buf);
     snprintf(buf, sizeof buf, "%02d:%02d", g->survived_seconds / 60, g->survived_seconds % 60);
     vs_text_draw(g->logical_w * 0.5f - 15, 16, 1.5f, 0xffffff, buf);
     snprintf(buf, sizeof buf, "KILLS %u   GOLD %.0f", g->kills, g->coins);
-    vs_text_draw(g->logical_w - 150, 16, 1, 0xffffff, buf);
+    vs_text_draw((float)(g->logical_w - 150), 16, 1, 0xffffff, buf);
     float wy = 16;
     for (int i = 0; i < VS_MAX_WEAPONS; i++) {
         if (!g->weapons[i].active) continue;
@@ -301,7 +301,7 @@ static void render_menu(vs_game *g) {
         for (int i = 0; i < g->menu_char_count; i++) {
             char nm[64];
             snprintf(buf, sizeof buf, "%s %s", i == g->menu_sel ? ">" : " ", character_name(g, g->menu_char_list[i], nm, sizeof nm));
-            vs_text_draw(60, 260 + 10 * i, 1, i == g->menu_sel ? 0xffff80 : 0xffffff, buf);
+            vs_text_draw(60, (float)(260 + 10 * i), 1, i == g->menu_sel ? 0xffff80 : 0xffffff, buf);
         }
         vs_text_draw(420, 240, 1.5f, 0xffffff, "STAGE (left/right)");
         vs_text_draw(420, 260, 1, g->menu_stage == 0 ? 0xffff80 : 0xffffff, g->menu_stage == 0 ? "> Mad Forest" : "  Mad Forest");

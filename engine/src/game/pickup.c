@@ -247,7 +247,7 @@ static vs_destructible *furthest_destructible(vs_game *g) {
 }
 
 void vs_destructible_make(vs_game *g, int type, float x, float y, int has_pos) {
-    if (!has_pos) vs_stage_position_out_of_sight(g, (g->player.vx == 0 && g->player.vy == 0) ? 0 : 45, 0, &x, &y);
+    if (!has_pos) vs_stage_position_out_of_sight(g, (g->player.vx == 0 && g->player.vy == 0) ? 0.0f : 45.0f, 0, &x, &y);
     vs_destructible *d = NULL;
     for (int i = 0; i < VS_MAX_DESTRUCTIBLES; i++) if (!g->destructibles[i].active) { d = &g->destructibles[i]; break; }
     if (!d) { d = furthest_destructible(g); if (!d) return; }

@@ -24,11 +24,16 @@
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
+  <!-- Output names must be set before Microsoft.Cpp.props: the XDK platform
+       props compute TargetPath (which imagexex reads) from them there. -->
+  <PropertyGroup>
+    <OutDir>$(MSBuildProjectDirectory)\out\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\obj\$(Configuration)\</IntDir>
+    <TargetName>default</TargetName>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)obj\$(Configuration)\</IntDir>
-    <TargetName>default</TargetName>
+    <TargetPath>$(OutDir)$(TargetName)$(TargetExt)</TargetPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -40,11 +45,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>xapilib.lib;d3d9.lib;d3dx9.lib;xgraphics.lib;xboxkrnl.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)default.exe</OutputFile>
     </Link>
-    <ImageXex>
-      <OutputFile>$(OutDir)default.xex</OutputFile>
-    </ImageXex>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>

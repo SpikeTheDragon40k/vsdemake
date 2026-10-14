@@ -50,7 +50,7 @@ int vs_player_init(vs_game *g, int character_enum) {
     if (vs_atlas_find(&g->atl_characters, sprite, &f) == 0) {
         p->body_r = 9;
         p->body_ox = -f.src_w * 0.5f + 15;
-        p->body_oy = -f.src_h + 19;
+        p->body_oy = (float)(-f.src_h + 19);
     } else {
         p->body_r = 9; p->body_ox = 0; p->body_oy = -9;
     }

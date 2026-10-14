@@ -136,7 +136,7 @@ void vs_enemy_get_damaged(vs_game *g, vs_enemy *e, float dmg, int hit_type, floa
     if (e->hp <= 0) vs_enemy_die(g, e);
     else e->damageKB = kb;
     /* OnGetDamaged: tint and blink from the hitvfx table */
-    float duration = e->is_dead ? 60 : 120;
+    float duration = e->is_dead ? 60.0f : 120.0f;
     e->hit_tint = 0xffffff;
     if (hit_type != VS_HITVFX_NONE) vs_fx_hit(g, e->x, e->y, hit_type);
     if (hit_type != VS_HITVFX_NONE) {
