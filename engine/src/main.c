@@ -80,8 +80,8 @@ static int fatal_screen(const char *msg) {
 #endif
 
 static int vs_main(int argc, char **argv) {
-    const char *pack_path = NULL, *screenshot = NULL, *input = NULL;
-    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, locked = 0, give_count = 0, chest = 0, show_levelup = 0;
+    const char *pack_path = NULL, *screenshot = NULL, *input = NULL, *record_dir = NULL;
+    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, locked = 0, give_count = 0, chest = 0, show_levelup = 0;
     const char *give[16];
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
@@ -99,6 +99,8 @@ static int vs_main(int argc, char **argv) {
         else if (strcmp(argv[i], "--stage") == 0 && i + 1 < argc) stage = strcmp(argv[++i], "library") == 0;
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) frames = atoi(argv[++i]);
         else if (strcmp(argv[i], "--screenshot") == 0 && i + 1 < argc) screenshot = argv[++i];
+        else if (strcmp(argv[i], "--record") == 0 && i + 1 < argc) record_dir = argv[++i];
+        else if (strcmp(argv[i], "--record-from") == 0 && i + 1 < argc) record_from = atoi(argv[++i]);
         else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) input = argv[++i];
         else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) seed = strtoull(argv[++i], NULL, 10);
         else if (argv[i][0] != '-') pack_path = argv[i];
@@ -207,7 +209,14 @@ static int vs_main(int argc, char **argv) {
             if (input) pad.buttons = scripted_buttons(input, &input_pos, &input_left);
             vs_game_update(&game, &pad);
         }
-        if (!no_render || (frames >= 0 && rendered + 1 >= frames)) vs_game_render(&game);
+        int recording = record_dir && rendered >= record_from;
+        if (!no_render || recording || (frames >= 0 && rendered + 1 >= frames)) vs_game_render(&game);
+        /* dev aid: --record DIR writes frames (from --record-from on) as DIR/frame_NNNNN.bmp */
+        if (recording) {
+            char path[512];
+            snprintf(path, sizeof path, "%s/frame_%05d.bmp", record_dir, rendered);
+            vs_plat_screenshot(path);
+        }
         rendered++;
         if (frames >= 0 && rendered >= frames) break;
         if (!headless && steps == 0) vs_plat_sleep_ms(1);

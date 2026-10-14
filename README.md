@@ -221,6 +221,7 @@ Controllers are supported through SDL2. A pause screen is not implemented yet.
 | `--chest` | Open a treasure chest immediately |
 | `--locked` | Apply fresh-save item availability rules |
 | `--show-levelup` | Open and hold the level-up screen |
+| `--record DIR` | Save every rendered frame as BMP in `DIR` (for videos); `--record-from N` starts at frame N |
 
 Example headless regression run:
 
