@@ -219,8 +219,11 @@ Controllers are supported through SDL2. A pause screen is not implemented yet.
 | `--menu` | Stay on the title screen in headless mode |
 | `--give NAME[:LEVEL]` | Add an item at startup; repeatable |
 | `--chest` | Open a treasure chest immediately |
-| `--locked` | Apply fresh-save item availability rules |
-| `--show-levelup` | Open and hold the level-up screen |
+| `--unlock-all` | Make every implemented item, character and stage available, ignoring the save |
+| `--save PATH` | Use this save file (headless runs do not save without it) |
+| `--level N` | Start the run at player level N |
+| `--show-levelup` | Open and hold the level-up screen; logs the offered choices |
+| `--show-gameover` | In headless runs, still show the game-over screen |
 | `--record DIR` | Save every rendered frame as BMP in `DIR` (for videos); `--record-from N` starts at frame N |
 
 Example headless regression run:
@@ -255,15 +258,25 @@ Do not include it in a shared executable package.
 The implementation is incomplete. Known gaps include:
 
 - No audio playback or audio data in the pack.
-- No persistent save data, shop, or achievement system.
+- No shop yet: unlocked characters are playable without buying them, and
+  gold can't be spent.
 - Incomplete weapon coverage.
 - Some enemy and pickup behaviours remain unimplemented.
 - Menus and presentation are still being refined.
 - Xbox 360 testing and performance validation are ongoing.
 
-Without persistent unlocks, the default item pool is more permissive
-than a fresh original-game save. Use `--locked` for the implemented
-fresh-save availability rules.
+## Saves and unlocks
+
+Progress is saved in `vsdemake.sav` next to `vsdata.vspack` (on the console:
+next to `default.xex`). The previous version is kept as `vsdemake.sav.bak`
+and is used automatically if the main file is damaged. The file is plain
+text and can be deleted to start over.
+
+A new save starts like a fresh game of the original: Mad Forest, the four
+starting characters and the items that are unlocked from the beginning.
+The original's 40 achievements are checked after each run and unlock the
+rest; the game-over screen lists what a run unlocked. Runs are recorded when
+they end (game over), so quitting mid-run does not save that run.
 
 See `notes/progress.md` for detailed implementation status.
 

@@ -48,18 +48,19 @@ static void build_character_list(vs_game *g) {
     for (uint32_t gi = 0; gi < g->characters_table.group_count && g->menu_char_count < 16; gi++) {
         vs_group grp; vs_table_group(&g->characters_table, gi, &grp);
         vs_characters_rec c; vs_table_record(&g->characters_table, grp.first, &c);
-        /* bought or purchasable in the original shop; hidden/debug ones skipped */
-        if (!VS_HAS(&c, VS_CHARACTERS_F_CHARNAME) || (VS_HAS(&c, VS_CHARACTERS_F_HIDDEN) && c.hidden)) continue;
-        if (!(VS_HAS(&c, VS_CHARACTERS_F_ISBOUGHT) && c.isBought) && !(VS_HAS(&c, VS_CHARACTERS_F_PRICE) && c.price < 1000000)) continue;
+        (void)c;
+        if (!vs_character_selectable(g, grp.enum_index)) continue;   /* unlocked, with a weapon the demake has */
         g->menu_char_list[g->menu_char_count++] = grp.enum_index;
     }
 }
 
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
-    int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes, locked_items = g->locked_items;
+    int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes, unlock_all = g->unlock_all, show_gameover = g->show_gameover;
     int selected_character = g->selected_character;
+    char save_path[sizeof g->save_path];
+    memcpy(save_path, g->save_path, sizeof save_path);
     memset(g, 0, sizeof *g);
-    g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes; g->locked_items = locked_items;
+    g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes; g->unlock_all = unlock_all; g->show_gameover = show_gameover;
     g->selected_character = selected_character;
     g->pack = pack;
     g->logical_w = lw;
@@ -76,6 +77,9 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (open_table(g, "weapons", &g->weapons_table, VS_WEAPONS_FIELD_NAMES)) return -1;
     if (open_table(g, "pickups", &g->pickups_table, VS_PICKUPS_FIELD_NAMES)) return -1;
     if (open_table(g, "destructibles", &g->destructibles_table, VS_DESTRUCTIBLES_FIELD_NAMES)) return -1;
+    if (open_table(g, "achievements", &g->achievements_table, VS_ACHIEVEMENTS_FIELD_NAMES)) return -1;
+    if (open_table(g, "stages", &g->stages_table, VS_STAGES_FIELD_NAMES)) return -1;
+    vs_save_load(g, save_path);
 
     if (load_atlas(g, "characters", &g->atl_characters, &g->tex_characters) != 0) return -1;
     if (load_atlas(g, "enemies", &g->atl_enemies, &g->tex_enemies) != 0) return -1;
@@ -102,7 +106,11 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     }
     if (vs_text_init() != 0) return -1;
     build_character_list(g);
-    if (!g->selected_character) g->selected_character = VS_CHARACTERS_ANTONIO;
+    /* menus start on the last run's choices (save), command line wins */
+    if (!g->selected_character) g->selected_character = vs_character_selectable(g, g->save.selected_character) ? g->save.selected_character : VS_CHARACTERS_ANTONIO;
+    for (int i = 0; i < g->menu_char_count; i++) if (g->menu_char_list[i] == g->selected_character) g->menu_sel = i;
+    if (!g->menu_stage && g->save.selected_stage == VS_STAGES_LIBRARY) g->menu_stage = 1;
+    if (g->menu_stage && !vs_stage_selectable(g, VS_STAGES_LIBRARY)) g->menu_stage = 0;
     g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
     g->screen = VS_SCREEN_TITLE;
     if (g->auto_pick) return vs_game_start_run(g, g->selected_character, g->selected_stage);
@@ -125,6 +133,7 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     g->enemy_count = 0; g->cull_index = 0; g->next_uid = 1; g->time_stopped = 0; g->game_over = 0;
     g->kills = 0; g->coins = 0; g->chests_opened = 0; g->tick = 0; g->update_tick = 0; g->survived_seconds = 0;
     vs_rng_seed(&g->rng, g->seed);
+    vs_save_run_start(g);
     g->player_px_speed = g->base_player_px_speed;
     g->enemy_speed = g->base_enemy_speed;
     g->projectile_speed = g->base_projectile_speed;
@@ -162,7 +171,7 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
         int n = g->menu_char_count;
         if (pressed & VS_BTN_UP) g->menu_sel = (g->menu_sel + n - 1) % n;
         if (pressed & VS_BTN_DOWN) g->menu_sel = (g->menu_sel + 1) % n;
-        if (pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) g->menu_stage ^= 1;
+        if ((pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) && vs_stage_selectable(g, VS_STAGES_LIBRARY)) g->menu_stage ^= 1;
         if (pressed & VS_BTN_B) g->screen = VS_SCREEN_TITLE;
         if (pressed & (VS_BTN_A | VS_BTN_START)) {
             g->selected_character = g->menu_char_list[g->menu_sel];
@@ -182,8 +191,9 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
 void vs_game_update(vs_game *g, const vs_pad *pad) {
     if (g->screen != VS_SCREEN_GAME) { menu_update(g, pad); return; }
     if (g->game_over) {
+        if (g->gameover_ms == 0) vs_save_run_end(g);   /* lifetime counters, achievements, save */
         g->gameover_ms += VS_TICK_MS;
-        if (g->gameover_ms > 1250 && !g->auto_pick) { g->screen = VS_SCREEN_GAMEOVER; g->prev_buttons = pad->buttons; }
+        if (g->gameover_ms > 1250 && (!g->auto_pick || g->show_gameover)) { g->screen = VS_SCREEN_GAMEOVER; g->prev_buttons = pad->buttons; }
         return;
     }
     if (g->levelup.pending) {
@@ -420,7 +430,7 @@ static void render_hud(vs_game *g) {
 }
 
 static void render_menu(vs_game *g) {
-    char buf[96];
+    char buf[256];
     vs_plat_begin_frame(0x000000);
     if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT) {
         if (g->tex_title >= 0) {
@@ -434,6 +444,10 @@ static void render_menu(vs_game *g) {
             s.dx = 0.5f * (g->logical_w - g->title_w * sc); s.dy = 130.0f - 0.5f * g->title_h * sc; vs_plat_draw(&s);
         }
     }
+    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT) {
+        snprintf(buf, sizeof buf, "GOLD %.0f   ACHIEVEMENTS %d/%d", g->save.coins, vs_save_achievement_count(g), VS_ACHIEVEMENTS_COUNT);
+        vs_text_draw(g->logical_w - vs_text_width(1, buf) - 8, 6, 1, 0xffd040, buf);
+    }
     if (g->screen == VS_SCREEN_TITLE) {
         vs_text_draw(g->logical_w * 0.5f - 60, 260, 1.5f, 0xffffff, "PRESS START");
         vs_text_draw(g->logical_w * 0.5f - 140, 400, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
@@ -445,13 +459,29 @@ static void render_menu(vs_game *g) {
             vs_text_draw(60, (float)(260 + 10 * i), 1, i == g->menu_sel ? 0xffff80 : 0xffffff, buf);
         }
         vs_text_draw(420, 240, 1.5f, 0xffffff, "STAGE (left/right)");
-        vs_text_draw(420, 260, 1, g->menu_stage == 0 ? 0xffff80 : 0xffffff, g->menu_stage == 0 ? "> Mad Forest" : "  Mad Forest");
-        vs_text_draw(420, 270, 1, g->menu_stage == 1 ? 0xffff80 : 0xffffff, g->menu_stage == 1 ? "> Inlaid Library" : "  Inlaid Library");
+        snprintf(buf, sizeof buf, "%s %s", g->menu_stage == 0 ? ">" : " ", vs_stage_name(g, VS_STAGES_FOREST));
+        vs_text_draw(420, 260, 1, g->menu_stage == 0 ? 0xffff80 : 0xffffff, buf);
+        if (vs_stage_selectable(g, VS_STAGES_LIBRARY)) snprintf(buf, sizeof buf, "%s %s", g->menu_stage == 1 ? ">" : " ", vs_stage_name(g, VS_STAGES_LIBRARY));
+        else snprintf(buf, sizeof buf, "  ??? (reach LV 20 in %s)", vs_stage_name(g, VS_STAGES_FOREST));
+        vs_text_draw(420, 270, 1, g->menu_stage == 1 ? 0xffff80 : vs_stage_selectable(g, VS_STAGES_LIBRARY) ? 0xffffff : 0x808080, buf);
     } else if (g->screen == VS_SCREEN_GAMEOVER) {
         vs_text_draw(g->logical_w * 0.5f - 80, 120, 3, 0xff4040, "GAME OVER");
         snprintf(buf, sizeof buf, "SURVIVED %02d:%02d   LEVEL %d   KILLS %u   GOLD %.0f   CHESTS %d", g->survived_seconds / 60, g->survived_seconds % 60, g->player.level, g->kills, g->coins, g->chests_opened);
-        vs_text_draw(g->logical_w * 0.5f - 200, 200, 1.2f, 0xffffff, buf);
-        vs_text_draw(g->logical_w * 0.5f - 60, 300, 1.5f, 0xffffff, "PRESS START");
+        vs_text_draw(g->logical_w * 0.5f - 200, 170, 1.2f, 0xffffff, buf);
+        /* new achievements of this run and what they unlocked (the original
+         * cycles them in a popup; here they are listed) */
+        if (g->new_achievement_count > 0) {
+            snprintf(buf, sizeof buf, "NEW UNLOCKS: %d", g->new_achievement_count);
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1.5f, buf)), 200, 1.5f, 0xffd040, buf);
+            for (int i = 0; i < g->new_achievement_count && i < 8; i++) {
+                char desc[128], unlock[64];
+                vs_save_achievement_text(g, g->new_achievements[i], desc, sizeof desc, unlock, sizeof unlock);
+                snprintf(buf, sizeof buf, "%s  ->  %s", desc, unlock[0] ? unlock : "-");
+                vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 222.0f + 13 * i, 1, 0xffffff, buf);
+            }
+            if (g->new_achievement_count > 8) vs_text_draw(0.5f * g->logical_w - 20, 222.0f + 13 * 8, 1, 0xa0a0a0, "...");
+        }
+        vs_text_draw(g->logical_w * 0.5f - 60, 360, 1.5f, 0xffffff, "PRESS START");
     }
     vs_plat_end_frame();
 }

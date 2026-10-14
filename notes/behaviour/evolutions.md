@@ -24,9 +24,9 @@ Most passives (all but Spinach and Armor) and several weapons have
 `isUnlocked` false in the data; the original unlocks them through
 achievements and its save file. The level-up store excludes locked items
 (line 1458). The original also has a developer switch that marks every item
-unlocked (line 7296, off in the release). The demake has no save yet, so it
-behaves as if that switch were on; `--locked` (PC) restores the fresh-save
-rule. Weapons the demake does not implement are never offered.
+unlocked (line 7296, off in the release). The demake follows the save
+(`saves.md`); `--unlock-all` (PC) acts like that switch. Weapons the demake
+does not implement are never offered.
 
 ## Passive items (class at line 5410)
 

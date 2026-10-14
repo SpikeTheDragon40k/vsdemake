@@ -10,6 +10,9 @@
 #ifndef snprintf
 #define snprintf _snprintf
 #endif
+#ifndef vsnprintf
+#define vsnprintf _vsnprintf   /* returns -1 when truncated; callers handle it */
+#endif
 #define strtoull _strtoui64
 #ifndef inline
 #define inline __inline

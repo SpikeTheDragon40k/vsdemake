@@ -127,6 +127,7 @@ void vs_enemy_die(vs_game *g, vs_enemy *e) {
         e->treasure_row = -1;
     }
     g->kills++;
+    vs_save_count_kill(g, e->type);
 }
 
 void vs_enemy_get_damaged(vs_game *g, vs_enemy *e, float dmg, int hit_type, float kb) {

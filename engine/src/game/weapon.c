@@ -122,6 +122,7 @@ int vs_weapon_add(vs_game *g, int type, int from_levelup) {
         for (uint32_t i = 0; i < n; i++) vs_weapon_remove(g, vs_list_i32(items, i));
     }
     if (type == VS_WEAPONS_VORTEX) g->recovered_hp = 0;
+    vs_save_count_weapon(g, type);
     w->level = 1;
     if (w->is_power_up) passive_apply(g, w);
     else reset_firing_timer(g, slot);

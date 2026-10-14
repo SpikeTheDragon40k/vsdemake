@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 
+#include "core/vs_enums.h"
 #include "core/vs_pack.h"
 #include "core/vs_platform.h"
 #include "core/vs_rng.h"
@@ -231,6 +232,18 @@ typedef struct {
 } vs_tilemap;
 
 /* ---- game */
+/* Persistent player data (game/save.c, notes/behaviour/saves.md). */
+typedef struct {
+    double coins, lifetime_coins, lifetime_heal, lifetime_survived;
+    int selected_character, selected_stage;
+    uint8_t achieved[VS_ACHIEVEMENTS_COUNT];
+    uint8_t weapon_unlocked[VS_WEAPONS_COUNT], weapon_seen[VS_WEAPONS_COUNT];
+    uint8_t char_unlocked[VS_CHARACTERS_COUNT];
+    uint8_t stage_unlocked[VS_STAGES_COUNT], hyper_unlocked[VS_STAGES_COUNT];
+    uint8_t item_seen[VS_PICKUPS_COUNT];
+    uint32_t kills[VS_ENEMIES_COUNT], pickups[VS_PICKUPS_COUNT], destroyed[VS_DESTRUCTIBLES_COUNT];
+} vs_save;
+
 typedef struct {
     const vs_pack *pack;
     vs_rng rng;
@@ -266,7 +279,14 @@ typedef struct {
     int chests_opened;
     int auto_pick;          /* headless: take the first level-up option */
     int debug_hitboxes;     /* dev aid: outline colliders */
-    int locked_items;       /* 1 = honour isUnlocked (fresh save); default: all unlocked */
+    int unlock_all;         /* dev/PC option: every item, character and stage available */
+    int show_gameover;      /* dev aid: headless runs still switch to the game-over screen */
+    vs_save save;
+    char save_path[260];    /* empty: no saving (headless tests) */
+    vs_table achievements_table, stages_table;
+    uint32_t run_kills[VS_ENEMIES_COUNT], run_pickups[VS_PICKUPS_COUNT], run_destroyed[VS_DESTRUCTIBLES_COUNT];
+    float run_heal;
+    int run_recorded, new_achievement_count, new_achievements[VS_ACHIEVEMENTS_COUNT];
     float recovered_hp;     /* HP actually recovered (Soul Eater's onHPRecoveryCallback) */
     int screen;             /* VS_SCREEN_* */
     int menu_sel, menu_stage, menu_char_list[16], menu_char_count;
@@ -330,6 +350,21 @@ int vs_weapon_add(vs_game *g, int type, int from_levelup);
 int vs_weapon_find(const vs_game *g, int type);
 /* 1 if the demake has this weapon's own behaviour (others fall back to a plain shot) */
 int vs_weapon_implemented(int type);
+/* saves and unlocks (save.c) */
+int vs_save_load(vs_game *g, const char *path);
+int vs_save_write(vs_game *g);
+void vs_save_run_start(vs_game *g);
+void vs_save_run_end(vs_game *g);
+void vs_save_count_kill(vs_game *g, int enemy);
+void vs_save_count_pickup(vs_game *g, int pickup);
+void vs_save_count_destroyed(vs_game *g, int destructible);
+void vs_save_count_weapon(vs_game *g, int type);
+int vs_save_achievement_count(const vs_game *g);
+void vs_save_achievement_text(const vs_game *g, int a, char *desc, size_t desc_n, char *unlock, size_t unlock_n);
+int vs_weapon_is_unlocked(const vs_game *g, int type);
+int vs_character_selectable(const vs_game *g, int c);
+int vs_stage_selectable(const vs_game *g, int s);
+const char *vs_stage_name(const vs_game *g, int s);
 /* Table entry `level` (0 = level 1) of a weapon/passive; -1 if none. */
 int vs_weapon_record(const vs_game *g, int type, int level, vs_weapons_rec *out);
 int vs_weapon_level_up(vs_game *g, int slot);        /* returns 0 when maxed */
