@@ -1,5 +1,5 @@
 # vsdemake
-![vsdemake.png](https://raw.githubusercontent.com/SpikeTheDragon40k/vsdemake/refs/heads/main/vsdemake.png?token=GHSAT0AAAAAAEIHNXJJN7WTS5CA3TQLU7QU2WPLMRA)
+![vsdemake.png]()
 
 
 An unofficial Xbox 360 homebrew demake of Vampire Survivors, with a C99
