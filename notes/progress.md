@@ -159,3 +159,7 @@ Checked every guide against the code and the original:
   unlock-all), counters accumulate over runs, damaged saves fall back to the
   backup, ASan runs clean, C++03 check clean. Not checked on the console.
 - New dev options: `--save PATH`, `--level N`, `--show-gameover`.
+- First console test: no save appeared. Fixes: the save no longer uses
+  `rename` (copy to `.bak`, then overwrite in place); the game-over timer is
+  reset each run (only the first run after launch used to save); the
+  game-over screen now shows the save result and path.

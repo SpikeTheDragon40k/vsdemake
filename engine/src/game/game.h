@@ -283,6 +283,7 @@ typedef struct {
     int show_gameover;      /* dev aid: headless runs still switch to the game-over screen */
     vs_save save;
     char save_path[260];    /* empty: no saving (headless tests) */
+    char save_status[300];  /* result of the last save, shown on the game-over screen */
     vs_table achievements_table, stages_table;
     uint32_t run_kills[VS_ENEMIES_COUNT], run_pickups[VS_PICKUPS_COUNT], run_destroyed[VS_DESTRUCTIBLES_COUNT];
     float run_heal;

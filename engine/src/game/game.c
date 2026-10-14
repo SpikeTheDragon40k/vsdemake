@@ -133,6 +133,8 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     g->enemy_count = 0; g->cull_index = 0; g->next_uid = 1; g->time_stopped = 0; g->game_over = 0;
     g->kills = 0; g->coins = 0; g->chests_opened = 0; g->tick = 0; g->update_tick = 0; g->survived_seconds = 0;
     vs_rng_seed(&g->rng, g->seed);
+    g->gameover_ms = 0;          /* the run-end save triggers when this is 0 */
+    g->save_status[0] = 0;
     vs_save_run_start(g);
     g->player_px_speed = g->base_player_px_speed;
     g->enemy_speed = g->base_enemy_speed;
@@ -481,6 +483,8 @@ static void render_menu(vs_game *g) {
             }
             if (g->new_achievement_count > 8) vs_text_draw(0.5f * g->logical_w - 20, 222.0f + 13 * 8, 1, 0xa0a0a0, "...");
         }
+        if (g->save_status[0]) vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, g->save_status)), 335, 1, strncmp(g->save_status, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x80ff80, g->save_status);
+        else if (!g->save_path[0]) vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, "Saving is off")), 335, 1, 0xa0a0a0, "Saving is off");
         vs_text_draw(g->logical_w * 0.5f - 60, 360, 1.5f, 0xffffff, "PRESS START");
     }
     vs_plat_end_frame();

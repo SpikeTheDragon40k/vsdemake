@@ -90,7 +90,11 @@ What each achievement unlocks is data (`achievements` table).
 ## Demake choices (not in the original)
 
 - Saved as a text file (`key=value` lines, enum names, CRC32 line) next to
-  the pack: `vsdemake.sav`, previous copy `vsdemake.sav.bak`.
+  the pack: `vsdemake.sav`, previous copy `vsdemake.sav.bak`. No `rename`
+  (unreliable on the console's CRT): the old file is copied to `.bak`, then
+  the save is overwritten in place; a torn write falls back to `.bak`.
+- The game-over screen shows the save result ("Progress saved" or "SAVE
+  FAILED" with the path).
 - Saved when a run ends (game over) and after achievements; gold is not
   saved on every pickup.
 - No shop yet: a visible (unlocked) character is playable without buying.
