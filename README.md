@@ -121,6 +121,7 @@ Headless/regression runs (no window): `--headless --no-render --frames 18000
 --seed 3 --input "R240 L240" --screenshot last.bmp` prints a state hash.
 `--char N` starts with character N (1 Antonio, 2 Imelda, ...) and
 `--hitboxes` outlines colliders (green enemies, yellow bullets, cyan player).
+`--menu` stays on the title screen in headless mode (for screenshots).
 
 ## Step 5: Xbox 360
 

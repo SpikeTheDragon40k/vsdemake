@@ -110,3 +110,6 @@ Checked every guide against the code and the original:
   Fixed in the patcher, with a matching guard in the engine for old packs.
   Gameplay unchanged (state hash identical); only drawing moved.
 - New dev aids: `--hitboxes` overlay, `--char N` start character.
+- Title screen shows "VSDEMAKE" in the original logo's gold/red style,
+  built by the patcher from the user's own title.png (`logo.js`; nothing
+  derived from the game is committed). New flag `--menu`.

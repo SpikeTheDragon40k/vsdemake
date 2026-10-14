@@ -82,7 +82,18 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (load_atlas(g, "items", &g->atl_items, &g->tex_items) != 0) return -1;
     if (load_atlas(g, "vfx", &g->atl_vfx, &g->tex_vfx) != 0) return -1;
     if (load_atlas(g, "UI", &g->atl_ui, &g->tex_ui) != 0) return -1;
-    g->tex_title = load_texture(g, "title");
+    /* the demake's own logo (patcher: logo.js); older packs only have the original */
+    {
+        static const char *const names[2] = { "title_vsdemake", "title" };
+        vs_tex_info ti;
+        g->tex_title = -1;
+        for (int i = 0; i < 2 && g->tex_title < 0; i++) {
+            int entry = vs_pack_find(g->pack, "TEX", names[i]);
+            if (entry < 0 || vs_pack_tex(g->pack, entry, &ti) != 0) continue;
+            g->tex_title = load_texture(g, names[i]);
+            g->title_w = (int)ti.used_w; g->title_h = (int)ti.used_h;
+        }
+    }
     {
         int fi = vs_pack_find(pack, "FNT", "damNum-export");
         if (fi < 0 || vs_pack_font(pack, fi, &g->damage_font) != 0) return -1;
@@ -291,8 +302,13 @@ static void render_menu(vs_game *g) {
     if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT) {
         if (g->tex_title >= 0) {
             vs_sprite s = {0};
-            s.tex = g->textures[g->tex_title]; s.sw = 332; s.sh = 133; s.scale_x = s.scale_y = 1.5f; s.alpha = 255; s.tint = 0xffffff;
-            s.dx = g->logical_w * 0.5f - 332 * 0.75f; s.dy = 30; vs_plat_draw(&s);
+            /* widest fit in 3/4 of the screen and 200 px of height, at most 2x */
+            float sc = 0.75f * g->logical_w / g->title_w, sh = 200.0f / g->title_h;
+            if (sh < sc) sc = sh;
+            if (sc > 2.0f) sc = 2.0f;
+            s.tex = g->textures[g->tex_title]; s.sw = (int16_t)g->title_w; s.sh = (int16_t)g->title_h;
+            s.scale_x = s.scale_y = sc; s.alpha = 255; s.tint = 0xffffff;
+            s.dx = 0.5f * (g->logical_w - g->title_w * sc); s.dy = 130.0f - 0.5f * g->title_h * sc; vs_plat_draw(&s);
         }
     }
     if (g->screen == VS_SCREEN_TITLE) {

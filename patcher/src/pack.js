@@ -4,7 +4,9 @@
 
 const path = require('path');
 const { ASSETS } = require('./locate');
-const { decodePng, textureBlob } = require('./assets/texture');
+const { decodePng, rgbaTexture, textureBlob } = require('./assets/texture');
+const { buildLogo } = require('./assets/logo');
+const { PNG } = require('pngjs');
 const { parseMultiatlas, atlasBlob } = require('./assets/atlas');
 const { tilemapBlob } = require('./assets/tilemap');
 const { parseBmfontXml, fontBlob } = require('./assets/font');
@@ -71,6 +73,14 @@ function buildPack(source, extracted, log = () => {}) {
     const tex = decodePng(source.read(f));
     pack.add('TEX', base(f), textureBlob(tex));
     log(`TEX ${base(f)} ${tex.usedWidth}x${tex.usedHeight} → ${tex.width}x${tex.height}`);
+  }
+
+  // The demake's own title logo, cut from the user's title.png (logo.js).
+  const titleFile = files.find((x) => /\/img\/title\.png$/.test(x));
+  if (titleFile) {
+    const logo = buildLogo(PNG.sync.read(source.read(titleFile)));
+    pack.add('TEX', 'title_vsdemake', textureBlob(rgbaTexture(logo.width, logo.height, logo.data)));
+    log(`TEX title_vsdemake ${logo.width}x${logo.height} (built from title.png)`);
   }
 
   // Atlases and maps: JSON under img/ and tilesets/.

@@ -278,7 +278,7 @@ typedef struct {
     int texture_count;
     int tex_characters, tex_enemies, tex_bg, tex_items, tex_vfx;
     vs_atlas atl_characters, atl_enemies, atl_items, atl_vfx, atl_ui;
-    int tex_ui, tex_damage, tex_title;
+    int tex_ui, tex_damage, tex_title, title_w, title_h;
     vs_font damage_font;
 } vs_game;
 

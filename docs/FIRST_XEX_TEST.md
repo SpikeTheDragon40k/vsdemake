@@ -53,7 +53,7 @@ Expected:
 source: dir C:\...\depot_1794681\resources\app
 ok: manifest 8292959317163221061, 70 files match
 ...
-wrote ..\vsdata.vspack: 27.1 MB, 56 entries (19 TEX, 10 ATL, 2 MAP, 1 FNT, 12 ENM, 12 TAB)
+wrote ..\vsdata.vspack: 27.2 MB, 57 entries (20 TEX, 10 ATL, 2 MAP, 1 FNT, 12 ENM, 12 TAB)
 ```
 
 If `verify` does not say `ok`, stop: the depot is a different build or

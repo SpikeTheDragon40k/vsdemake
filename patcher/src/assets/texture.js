@@ -5,20 +5,24 @@ const { PNG } = require('pngjs');
 
 function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
 
-/** @returns {{ width, height, usedWidth, usedHeight, pixels: Buffer }} */
-function decodePng(buf) {
-  const png = PNG.sync.read(buf); // RGBA8, un-premultiplied
-  const w = png.width, h = png.height;
+/** RGBA8 (un-premultiplied) → padded big-endian ARGB8.
+ * @returns {{ width, height, usedWidth, usedHeight, pixels: Buffer }} */
+function rgbaTexture(w, h, data) {
   const W = nextPow2(w), H = nextPow2(h);
   const out = Buffer.alloc(W * H * 4); // transparent black padding
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const s = (y * w + x) * 4, d = (y * W + x) * 4;
       // big-endian ARGB word: A R G B in memory order
-      out[d] = png.data[s + 3]; out[d + 1] = png.data[s]; out[d + 2] = png.data[s + 1]; out[d + 3] = png.data[s + 2];
+      out[d] = data[s + 3]; out[d + 1] = data[s]; out[d + 2] = data[s + 1]; out[d + 3] = data[s + 2];
     }
   }
   return { width: W, height: H, usedWidth: w, usedHeight: h, pixels: out };
+}
+
+function decodePng(buf) {
+  const png = PNG.sync.read(buf); // RGBA8, un-premultiplied
+  return rgbaTexture(png.width, png.height, png.data);
 }
 
 function textureBlob(tex) {
@@ -32,4 +36,4 @@ function textureBlob(tex) {
   return Buffer.concat([head, tex.pixels]);
 }
 
-module.exports = { decodePng, textureBlob, nextPow2 };
+module.exports = { decodePng, rgbaTexture, textureBlob, nextPow2 };

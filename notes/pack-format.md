@@ -45,6 +45,11 @@ Pad pixels are transparent black. Textures are never resized, only padded,
 so atlas frame rectangles stay valid. PC loader byte-swaps once into an
 SDL texture; the console backends upload the words as is.
 
+One TEX is not a copy of a game file: `title_vsdemake`, the demake's
+"VSDEMAKE" logo, assembled by `patcher/src/assets/logo.js` from letters of
+the user's `img/title.png` (D and K built from the I, O and R strokes). The
+engine falls back to `title` when a pack lacks it.
+
 ## `ATL`: TexturePacker atlas → frame table
 
 ```

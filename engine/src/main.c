@@ -81,7 +81,7 @@ static int fatal_screen(const char *msg) {
 
 static int vs_main(int argc, char **argv) {
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL;
-    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0;
+    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0;
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) scale = atoi(argv[++i]);
@@ -89,6 +89,7 @@ static int vs_main(int argc, char **argv) {
         else if (strcmp(argv[i], "--auto-pick") == 0) auto_pick = 1;
         else if (strcmp(argv[i], "--no-render") == 0) no_render = 1;
         else if (strcmp(argv[i], "--hitboxes") == 0) hitboxes = 1;
+        else if (strcmp(argv[i], "--menu") == 0) menu = 1;
         else if (strcmp(argv[i], "--char") == 0 && i + 1 < argc) character = atoi(argv[++i]);
         else if (strcmp(argv[i], "--stage") == 0 && i + 1 < argc) stage = strcmp(argv[++i], "library") == 0;
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) frames = atoi(argv[++i]);
@@ -137,7 +138,7 @@ static int vs_main(int argc, char **argv) {
     /* static: vs_game is ~600 KB, far beyond a console thread's stack */
     static vs_game game;
     memset(&game, 0, sizeof game);
-    game.auto_pick = auto_pick || headless;
+    game.auto_pick = (auto_pick || headless) && !menu;   /* --menu: stay on the title */
     game.menu_stage = stage;
     game.debug_hitboxes = hitboxes;
     if (character > 0) game.selected_character = character;
