@@ -82,6 +82,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (load_atlas(g, "items", &g->atl_items, &g->tex_items) != 0) return -1;
     if (load_atlas(g, "vfx", &g->atl_vfx, &g->tex_vfx) != 0) return -1;
     if (load_atlas(g, "UI", &g->atl_ui, &g->tex_ui) != 0) return -1;
+    vs_pack_lang(g->pack, "en", &g->lang);
     /* the demake's own logo (patcher: logo.js); older packs only have the original */
     {
         static const char *const names[2] = { "title_vsdemake", "title" };
@@ -247,18 +248,139 @@ static const char *character_name(vs_game *g, int type, char *buf, size_t n) {
     return buf;
 }
 
+/* Draws `frame` from the UI atlas stretched over (x, y, w, h) as a nine-slice
+ * with corners of `c` px (the original's NineSlice configs). */
+static void nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int c, uint32_t tint) {
+    vs_frame f;
+    if (vs_atlas_find(&g->atl_ui, frame, &f) != 0) return;
+    /* whole pixels, or the stretched rows leave 1 px seams */
+    float x1 = floorf(x + w + 0.5f), y1 = floorf(y + h + 0.5f);
+    x = floorf(x + 0.5f); y = floorf(y + 0.5f); w = x1 - x; h = y1 - y;
+    int sx[3] = { f.x, f.x + c, f.x + f.w - c }, sw[3] = { c, f.w - 2 * c, c };
+    int sy[3] = { f.y, f.y + c, f.y + f.h - c }, sh[3] = { c, f.h - 2 * c, c };
+    float dx[3] = { x, x + c, x + w - c }, dw[3] = { (float)c, w - 2 * c, (float)c };
+    float dy[3] = { y, y + c, y + h - c }, dh[3] = { (float)c, h - 2 * c, (float)c };
+    for (int j = 0; j < 3; j++) {
+        for (int i = 0; i < 3; i++) {
+            if (dw[i] <= 0 || dh[j] <= 0) continue;
+            vs_sprite s = {0};
+            s.tex = g->textures[g->tex_ui];
+            s.sx = (int16_t)sx[i]; s.sy = (int16_t)sy[j]; s.sw = (int16_t)sw[i]; s.sh = (int16_t)sh[j];
+            s.dx = dx[i]; s.dy = dy[j]; s.scale_x = dw[i] / sw[i]; s.scale_y = dh[j] / sh[j];
+            s.tint = tint; s.alpha = 255;
+            vs_plat_draw(&s);
+        }
+    }
+}
+
+/* Draws `text` word-wrapped to `max_w`; honours '\n'. Returns lines drawn. */
+static int text_wrapped(float x, float y, float scale, uint32_t tint, const char *text, float max_w, float line_h, int max_lines) {
+    char line[160];
+    int lines = 0, len = 0, last_space = -1;
+    const float adv = (VS_TEXT_GLYPH_W + 1) * scale;
+    for (const char *p = text;; p++) {
+        char c = *p;
+        int flush = c == 0 || c == '\n';
+        if (!flush) {
+            if (len == 0 && c == ' ') continue;
+            if (len < (int)sizeof line - 1) { line[len++] = c; if (c == ' ') last_space = len - 1; }
+            if ((len + 1) * adv > max_w) {
+                int cut = last_space > 0 ? last_space : len;
+                char rest[160]; int rest_len = len - cut;
+                memcpy(rest, line + cut, (size_t)rest_len);
+                line[cut] = 0;
+                if (lines < max_lines) vs_text_draw(x, y + lines * line_h, scale, tint, line);
+                lines++;
+                len = 0; last_space = -1;
+                for (int i = 0; i < rest_len; i++) { if (len == 0 && rest[i] == ' ') continue; line[len++] = rest[i]; if (rest[i] == ' ') last_space = len - 1; }
+            }
+            continue;
+        }
+        if (len > 0) {
+            line[len] = 0;
+            if (lines < max_lines) vs_text_draw(x, y + lines * line_h, scale, tint, line);
+            lines++;
+        }
+        len = 0; last_space = -1;
+        if (c == 0) break;
+    }
+    return lines;
+}
+
+/* Level-up screen laid out like the original's (menu frame, "Level Up!",
+ * one panel per choice: icon, name, "New!" / "level: N", what it does). */
 static void render_levelup(vs_game *g) {
     vs_levelup *lu = &g->levelup;
-    float x = g->logical_w * 0.5f - 150, y = 60;
-    vs_text_draw(x, y, 2, 0xffffff, "LEVEL UP");
-    char line[96];
-    for (int i = 0; i < lu->option_count; i++) {
-        if (lu->items_mode) snprintf(line, sizeof line, "%s %s", i == lu->selected ? ">" : " ", lu->item_options[i] == VS_PICKUPS_ROAST ? "Floor Chicken" : "Big Coin Bag");
-        else {
-            int slot = vs_weapon_find(g, lu->options[i]);
-            snprintf(line, sizeof line, "%s %-24s %s %d", i == lu->selected ? ">" : " ", vs_weapon_name(g, lu->options[i]), slot >= 0 ? "level" : "new", slot >= 0 ? g->weapons[slot].level + 1 : 1);
+    const float bw = 0.8f * g->logical_w, bh = 0.8f * g->logical_h;
+    const float left = 0.5f * (g->logical_w - bw), top = 0.5f * (g->logical_h - bh);
+    const float pw = 0.95f * bw, ph = 0.2f * bh, px = left + 0.025f * bw;
+    nine_slice(g, "frame5_c4.png", left, top, bw, bh, 12, 0xffffff);
+    const char *header = vs_lang_get(&g->lang, "levelup_header", "Level Up!");
+    vs_text_draw(0.5f * (g->logical_w - vs_text_width(3, header)), top + 14, 3, 0xffffff, header);
+    if (lu->option_count < 4) {
+        /* the original's footer sits where a 4th panel would be */
+        const char *footer = vs_lang_get(&g->lang, "levelup_footer", "increase your Luck\n\nfor a chance to get 4 choices");
+        char buf[160]; int n = 0; float fy = top + 3.85f * ph;
+        for (const char *p = footer;; p++) {
+            if (*p == '\n' || *p == 0) {
+                buf[n] = 0;
+                if (n > 0) vs_text_draw(0.5f * (g->logical_w - vs_text_width(1.5f, buf)), fy, 1.5f, 0xffffff, buf);
+                fy += 7; n = 0;
+                if (*p == 0) break;
+            } else if (n < (int)sizeof buf - 1) buf[n++] = *p;
         }
-        vs_text_draw(x, y + 30 + 14 * i, 1.5f, i == lu->selected ? 0xffff80 : 0xffffff, line);
+    }
+    for (int i = 0; i < lu->option_count; i++) {
+        float py = top + ph * i + ph - 0.025f * bw;
+        const char *name = "?", *level = "", *desc = "", *frame = NULL;
+        uint32_t level_tint = 0xffffff, bg_tint = 0xffffff;
+        char level_buf[32];
+        if (lu->items_mode) {
+            int gi = vs_table_find_group_enum(&g->pickups_table, lu->item_options[i]);
+            if (gi >= 0) {
+                vs_group grp; vs_table_group(&g->pickups_table, (uint32_t)gi, &grp);
+                vs_pickups_rec r; vs_table_record(&g->pickups_table, grp.first, &r);
+                if (VS_HAS(&r, VS_PICKUPS_F_NAME)) name = vs_table_str(&g->pickups_table, r.name);
+                if (VS_HAS(&r, VS_PICKUPS_F_DESCRIPTION)) desc = vs_table_str(&g->pickups_table, r.description);
+                if (VS_HAS(&r, VS_PICKUPS_F_FRAMENAME)) frame = vs_table_str(&g->pickups_table, r.frameName);
+            }
+        } else {
+            int type = lu->options[i], slot = vs_weapon_find(g, type);
+            int next = slot >= 0 ? g->weapons[slot].level : 0;   /* table index of the level offered */
+            vs_weapons_rec r0, rn;
+            if (vs_weapon_record(g, type, 0, &r0) == 0) {
+                if (VS_HAS(&r0, VS_WEAPONS_F_NAME)) name = vs_table_str(&g->weapons_table, r0.name);
+                if (VS_HAS(&r0, VS_WEAPONS_F_DESCRIPTION)) desc = vs_table_str(&g->weapons_table, r0.description);
+                if (VS_HAS(&r0, VS_WEAPONS_F_FRAMENAME)) frame = vs_table_str(&g->weapons_table, r0.frameName);
+                if (r0.isEvolution) bg_tint = 0xffff00;
+            }
+            if (next == 0) { level = vs_lang_get(&g->lang, "weapon_new", "New!"); level_tint = 0xffff00; }
+            else {
+                snprintf(level_buf, sizeof level_buf, "%s%d", vs_lang_get(&g->lang, "weapon_level_", "level: "), next + 1);
+                level = level_buf;
+                if (vs_weapon_record(g, type, next, &rn) == 0 && VS_HAS(&rn, VS_WEAPONS_F_LEVELUPTEXT)) desc = vs_table_str(&g->weapons_table, rn.levelUpText);
+            }
+        }
+        nine_slice(g, "frame1_c2.png", px, py, pw, ph, 12, bg_tint);
+        vs_frame f;
+        if (vs_atlas_find(&g->atl_ui, "frameB.png", &f) == 0) {
+            vs_sprite s = {0};
+            s.tex = g->textures[g->tex_ui]; s.sx = (int16_t)f.x; s.sy = (int16_t)f.y; s.sw = (int16_t)f.w; s.sh = (int16_t)f.h;
+            s.dx = px + 4; s.dy = py + 4; s.scale_x = s.scale_y = 2; s.tint = 0xffffff; s.alpha = 255;
+            vs_plat_draw(&s);
+        }
+        if (frame && vs_atlas_find(&g->atl_items, frame, &f) == 0) {
+            vs_sprite s = {0};
+            s.tex = g->textures[g->tex_items]; s.sx = (int16_t)f.x; s.sy = (int16_t)f.y; s.sw = (int16_t)f.w; s.sh = (int16_t)f.h;
+            s.scale_x = s.scale_y = 2; s.tint = 0xffffff; s.alpha = 255;
+            /* centred on (28, 28) like the original, using the untrimmed size */
+            s.dx = px + 28 + (f.off_x - 0.5f * f.src_w) * 2; s.dy = py + 28 + (f.off_y - 0.5f * f.src_h) * 2;
+            vs_plat_draw(&s);
+        }
+        vs_text_draw(px + 64, py + 8, 2, 0xffffff, name);
+        vs_text_draw(px + 0.7f * pw, py + 8, 2, level_tint, level);
+        text_wrapped(px + 64, py + 28, 1.5f, 0xffffff, desc, pw - 64 - 10, 12, 3);
+        if (i == lu->selected) nine_slice(g, "selectionSquareActive_03.png", px - 4, py - 4, pw + 8, ph + 8, 7, 0xffffff);
     }
 }
 

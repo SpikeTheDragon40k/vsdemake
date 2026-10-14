@@ -86,6 +86,7 @@ test('pack has the expected directory', { skip }, () => {
   assert.equal(count('MAP'), 2);
   assert.equal(count('FNT'), 1);
   assert.equal(count('ENM'), 12);
+  assert.equal(count('LNG'), 1);
   assert.equal(count('TAB'), Object.values(TABLES).reduce((n, d) => n + 1 + Object.keys(d.sub || {}).length, 0));
   const names = new Set(entries.map((e) => `${e.kind}:${e.name}`));
   for (const n of ['TEX:enemies', 'TEX:title_vsdemake', 'ATL:characters', 'MAP:Forest', 'MAP:Library', 'FNT:damNum-export', 'TAB:weapons', 'TAB:stages.events', 'ENM:weapons']) assert.ok(names.has(n), n);

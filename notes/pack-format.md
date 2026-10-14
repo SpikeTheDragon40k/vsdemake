@@ -21,7 +21,7 @@ All offsets are from the start of the file.
 
 | Offset | Type | Value |
 | --- | --- | --- |
-| 0 | char[4] | kind: `TEX`, `ATL`, `MAP`, `FNT`, `TAB`, `ENM`, `SND` |
+| 0 | char[4] | kind: `TEX`, `ATL`, `MAP`, `FNT`, `TAB`, `ENM`, `LNG`, `SND` |
 | 4 | u32 | reserved (0) |
 | 8 | char[32] | name, NUL-padded (`enemies`, `Forest`, `weapons`, …) |
 | 40 | u32 | blob offset |
@@ -149,6 +149,23 @@ the field names too, so a mismatch is detected at load.
 with one record per level entry; `enemies.json` → one record per group;
 `stages.json` → one record per minute row, with `events` and `treasure`
 in sub-tables `stages.events`, `stages.treasure`.
+
+## `LNG`: UI strings
+
+One entry, `en`, from `assets/lang/lang.json` (`en.translations`, string
+values only).
+
+```
+u32 count
+u32 reserved     0
+count × { u32 keyOffset, u32 valueOffset }   sorted by key bytes (strcmp order)
+string pool      NUL-terminated UTF-8
+```
+
+The weapons table also carries a computed string field, `levelUpText`, on
+every level 2+ entry: the "what this level adds" lines built from the
+entry's stats and these strings (`patcher/src/assets/lang.js`,
+`notes/behaviour/levelup-ui.md`). It is not part of the game's own table.
 
 ## `SND`: audio (planned)
 

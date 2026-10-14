@@ -31,6 +31,8 @@ const TABLES = {
       ['hitVFX', `enum:${E.hitvfx}`], ['critChance', 'f32'], ['critMul', 'f32'], ['penetrating', 'f32'], ['volume', 'f32'], ['knockback', 'f32'],
       ['hitBoxDelay', 'f32'], ['intervalDependsOnDuration', 'bool'], ['chance', 'f32'], ['charges', 'i32'], ['shieldInvulTime', 'f32'],
       ['isSpecialOnly', 'bool'], ['isPowerUp', 'bool'], ['price', 'i32'], ...stats(),
+      // computed at pack time (assets/lang.js), not in the game's table
+      ['levelUpText', 'str'],
     ],
   },
   powerups: {

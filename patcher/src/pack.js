@@ -11,6 +11,7 @@ const { parseMultiatlas, atlasBlob } = require('./assets/atlas');
 const { tilemapBlob } = require('./assets/tilemap');
 const { parseBmfontXml, fontBlob } = require('./assets/font');
 const { allTableBlobs, enumBlob } = require('./assets/table');
+const { withLevelUpText, langBlob } = require('./assets/lang');
 const { resolveEnums, E } = require('./tables');
 const { fixedName } = require('./assets/util');
 
@@ -117,7 +118,16 @@ function buildPack(source, extracted, log = () => {}) {
   for (const [key, e] of Object.entries(enums)) {
     pack.add('ENM', ENUM_NAMES[key] || key, enumBlob(e));
   }
-  for (const t of allTableBlobs(extracted.data, enums)) {
+  // English UI strings, and each weapon level's upgrade text built from them.
+  const langFile = files.find((x) => /\/lang\/lang\.json$/.test(x));
+  let data = extracted.data;
+  if (langFile) {
+    const en = JSON.parse(source.read(langFile).toString('utf8')).en.translations;
+    pack.add('LNG', 'en', langBlob(en));
+    log(`LNG en ${Object.keys(en).length} strings`);
+    data = { ...data, weapons: withLevelUpText(data.weapons, en) };
+  }
+  for (const t of allTableBlobs(data, enums)) {
     pack.add('TAB', t.name, t.blob);
     log(`TAB ${t.name} ${t.blob.length} bytes`);
   }

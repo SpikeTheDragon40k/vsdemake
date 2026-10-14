@@ -81,7 +81,7 @@ static int fatal_screen(const char *msg) {
 
 static int vs_main(int argc, char **argv) {
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL;
-    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, locked = 0, give_count = 0, chest = 0;
+    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, locked = 0, give_count = 0, chest = 0, show_levelup = 0;
     const char *give[16];
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
@@ -93,6 +93,7 @@ static int vs_main(int argc, char **argv) {
         else if (strcmp(argv[i], "--menu") == 0) menu = 1;
         else if (strcmp(argv[i], "--locked") == 0) locked = 1;
         else if (strcmp(argv[i], "--chest") == 0) chest = 1;
+        else if (strcmp(argv[i], "--show-levelup") == 0) show_levelup = 1;
         else if (strcmp(argv[i], "--give") == 0 && i + 1 < argc) { if (give_count < 16) give[give_count++] = argv[++i]; else ++i; }
         else if (strcmp(argv[i], "--char") == 0 && i + 1 < argc) character = atoi(argv[++i]);
         else if (strcmp(argv[i], "--stage") == 0 && i + 1 < argc) stage = strcmp(argv[++i], "library") == 0;
@@ -172,6 +173,8 @@ static int vs_main(int argc, char **argv) {
             }
         }
     }
+    /* dev aid: --show-levelup opens a level-up and leaves it on screen */
+    if (show_levelup && game.screen == VS_SCREEN_GAME) { game.auto_pick = 0; vs_levelup_open(&game); }
     /* dev aid: --chest opens one treasure chest now and lists what the player owns */
     if (chest && game.screen == VS_SCREEN_GAME) {
         vs_treasure_open(&game, 1, -1);

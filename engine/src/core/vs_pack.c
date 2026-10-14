@@ -214,6 +214,30 @@ int vs_pack_enum(const vs_pack *p, const char *name, vs_enum *out) {
 }
 const char *vs_enum_name(const vs_enum *e, uint32_t i) { return e->strings + vs_be32(e->members + i * 12); }
 const char *vs_enum_value(const vs_enum *e, uint32_t i) { return e->strings + vs_be32(e->members + i * 12 + 4); }
+int vs_pack_lang(const vs_pack *p, const char *name, vs_lang *out) {
+    uint32_t sz;
+    const uint8_t *b = vs_pack_blob(p, vs_pack_find(p, "LNG", name), &sz);
+    memset(out, 0, sizeof *out);
+    if (!b || sz < 8) return -1;
+    out->count = vs_be32(b);
+    if (8 + 8ull * out->count > sz) { out->count = 0; return -1; }
+    out->pairs = b + 8;
+    out->strings = (const char *)b + 8 + 8 * out->count;
+    return 0;
+}
+
+const char *vs_lang_get(const vs_lang *l, const char *key, const char *fallback) {
+    uint32_t lo = 0, hi = l ? l->count : 0;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        int c = strcmp(l->strings + vs_be32(l->pairs + 8 * mid), key);
+        if (c < 0) lo = mid + 1;
+        else if (c > 0) hi = mid;
+        else return l->strings + vs_be32(l->pairs + 8 * mid + 4);
+    }
+    return fallback;
+}
+
 int vs_enum_find_value(const vs_enum *e, const char *value) {
     for (uint32_t i = 0; i < e->count; i++) if (strcmp(vs_enum_value(e, i), value) == 0) return (int)i;
     return -1;

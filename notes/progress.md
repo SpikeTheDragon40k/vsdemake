@@ -129,3 +129,14 @@ Checked every guide against the code and the original:
 - Dev options: `--give NAME[:LEVEL]`, `--chest`, `--locked`.
 - Checked: chest after Whip 8 + Hollow Heart gives Bloody Tear; Whip 7 or no
   Hollow Heart gives none; ASan/UBSan runs clean; C++03 check clean.
+
+## 2026-10-14: level-up screen
+
+- Rebuilt like the original's: menu frame, "Level Up!", one panel per
+  choice with icon, name, "New!" or "level: N", and the description. For an
+  upgrade the description says what that level adds ("Base damage up by 5",
+  "[All] Cooldown reduced by 8.0%"), built at pack time from the English
+  strings in `lang.json` with the original's rules and key order.
+- New pack entry `LNG en`, new computed field `weapons.levelUpText`: packs
+  must be rebuilt (the engine refuses the old table layout).
+- Still our 5x7 font; the original's own UI font is not used yet.

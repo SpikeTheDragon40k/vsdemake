@@ -126,6 +126,7 @@ Headless/regression runs (no window): `--headless --no-render --frames 18000
 `WHIP:8`, `MAXHEALTH`, `VAMPIRICA`) adds items at the start, `--chest`
 opens one treasure chest right away and logs what the player owns, and
 `--locked` keeps locked items out of level-ups as on a fresh save.
+`--show-levelup` opens a level-up screen and leaves it up (for screenshots).
 
 ## Step 5: Xbox 360
 

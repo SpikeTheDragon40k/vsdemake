@@ -98,6 +98,16 @@ const char *vs_enum_name(const vs_enum *e, uint32_t i);
 const char *vs_enum_value(const vs_enum *e, uint32_t i);
 int vs_enum_find_value(const vs_enum *e, const char *value);
 
+/* LNG: UI strings by key (English) */
+typedef struct {
+    uint32_t count;
+    const uint8_t *pairs;   /* count × (keyOffset, valueOffset), sorted by key */
+    const char *strings;
+} vs_lang;
+int vs_pack_lang(const vs_pack *p, const char *name, vs_lang *out);
+/* The text for `key`, or `fallback` when the pack has no such string. */
+const char *vs_lang_get(const vs_lang *l, const char *key, const char *fallback);
+
 /* MAP */
 typedef struct {
     uint32_t w, h, tile_w, tile_h;

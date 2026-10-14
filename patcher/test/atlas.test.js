@@ -28,3 +28,17 @@ test('trimmed frames keep their offsets and source size', () => {
   const f = page.frames[0];
   assert.deepEqual([f.offX, f.offY, f.srcW, f.srcH], [3, 7, 40, 40]);
 });
+
+test('level-up text follows the entry key order and the passive/weapon wording', () => {
+  const { levelUpText, getLang } = require('../src/assets/lang');
+  const t = {
+    weaponLevelUp_all: '[All] ', weaponLevelUp_damage: 'dmg %0\n', weaponLevelUp_damageAll: 'dmgAll %0%\n',
+    weaponLevelUp_area: 'area %0%\n', weaponLevelUp_projectile: '%0 proj\n', weaponLevelUp_projectiles: '%0 projs\n',
+    weaponLevelUp_cooldown: 'cd %0 s\n', weaponLevelUp_effect: 'eff %0 s\n',
+  };
+  assert.equal(levelUpText({ area: 0.1, power: 0.5 }, false, t), 'area 10%\ndmg 5\n');
+  assert.equal(levelUpText({ power: 0.1 }, true, t), 'dmgAll 10%\n');
+  assert.equal(levelUpText({ amount: 2, interval: -200, level: 3 }, false, t), '2 projs\ncd 0.2 s\n');
+  assert.equal(levelUpText({ amount: 1, duration: 500 }, false, t), '1 proj\neff 0.5 s\n');
+  assert.equal(getLang({ k: 'a %0 b %1' }, 'k', [1, 2]), 'a 1 b 2');
+});

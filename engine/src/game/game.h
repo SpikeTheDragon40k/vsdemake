@@ -283,6 +283,7 @@ typedef struct {
     int tex_characters, tex_enemies, tex_bg, tex_items, tex_vfx;
     vs_atlas atl_characters, atl_enemies, atl_items, atl_vfx, atl_ui;
     int tex_ui, tex_damage, tex_title, title_w, title_h;
+    vs_lang lang;           /* English UI strings (empty for packs without LNG) */
     vs_font damage_font;
 } vs_game;
 
@@ -329,6 +330,8 @@ int vs_weapon_add(vs_game *g, int type, int from_levelup);
 int vs_weapon_find(const vs_game *g, int type);
 /* 1 if the demake has this weapon's own behaviour (others fall back to a plain shot) */
 int vs_weapon_implemented(int type);
+/* Table entry `level` (0 = level 1) of a weapon/passive; -1 if none. */
+int vs_weapon_record(const vs_game *g, int type, int level, vs_weapons_rec *out);
 int vs_weapon_level_up(vs_game *g, int slot);        /* returns 0 when maxed */
 void vs_weapon_fire(vs_game *g, int slot);
 void vs_weapon_fire_one(vs_game *g, int slot, int index);

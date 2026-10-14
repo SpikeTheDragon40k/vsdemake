@@ -20,6 +20,8 @@ static int weapon_record(vs_game *g, int type, int level, vs_weapons_rec *out) {
     return 0;
 }
 
+int vs_weapon_record(const vs_game *g, int type, int level, vs_weapons_rec *out) { return weapon_record((vs_game *)g, type, level, out); }
+
 const char *vs_weapon_name(const vs_game *g, int type) {
     vs_weapons_rec r;
     if (weapon_record((vs_game *)g, type, 0, &r) != 0 || !VS_HAS(&r, VS_WEAPONS_F_NAME)) return "?";
