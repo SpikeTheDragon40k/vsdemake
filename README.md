@@ -1,5 +1,5 @@
 # vsdemake
-![vsdemake](docs/img/banner.png)
+![vsdemake](banner.png)
 
 
 An unofficial Xbox 360 homebrew demake of Vampire Survivors, with a C99
