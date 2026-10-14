@@ -16,11 +16,24 @@ if "%XEDK%"=="" (
   echo XEDK is not set: the Xbox 360 XDK is not installed or this is not the XDK prompt.
   exit /b 2
 )
-where msbuild >nul 2>nul || (
-  echo msbuild not on PATH. Run from "Visual Studio Command Prompt (2010)" or add
-  echo %%WINDIR%%\Microsoft.NET\Framework\v4.0.30319 to PATH.
-  exit /b 2
+rem msbuild for VS2010 ships with .NET 4 at a fixed place; use it when the
+rem prompt has no msbuild on PATH (a plain cmd window).
+where msbuild >nul 2>nul && goto havemsbuild
+if exist "%WINDIR%\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe" (
+  set "PATH=%WINDIR%\Microsoft.NET\Framework\v4.0.30319;%PATH%"
+  goto havemsbuild
 )
+if exist "%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe" (
+  set "PATH=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319;%PATH%"
+  goto havemsbuild
+)
+echo msbuild not found. Install Visual Studio 2010 ^(it installs .NET 4^), or open
+echo Start ^> All Programs ^> Microsoft Visual Studio 2010 ^> Visual Studio Tools ^>
+echo Visual Studio Command Prompt ^(2010^) and run this script from there.
+exit /b 2
+:havemsbuild
+rem The Visual C++ environment ^(compiler paths^) for msbuild.
+if exist "%VS100COMNTOOLS%vsvars32.bat" call "%VS100COMNTOOLS%vsvars32.bat" >nul
 
 msbuild vsdemake.sln /t:Rebuild /p:Configuration=%CONFIG% /p:Platform="Xbox 360" /nologo /m ^
   /fl /flp:logfile=build-%CONFIG%.log;verbosity=normal
