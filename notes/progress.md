@@ -90,3 +90,11 @@ Checked every guide against the code and the original:
   file names), depot report (atlas format, 31 OGG / 3 BGM), pickups and
   spawning notes (all "verify" items resolved).
 - New: `docs/FIRST_XEX_TEST.md`.
+
+## 2026-10-14: build VM
+
+- Answered "can the XEX be built in a container": no Linux image is
+  possible (XDK is Windows-only, NDA); the user will use a VirtualBox
+  Windows VM. Added `engine/xdk/build-xex.bat` (unattended msbuild with log
+  and first-error summary) and a VirtualBox section to the Xbox guide.
+- Still waiting for the first real XDK build/boot report.

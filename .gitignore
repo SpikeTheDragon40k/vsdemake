@@ -8,3 +8,4 @@ vs-1.0.sha256
 build/
 out/
 node_modules/
+engine/xdk/build-*.log

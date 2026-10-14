@@ -77,8 +77,12 @@ writes a log file:
 
 ```bat
 cd vsdemake\engine\xdk
-msbuild vsdemake.sln /t:Rebuild /p:Configuration=Release /p:Platform="Xbox 360" /fl /flp:logfile=build.log;verbosity=normal
+build-xex.bat
 ```
+
+This runs `msbuild` on the solution and writes `build-Release.log` next to
+it. Building inside a VirtualBox Windows VM is fine; see XBOX360_GUIDE.md §4
+"Building in a VirtualBox VM" for the VM setup.
 
 ### If the solution doesn't load
 
@@ -190,7 +194,7 @@ worth one try when the Release build crashes or hangs: build it, copy its
 
 ## 7. Report back
 
-Copy this, fill it in, and send it with the photos and `build.log`:
+Copy this, fill it in, and send it with the photos and `build-Release.log`:
 
 ```
 vsdemake first XEX test

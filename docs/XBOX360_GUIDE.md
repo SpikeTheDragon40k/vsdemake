@@ -138,6 +138,61 @@ definitions; Linker → Input).
 | C++ errors in the core (`void*` conversions) | Add the cast; report it so the PC side gets the same fix. |
 | `_vsnprintf` warnings | Harmless. |
 
+### Building in a VirtualBox VM
+
+The XDK is Windows-only and proprietary, so there is no Docker image for
+the XEX step. A Windows VM you set up once from your own media is the
+reproducible equivalent. Nothing from the VM needs to leave it except
+`default.xex` and the build log.
+
+VM settings that work:
+
+| Setting | Value |
+| --- | --- |
+| Guest OS | Windows 7 SP1 x64 or Windows 10 x64 (VS2010 and XDK 21256.3 install on both; Windows 11 works but the XDK installer may need "Run as administrator") |
+| RAM / CPUs | 4 GB / 2 cores minimum; the compile is small |
+| Disk | 40 GB dynamically allocated (VS2010 ≈ 6 GB, XDK ≈ 4 GB) |
+| Shared folder | The `vsdemake` checkout, mounted as a drive (Devices → Shared Folders → Auto-mount); or clone inside the VM with Git for Windows |
+| Network | NAT is enough; the build does not need the console reachable |
+| Guest Additions | Install them: shared folders and clipboard need them |
+
+Install order inside the VM, then take a snapshot:
+
+1. Windows updates, Guest Additions.
+2. Visual Studio 2010 Professional (or higher), then **Service Pack 1**.
+3. The Xbox 360 XDK (your own copy). Confirm `echo %XEDK%` in a new
+   command prompt prints the install folder and that Visual Studio lists
+   the **Xbox 360** platform.
+4. Node.js 20+ if you also want to build the pack in the VM. Otherwise
+   build the pack on the host (§3) and only copy `default.xex` out.
+5. **Snapshot** the VM here ("clean toolchain"). Every build starts from
+   this snapshot, which is what makes the result reproducible.
+
+Build with the script instead of the IDE:
+
+```bat
+cd \\vboxsvr\vsdemake\engine\xdk      (or the mapped drive letter)
+build-xex.bat
+```
+
+`build-xex.bat` runs the same `msbuild` command as §4, writes
+`build-Release.log` next to the solution, prints the first errors on
+failure, and prints the size of `out\Release\default.xex` on success.
+`build-xex.bat Debug` builds the Debug configuration. Run it from the
+*Xbox 360 Command Prompt* or the *Visual Studio Command Prompt (2010)*
+so `msbuild` and `XEDK` are set.
+
+Notes:
+
+- Building directly on a VirtualBox shared folder works but is slow and
+  occasionally trips the MSVC "file in use" error (`LNK1104`). If that
+  happens, copy the repo to `C:\vsdemake` inside the VM, build there, and
+  copy the XEX back.
+- The shared folder keeps `out\` and `build-*.log` on the host too. Both
+  are git-ignored (`out/`), so they never get committed by accident.
+- The VM never needs the game data or the pack unless you build the pack
+  in it. Keep the data pack out of any VM image you might hand to others.
+
 ---
 
 ## 5. Install on the console
