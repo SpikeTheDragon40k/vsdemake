@@ -168,3 +168,9 @@ Checked every guide against the code and the original:
   restored from backup / SAVE FAILED with the C library's error reason and
   errno). A missing save is created immediately at start-up, so a folder
   that can't be written shows on the title, without playing a run.
+- Console confirmed: saving works (title shows the save created/loaded).
+
+## Next: audio
+
+Planned in `notes/audio-plan.md` (facts, steps, session estimate, how to
+resume in a fresh session).
