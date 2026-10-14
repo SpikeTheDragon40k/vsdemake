@@ -47,6 +47,10 @@ void vs_audio_advance(float ms);
 float vs_audio_decoded_seconds(void);
 int vs_audio_last_peak(void);
 int vs_audio_max_peak(void);   /* loudest sample since start-up */
+/* Diagnostics: a 1-second 440 Hz tone mixed in directly (no decoder). */
+void vs_audio_test_tone(void);
+/* Diagnostics: one line of mixer state (volumes, voices, plays, sound `key`). */
+void vs_audio_debug(const char *key, char *buf, int size);
 
 /* Mixes `frames` stereo frames (interleaved L, R) into out. */
 void vs_audio_mix(int16_t *out, int frames);

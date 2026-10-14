@@ -209,6 +209,8 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
     case VS_SCREEN_TITLE:
         if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         if (pressed & VS_BTN_Y) vs_sfx(g, VS_SND_LEVELUP, 1.5f, 0, 1, 0, 0);   /* sound test */
+        if (pressed & VS_BTN_X) vs_audio_test_tone();                         /* tone, no decoder */
+        if (pressed & VS_BTN_B) g->audio_swap = vs_plat_audio_toggle_swap();  /* byte-order test */
         break;
     case VS_SCREEN_SELECT: {
         int n = g->menu_char_count;
@@ -500,13 +502,17 @@ static void render_menu(vs_game *g) {
     }
     if (g->screen == VS_SCREEN_TITLE) {
         vs_text_draw(g->logical_w * 0.5f - 60, 260, 1.5f, 0xffffff, "PRESS START");
-        vs_text_draw(g->logical_w * 0.5f - 140, 400, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
+        vs_text_draw(g->logical_w * 0.5f - 140, 398, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
         const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
-        vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 425, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
+        vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 411, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
         if (g->audio_status[0]) {
             /* live diagnostics: decoded seconds, peak of the latest mix, frames the device played */
-            snprintf(buf, sizeof buf, "%s | %.0f s decoded | level %d (max %d) | played %lu | Y: test sound", g->audio_status, vs_audio_decoded_seconds(), vs_audio_last_peak(), vs_audio_max_peak(), (unsigned long)vs_plat_audio_played());
-            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 438, 1, strstr(g->audio_status, "NO ") ? 0xff4040 : 0x60a060, buf);
+            snprintf(buf, sizeof buf, "%s | %.0f s decoded | level %d (max %d) | played %lu", g->audio_status, vs_audio_decoded_seconds(), vs_audio_last_peak(), vs_audio_max_peak(), (unsigned long)vs_plat_audio_played());
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 424, 1, strstr(g->audio_status, "NO ") ? 0xff4040 : 0x60a060, buf);
+            snprintf(buf, sizeof buf, "Sound test: Y = game sound, X = plain tone, B = byte order (now %s)", g->audio_swap ? "SWAPPED" : "normal");
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 434, 1, 0x808080, buf);
+            vs_audio_debug("LevelUp", buf, sizeof buf);
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 444, 1, 0x808080, buf);
         }
     } else if (g->screen == VS_SCREEN_SELECT) {
         vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");

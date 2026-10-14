@@ -358,7 +358,11 @@ int vs_save_load(vs_game *g, const char *path) {
         memset(&g->save, 0, sizeof g->save);
         g->save.selected_character = VS_CHARACTERS_ANTONIO;
         g->save.selected_stage = VS_STAGES_FOREST;
+        g->save.sound_volume = g->save.music_volume = 0.5f;
     }
+    /* Builds before this fix wrote new saves with both volumes at 0, and there
+     * is no options screen yet to change them: such saves get the defaults. */
+    if (g->save.sound_volume <= 0 && g->save.music_volume <= 0) g->save.sound_volume = g->save.music_volume = 0.5f;
     g->save.stage_unlocked[VS_STAGES_FOREST] = 1;
     restore_achievement_unlocks(g);
     /* A new save is written right away, so a folder that can't be written is

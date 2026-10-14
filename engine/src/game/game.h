@@ -296,6 +296,7 @@ typedef struct {
     char save_status[600];  /* result of the last save, shown on the game-over screen */
     char save_boot_status[600]; /* save found/created/failed at start-up, shown on the title */
     char audio_status[160];     /* sounds loaded / output state, shown on the title */
+    int audio_swap;             /* diagnostics: byte order swapped at the output */
     vs_table achievements_table, stages_table;
     uint32_t run_kills[VS_ENEMIES_COUNT], run_pickups[VS_PICKUPS_COUNT], run_destroyed[VS_DESTRUCTIBLES_COUNT];
     float run_heal;

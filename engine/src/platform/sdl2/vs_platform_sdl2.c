@@ -208,3 +208,4 @@ void vs_plat_audio_close(void) { if (g_audio) SDL_CloseAudioDevice(g_audio); g_a
 int vs_plat_audio_queued(void) { return g_audio ? (int)(SDL_GetQueuedAudioSize(g_audio) / 4) : 0; }
 void vs_plat_audio_push(const int16_t *frames, int count) { if (g_audio) SDL_QueueAudio(g_audio, frames, (Uint32)count * 4); }
 uint64_t vs_plat_audio_played(void) { return 0; }
+int vs_plat_audio_toggle_swap(void) { return 0; }

@@ -79,6 +79,8 @@ int vs_plat_audio_queued(void);                       /* frames not played yet *
 void vs_plat_audio_push(const int16_t *frames, int count);
 /* Diagnostics: frames the output device reports as played (0 if unknown). */
 uint64_t vs_plat_audio_played(void);
+/* Diagnostics: swap the byte order of pushed samples (console test); returns the new state. */
+int vs_plat_audio_toggle_swap(void);
 
 #ifdef __cplusplus
 }

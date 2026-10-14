@@ -43,6 +43,10 @@ static float g_sound_volume = 0.5f, g_music_volume = 0.5f;
 static float g_clock_ms;
 static float g_mixbuf[2 * 4096];
 static int g_last_peak, g_max_peak;
+static int g_tone_left;            /* frames of test tone still to mix */
+static double g_tone_phase;
+static unsigned g_plays_asked, g_plays_started;   /* diagnostics */
+static const char *g_play_last = "none";
 
 /* ---- loading ---- */
 
@@ -177,7 +181,9 @@ static int voice_mix(voice_t *v, float *mix, int frames, float vol) {
 /* ---- the original's sound manager ---- */
 
 void vs_audio_play(int id, float volume, float detune_cents, float rate, float delay_ms, int max_instances) {
-    if (id < 0 || id >= g_snd_count || g_sound_volume <= 0) return;
+    g_plays_asked++;
+    if (id < 0 || id >= g_snd_count) { g_play_last = "bad id"; return; }
+    if (g_sound_volume <= 0) { g_play_last = "volume 0"; return; }
     snd_t *s = &g_snd[id];
     if (delay_ms > 0 && max_instances > 0) {
         int busy = 0, slot = -1;
@@ -185,7 +191,7 @@ void vs_audio_play(int id, float volume, float detune_cents, float rate, float d
             if (s->throttle_until[k] > g_clock_ms) busy++;
             else if (slot < 0) slot = k;
         }
-        if (busy >= max_instances || slot < 0) return;
+        if (busy >= max_instances || slot < 0) { g_play_last = "throttled"; return; }
         s->throttle_until[slot] = g_clock_ms + delay_ms;
     }
     float vol = (volume >= 0 ? volume * 0.5f : 0.1f) * g_sound_volume;
@@ -199,9 +205,10 @@ void vs_audio_play(int id, float volume, float detune_cents, float rate, float d
             double done = g_snd[c->id].frames ? c->pos / g_snd[c->id].frames : 0;
             if (!g_snd[c->id].streamed && done > best) { best = done; v = c; }
         }
-        if (!v) return;
+        if (!v) { g_play_last = "no voice"; return; }
     }
-    voice_start(v, id, vol, speed, 0);
+    if (voice_start(v, id, vol, speed, 0) == 0) { g_plays_started++; g_play_last = "started"; }
+    else g_play_last = "start failed";
 }
 
 void vs_audio_stop(int id) {
@@ -248,6 +255,11 @@ void vs_audio_mix(int16_t *out, int frames) {
         memset(g_mixbuf, 0, sizeof(float) * 2 * (size_t)n);
         for (int k = 0; k < MAX_VOICES; k++)
             if (g_voice[k].active && !voice_mix(&g_voice[k], g_mixbuf, n, g_voice[k].vol)) voice_release(&g_voice[k]);
+        for (int f = 0; f < n && g_tone_left > 0; f++, g_tone_left--) {   /* test tone */
+            float t = (float)(sin(g_tone_phase) * 8000.0);
+            g_tone_phase += 2.0 * 3.14159265358979 * 440.0 / VS_AUDIO_RATE;
+            g_mixbuf[2 * f] += t; g_mixbuf[2 * f + 1] += t;
+        }
         if (g_music.active) {
             float mv = g_music_cur * g_music_volume;
             if (!voice_mix(&g_music, g_mixbuf, n, mv)) { voice_release(&g_music); g_music_id = -1; }
@@ -273,3 +285,19 @@ float vs_audio_decoded_seconds(void) {
 }
 int vs_audio_last_peak(void) { return g_last_peak; }
 int vs_audio_max_peak(void) { return g_max_peak; }
+void vs_audio_test_tone(void) { g_tone_left = VS_AUDIO_RATE; g_tone_phase = 0; }
+
+/* One line of mixer state for the title screen: volumes, voices, play
+ * requests and the decoded data of one sound. */
+void vs_audio_debug(const char *key, char *buf, int size) {
+    int active = 0, id = vs_audio_find(key), pk = 0;
+    for (int k = 0; k < MAX_VOICES; k++) active += g_voice[k].active;
+    if (id >= 0 && g_snd[id].pcm)
+        for (long i = 0; i < (long)g_snd[id].frames * g_snd[id].channels; i++) {
+            int a = g_snd[id].pcm[i] < 0 ? -g_snd[id].pcm[i] : g_snd[id].pcm[i];
+            if (a > pk) pk = a;
+        }
+    snprintf(buf, (size_t)size, "vol %.2f/%.2f | voices %d%s | plays %u/%u (%s) | %s: id %d, %d Hz, %d ch, %d frames, peak %d",
+             g_sound_volume, g_music_volume, active, g_music.active ? "+music" : "", g_plays_started, g_plays_asked, g_play_last,
+             key, id, id >= 0 ? g_snd[id].rate : 0, id >= 0 ? g_snd[id].channels : 0, id >= 0 ? g_snd[id].frames : 0, pk);
+}

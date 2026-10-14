@@ -194,3 +194,16 @@ resume in a fresh session).
 - Not done: volume options screen; explosions/alert/Pentagram/Nduja sounds
   (those features don't exist yet); treasure opening animation (the chest
   sound plays at once).
+
+### Console silence (same day)
+
+- Symptom on the Xbox: sounds decoded, XAudio2 consuming buffers, but mix
+  level 0. Ruled out byte order: the decoder and mixer built for big-endian
+  PowerPC (cross gcc + qemu-ppc) give the same output as on x86.
+- Cause: `vs_save_load` cleared the save a second time when no save existed,
+  setting both volumes to 0, and the new save was written that way, so every
+  sound was refused ("volume 0"). PC tests ran without a save file. Fixed;
+  saves holding 0/0 (no options screen exists yet) get the defaults.
+- Title diagnostics: Y = LevelUp sound, X = plain 440 Hz tone, B = swap the
+  byte order of the XAudio2 output; a line with volumes, voices, play
+  requests (and why the last one was refused) and the LevelUp sound's data.

@@ -287,7 +287,7 @@ static IXAudio2 *g_xa;
 static IXAudio2MasteringVoice *g_xa_master;
 static IXAudio2SourceVoice *g_xa_src;
 static int16_t g_xa_buf[XA_BUFS][XA_FRAMES * 2];
-static int g_xa_next, g_xa_fill;
+static int g_xa_next, g_xa_fill, g_xa_swap;
 
 extern "C" int vs_plat_audio_open(int rate) {
     if (FAILED(XAudio2Create(&g_xa, 0, XAUDIO2_DEFAULT_PROCESSOR))) { vs_plat_log("audio: XAudio2Create failed"); return -1; }
@@ -322,6 +322,10 @@ extern "C" void vs_plat_audio_push(const int16_t *frames, int count) {
         int n = XA_FRAMES - g_xa_fill;
         if (n > count) n = count;
         memcpy(&g_xa_buf[g_xa_next][g_xa_fill * 2], frames, (size_t)n * 4);
+        if (g_xa_swap) {   /* diagnostics: byte-swapped samples */
+            uint16_t *w = (uint16_t *)&g_xa_buf[g_xa_next][g_xa_fill * 2];
+            for (int k = 0; k < n * 2; k++) w[k] = (uint16_t)((w[k] >> 8) | (w[k] << 8));
+        }
         g_xa_fill += n; frames += n * 2; count -= n;
         if (g_xa_fill == XA_FRAMES) {
             if (xa_buffers_queued() < XA_BUFS - 1) {
@@ -343,3 +347,4 @@ extern "C" uint64_t vs_plat_audio_played(void) {
     g_xa_src->GetState(&st);
     return (uint64_t)st.SamplesPlayed;
 }
+extern "C" int vs_plat_audio_toggle_swap(void) { g_xa_swap = !g_xa_swap; return g_xa_swap; }
