@@ -167,6 +167,18 @@ every level 2+ entry: the "what this level adds" lines built from the
 entry's stats and these strings (`patcher/src/assets/lang.js`,
 `notes/behaviour/levelup-ui.md`). It is not part of the game's own table.
 
-## `SND`: audio (planned)
+## `SND`: sound
 
-PCM 16-bit big-endian mono/stereo at the source rate. Not produced yet.
+One entry per sound the game loads, named by the game's sound key (`Gem`,
+`Whip`, `BGM_Forest`, … see `notes/behaviour/audio.md`). The file is the
+original OGG Vorbis stream, unchanged; the engine decodes it.
+
+```
+u32 format       1 = OGG Vorbis
+u32 size         byte size of the stream
+u32 reserved[2]  0
+u8  data[size]   the .ogg file
+```
+
+`sfx_sounds_impact2.ogg` is in the depot but never loaded by the game, so
+it is not packed.

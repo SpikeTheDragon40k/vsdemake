@@ -12,6 +12,7 @@ const { tilemapBlob } = require('./assets/tilemap');
 const { parseBmfontXml, fontBlob } = require('./assets/font');
 const { allTableBlobs, enumBlob } = require('./assets/table');
 const { withLevelUpText, langBlob } = require('./assets/lang');
+const { soundBlob } = require('./assets/sound');
 const { resolveEnums, E } = require('./tables');
 const { fixedName } = require('./assets/util');
 
@@ -118,6 +119,16 @@ function buildPack(source, extracted, log = () => {}) {
   for (const [key, e] of Object.entries(enums)) {
     pack.add('ENM', ENUM_NAMES[key] || key, enumBlob(e));
   }
+  // Sounds: the OGG files unchanged, named by the game's sound key. Files the
+  // game never loads (no key) are left out.
+  const sounds = extracted.sounds || {};
+  for (const f of files.filter((x) => x.endsWith('.ogg') && /\/sfx\//.test(x)).sort()) {
+    const key = sounds[base(f)];
+    if (!key) { log(`SND skip ${base(f)} (not loaded by the game)`); continue; }
+    pack.add('SND', key, soundBlob(source.read(f)));
+    log(`SND ${key} ← ${base(f)}.ogg`);
+  }
+
   // English UI strings, and each weapon level's upgrade text built from them.
   const langFile = files.find((x) => /\/lang\/lang\.json$/.test(x));
   let data = extracted.data;

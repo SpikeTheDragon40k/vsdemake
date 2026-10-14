@@ -6,6 +6,7 @@
 // code, recover every enum, then evaluate those literals with JS semantics,
 // without executing anything.
 
+const { findSoundKeys } = require('./assets/sound');
 const acorn = require('acorn');
 const walk = require('acorn-walk');
 
@@ -271,7 +272,7 @@ function extract(code) {
     enumsOut[`${first}@${holder}`] = Object.fromEntries(e.members);
   }
 
-  return { data, enums: enumsOut, constants: constants.values, warnings, sources };
+  return { data, enums: enumsOut, constants: constants.values, warnings, sources, sounds: findSoundKeys(code) };
 }
 
 module.exports = { extract, ExtractError, TABLES };
