@@ -695,7 +695,20 @@ void vs_game_render(vs_game *g) {
             tint = 0x110011;
         }
         if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) { scale = b->body_r * 2 / 256.0f; tint = 0x4040ff; alpha = 60; }
-        if (b->type == VS_WEAPONS_LIGHTNING) { /* bolt from the top of the screen to the strike point */ vs_frame bolt; if (vs_atlas_find(&g->atl_vfx, "Lightning3.png", &bolt) == 0) { float len = b->y - b->ay; if (len > 1) vs_render_sprite(g, g->tex_vfx, &bolt, b->x, b->ay, 0.5f, 0.0f, len / (float)bolt.src_h, 0, 0, 0, 0xffffff, 255, 1e6f); } if (b->state == 0) continue; fname = "HitRed2.png"; if (vs_atlas_find(&g->atl_vfx, fname, &f) != 0) continue; }
+        if (b->type == VS_WEAPONS_LIGHTNING) {
+            /* The bullet itself is invisible. The bolt is a 17 px strip of
+             * Lightning3.png along its path, from where it started (above the
+             * screen) to where it is now; on impact a faint circle in one of
+             * four colours grows to radius 8 × area over the 60 ms hit. */
+            float len = b->y - b->ay;
+            if (len > 1) vs_render_stretched(g, g->tex_vfx, &f, b->x, b->ay + 0.5f * len, len, (float)f.h, 90, 0xffffff, 255, 1e6f);
+            if (b->state == 1 && vs_atlas_find(&g->atl_vfx, "circle.png", &f) == 0) {
+                static const uint32_t colours[4] = { 0x00ffff, 0x0000ff, 0x0088ff, 0xffffff };
+                float t = (b->age_ms - b->f1) / 60.0f, d = 32.0f * b->scale * (t < 1 ? t : 1);   /* scale = area / 2 */
+                vs_render_stretched(g, g->tex_vfx, &f, b->x, b->y, d, d, 0, colours[b->index & 3], 38, b->y - p->y - 0.5f * g->logical_h);
+            }
+            continue;
+        }
         vs_render_sprite(g, tex, &f, b->x, b->y, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, tint, alpha, depth);
     }
 

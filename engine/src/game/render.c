@@ -53,6 +53,27 @@ void vs_render_sprite(vs_game *g, int tex, const vs_frame *f, float x, float y, 
     g_count++;
 }
 
+/* A frame stretched to w × h pixels, centred on (cx, cy), rotated about its
+ * centre (offsets of trimmed frames are ignored). */
+void vs_render_stretched(vs_game *g, int tex, const vs_frame *f, float cx, float cy, float w, float h,
+                         float angle, uint32_t tint, uint8_t alpha, float depth) {
+    if (g_count >= VS_MAX_SPRITES || tex < 0 || f->w <= 0 || f->h <= 0) return;
+    queued *q = &g_queue[g_count];
+    vs_sprite *s = &q->s;
+    memset(s, 0, sizeof *s);
+    s->tex = g->textures[tex];
+    s->sx = (int16_t)f->x; s->sy = (int16_t)f->y; s->sw = (int16_t)f->w; s->sh = (int16_t)f->h;
+    s->dx = cx - g_cam_x - 0.5f * w;
+    s->dy = cy - g_cam_y - 0.5f * h;
+    s->scale_x = w / (float)f->w; s->scale_y = h / (float)f->h;
+    s->angle_deg = angle;
+    s->tint = tint;
+    s->alpha = alpha;
+    q->depth = depth;
+    q->order = (uint32_t)g_count;
+    g_count++;
+}
+
 static int cmp(const void *a, const void *b) {
     const queued *x = (const queued *)a, *y = (const queued *)b;
     if (x->depth < y->depth) return -1;

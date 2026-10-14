@@ -112,3 +112,26 @@ slots), FIREBALL (random target), KNIFE/THOUSAND, HOLYBOOK, VESPERS, CROSS,
 LIGHTNING, GARLIC, LANCET, LAUREL, THORNS, BONE, HELLFIRE, SILF/2/3,
 PENTAGRAM, HEAVENSWORD, VAMPIRICA, NDUJA, VORTEX. Passives share one class
 (`player.md`).
+
+## Lightning Ring (LIGHTNING; bullet 3869–3893, trail class 3838–3864)
+
+- Each bullet picks a random living enemy whose body overlaps the screen
+  rectangle (renderer size, centred on the player); none → the bullet is
+  dropped.
+- Starts at the target's x, at player y − 0.6 × screen height, and moves
+  straight down to the target's y in 70 ms (linear tween). The body
+  (circle radius 16 × scale, scale = 0.5 × PArea) is disabled while falling.
+- On arrival: hit list cleared, body enabled, `Lightning` sound
+  (volume 0.6, rate 2, detune −100 × index, 200 ms / 4). A circle of radius
+  8, colour `[0x00ffff, 0x0000ff, 0x0088ff, 0xffffff][index % 4]`, alpha
+  0.15, additive blend, drawn at the target, grows from scale 0 to PArea in
+  60 ms (only with the flashing-VFX option, default on). Then the trail and
+  circle are hidden and the bullet despawns.
+- The bullet sprite (HitRed2) is never visible. What is seen is the trail:
+  a Phaser Rope of `Lightning3.png` (480 × 17, horizontal) with 16 points
+  following the bullet, every point starting at the start position. So the
+  image is laid along the path from the start point to the bullet, 17 px
+  thick, on top of everything (depth MAX_SAFE_INTEGER − 1000).
+- The demake draws the trail as one 17 px strip rotated 90°, stretched from
+  the start point to the bullet (the path is a vertical line). The additive
+  blend is drawn as plain alpha.
