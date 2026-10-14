@@ -19,10 +19,10 @@ fallback for people without the XDK. See `docs/XBOX360_GUIDE.md`.
   (`vs_compat.h`); `vs_platform.h` has C linkage for the backend.
 - Aspect-fit scale (not integer) to the 1280×720 back buffer; `vs_game` is a
   static (604 KB); boot failures show `fatal_screen` from `main.c`.
-- Saves: `fopen`/`fwrite`/`remove`/`rename` on `game:\vsdemake.sav` from the
-  CRT; `vsnprintf` is mapped to `_vsnprintf` in `vs_compat.h`. If a save is
-  never written on the console, check that `game:\` is writable and that
-  `rename` works there (fallback: write the file directly).
+- Saves: plain `fopen`/`fwrite` on `game:\vsdemake.sav` (no `rename`, which
+  the first console test suggested is unreliable); `vsnprintf` is mapped to
+  `_vsnprintf` in `vs_compat.h`. The game-over screen reports the result. If
+  it says SAVE FAILED, `game:\` is not writable for this launch method.
 
 
 ## Toolchain (free60)

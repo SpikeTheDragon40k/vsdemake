@@ -222,9 +222,10 @@ mounted for a homebrew XEX by default, so **keep the pack next to
 says so (press BACK to return to the dashboard).
 
 Progress is saved as `vsdemake.sav` in the same folder (with the previous
-version as `vsdemake.sav.bak`), written when a run ends. The folder must be
-writable, which it is on the HDD and on USB. To back up or reset progress,
-copy or delete that file over FTP.
+version as `vsdemake.sav.bak`), written when a run ends. The game-over
+screen says "Progress saved" or "SAVE FAILED" with the path it tried. The
+folder must be writable, which it is on the HDD and on USB. To back up or
+reset progress, copy or delete that file over FTP.
 
 How to copy:
 

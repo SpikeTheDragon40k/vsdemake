@@ -229,18 +229,24 @@ static void put_counts(sbuf *b, const vs_pack *p, const char *enum_name, const c
     for (int i = 0; i < count && (uint32_t)i < e.count; i++) if (v[i]) put(b, "%s.%s=%lu\n", key, vs_enum_value(&e, (uint32_t)i), (unsigned long)v[i]);
 }
 
-static int write_file_safely(const char *path, const char *data, size_t n) {
-    char tmp[300], bak[300];
-    snprintf(tmp, sizeof tmp, "%s.tmp", path);
-    snprintf(bak, sizeof bak, "%s.bak", path);
-    FILE *f = fopen(tmp, "wb");
+static int write_whole(const char *path, const char *data, size_t n) {
+    FILE *f = fopen(path, "wb");
     if (!f) return -1;
     size_t w = fwrite(data, 1, n, f);
-    if (fclose(f) != 0 || w != n) { remove(tmp); return -1; }
-    remove(bak);
-    rename(path, bak);            /* fails harmlessly on the first save */
-    if (rename(tmp, path) != 0) { rename(bak, path); return -1; }
-    return 0;
+    int rc = fclose(f);
+    return (rc != 0 || w != n) ? -2 : 0;
+}
+
+/* No rename: the console's CRT can't be relied on for it. The current save
+ * is first copied to <path>.bak, then <path> is overwritten. If that write
+ * is interrupted, loading falls back to the .bak copy. */
+static int write_file_safely(const char *path, const char *data, size_t n) {
+    char bak[300];
+    snprintf(bak, sizeof bak, "%s.bak", path);
+    size_t old_n;
+    void *old = vs_plat_read_file(path, &old_n);
+    if (old) { write_whole(bak, (const char *)old, old_n); vs_plat_free(old); }
+    return write_whole(path, data, n);
 }
 
 int vs_save_write(vs_game *g) {
@@ -266,7 +272,9 @@ int vs_save_write(vs_game *g) {
     put(&b, "crc=%08lx\n", (unsigned long)crc32_of(b.buf, b.len));
     int rc = write_file_safely(g->save_path, b.buf, b.len);
     free(b.buf);
-    if (rc != 0) vs_plat_log("save: cannot write %s", g->save_path);
+    if (rc == 0) snprintf(g->save_status, sizeof g->save_status, "Progress saved");
+    else snprintf(g->save_status, sizeof g->save_status, "SAVE FAILED (%s %s)", rc == -1 ? "cannot create" : "cannot write", g->save_path);
+    vs_plat_log("save: %s", g->save_status);
     return rc;
 }
 
