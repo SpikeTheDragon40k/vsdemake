@@ -336,3 +336,10 @@ extern "C" void vs_plat_audio_push(const int16_t *frames, int count) {
         }
     }
 }
+
+extern "C" uint64_t vs_plat_audio_played(void) {
+    if (!g_xa_src) return 0;
+    XAUDIO2_VOICE_STATE st;
+    g_xa_src->GetState(&st);
+    return (uint64_t)st.SamplesPlayed;
+}

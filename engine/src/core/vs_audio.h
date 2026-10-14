@@ -42,6 +42,12 @@ void vs_audio_set_volumes(float sound, float music);
 /* Advances the audio clock (throttles, fades) by ms. */
 void vs_audio_advance(float ms);
 
+/* Diagnostics: seconds of sound decoded at start-up, peak sample of the
+ * most recent mix (0..32767). */
+float vs_audio_decoded_seconds(void);
+int vs_audio_last_peak(void);
+int vs_audio_max_peak(void);   /* loudest sample since start-up */
+
 /* Mixes `frames` stereo frames (interleaved L, R) into out. */
 void vs_audio_mix(int16_t *out, int frames);
 

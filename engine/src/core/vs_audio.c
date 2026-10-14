@@ -42,6 +42,7 @@ static float g_music_base, g_music_cur, g_music_target, g_music_fade_ms, g_music
 static float g_sound_volume = 0.5f, g_music_volume = 0.5f;
 static float g_clock_ms;
 static float g_mixbuf[2 * 4096];
+static int g_last_peak, g_max_peak;
 
 /* ---- loading ---- */
 
@@ -251,11 +252,24 @@ void vs_audio_mix(int16_t *out, int frames) {
             float mv = g_music_cur * g_music_volume;
             if (!voice_mix(&g_music, g_mixbuf, n, mv)) { voice_release(&g_music); g_music_id = -1; }
         }
+        int peak = 0;
         for (int i = 0; i < 2 * n; i++) {
             float x = g_mixbuf[i];
             out[i] = (int16_t)(x > 32767.0f ? 32767 : x < -32768.0f ? -32768 : (int)x);
+            int a = out[i] < 0 ? -out[i] : out[i];
+            if (a > peak) peak = a;
         }
+        g_last_peak = peak;
+        if (peak > g_max_peak) g_max_peak = peak;
         out += 2 * n;
         frames -= n;
     }
 }
+
+float vs_audio_decoded_seconds(void) {
+    double frames = 0;
+    for (int i = 0; i < g_snd_count; i++) if (g_snd[i].rate > 0) frames += (double)g_snd[i].frames / g_snd[i].rate;
+    return (float)frames;
+}
+int vs_audio_last_peak(void) { return g_last_peak; }
+int vs_audio_max_peak(void) { return g_max_peak; }

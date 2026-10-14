@@ -174,6 +174,7 @@ static int vs_main(int argc, char **argv) {
     if (!mute && (!headless || audio_dump_path)) sounds = vs_audio_init(&pack);
     if (!mute && !headless) audio_live = vs_plat_audio_open(VS_AUDIO_RATE) == 0;
     if (mute) snprintf(game.audio_status, sizeof game.audio_status, "Sound: muted");
+    else if (headless && audio_dump_path) snprintf(game.audio_status, sizeof game.audio_status, "Sound: %d sounds, recording", sounds);
     else if (!headless) {
         if (sounds == 0) snprintf(game.audio_status, sizeof game.audio_status, "Sound: NO SOUNDS IN THE PACK (rebuild vsdata.vspack)");
         else if (!audio_live) snprintf(game.audio_status, sizeof game.audio_status, "Sound: %d sounds, NO AUDIO OUTPUT (device failed)", sounds);

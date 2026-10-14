@@ -208,6 +208,7 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
     switch (g->screen) {
     case VS_SCREEN_TITLE:
         if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_Y) vs_sfx(g, VS_SND_LEVELUP, 1.5f, 0, 1, 0, 0);   /* sound test */
         break;
     case VS_SCREEN_SELECT: {
         int n = g->menu_char_count;
@@ -502,7 +503,11 @@ static void render_menu(vs_game *g) {
         vs_text_draw(g->logical_w * 0.5f - 140, 400, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
         const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
         vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 425, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
-        if (g->audio_status[0]) vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, g->audio_status)), 438, 1, strstr(g->audio_status, "Sound: ") == g->audio_status && !strstr(g->audio_status, "NO ") ? 0x60a060 : 0xff4040, g->audio_status);
+        if (g->audio_status[0]) {
+            /* live diagnostics: decoded seconds, peak of the latest mix, frames the device played */
+            snprintf(buf, sizeof buf, "%s | %.0f s decoded | level %d (max %d) | played %lu | Y: test sound", g->audio_status, vs_audio_decoded_seconds(), vs_audio_last_peak(), vs_audio_max_peak(), (unsigned long)vs_plat_audio_played());
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 438, 1, strstr(g->audio_status, "NO ") ? 0xff4040 : 0x60a060, buf);
+        }
     } else if (g->screen == VS_SCREEN_SELECT) {
         vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
         for (int i = 0; i < g->menu_char_count; i++) {
