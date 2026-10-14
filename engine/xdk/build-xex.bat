@@ -7,6 +7,11 @@ set CONFIG=%1
 if "%CONFIG%"=="" set CONFIG=Release
 cd /d "%~dp0"
 
+rem Copying through an ISO or an old FAT tool shortens names to 8.3
+rem (vs_platform_xdk.cpp becomes VS_PLATF.CPP) and nothing compiles.
+if not exist ..\src\core\vs_compat.h goto badcopy
+if not exist ..\src\platform\xdk\vs_platform_xdk.cpp goto badcopy
+
 if "%XEDK%"=="" (
   echo XEDK is not set: the Xbox 360 XDK is not installed or this is not the XDK prompt.
   exit /b 2
@@ -37,3 +42,11 @@ echo.
 echo OK: out\%CONFIG%\default.xex
 for %%F in (out\%CONFIG%\default.xex) do echo size: %%~zF bytes
 endlocal
+exit /b 0
+
+:badcopy
+echo The source files have shortened names ^(for example VS_PLATF.CPP instead of
+echo vs_platform_xdk.cpp^). The copy into this machine truncated them.
+echo Copy the repository again with a VirtualBox shared folder, a .zip file,
+echo or git clone. See docs\XBOX360_GUIDE.md, "Building in a VirtualBox VM".
+exit /b 4

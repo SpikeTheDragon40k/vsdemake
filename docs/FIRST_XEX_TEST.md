@@ -97,15 +97,28 @@ project. Create the project from the wizard instead:
    `engine\src\platform\xdk\vs_platform_xdk.cpp`.
    **Do not add** anything from `platform\sdl2` or `platform\xenon`.
 4. Project properties, *All Configurations*:
-   - C/C++ → General → Additional Include Directories: `..\..\src`
-     (the folder that contains `core\` and `game\`).
-   - C/C++ → Preprocessor → Definitions: add `VS_XDK=1;VS_BIG_ENDIAN=1`.
+   - C/C++ → General → Additional Include Directories: the **full path**
+     of the folder that contains `core\` and `game\`, for example
+     `C:\vsdemake\engine\src`. A relative path breaks easily because the
+     wizard nests the project two folders deep.
+   - C/C++ → Preprocessor → Definitions: **add** `VS_XDK=1;VS_BIG_ENDIAN=1`
+     at the front and keep what is already there. `_XBOX` must stay in the
+     list, or every file fails with "Cannot open include file: ObjBase.h".
    - C/C++ → Advanced → Compile As: **Compile as C++ Code (/TP)**.
    - C/C++ → Precompiled Headers: **Not Using Precompiled Headers**.
    - Linker → Input → Additional Dependencies: add `d3dx9.lib` (release) /
      `d3dx9d.lib` (debug) and `xgraphics.lib` / `xgraphicsd.lib` if the
      wizard didn't.
 5. Build Release.
+
+### Check the copy first
+
+If the errors say `Cannot open include file: 'core/vs_compat.h'` and the
+file names in the log are in capitals and cut short, such as `VS_PLATF.CPP`,
+the source was damaged while copying it into the VM. Copying through an ISO
+image shortens every name to 8 characters. Copy it again with a shared
+folder, a `.zip`, or `git clone`, then rebuild. `build-xex.bat` detects this
+case and says so.
 
 ### If it doesn't compile or link
 

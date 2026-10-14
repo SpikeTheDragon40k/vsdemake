@@ -136,6 +136,9 @@ definitions; Linker → Input).
 | `stdint.h` not found | Your XDK's CRT lacks it: add a `stdint.h` to `engine/src` with `typedef` lines for `int8_t`…`uint64_t` (`__int64` for 64-bit) and report it. |
 | `unresolved external symbol vs_plat_…` | The platform header lost its `extern "C"` block; it must wrap all declarations in `core/vs_platform.h`. |
 | C++ errors in the core (`void*` conversions) | Add the cast; report it so the PC side gets the same fix. |
+| `Cannot open include file: 'ObjBase.h'` from `d3dx9.h` | `_XBOX` is missing from the preprocessor definitions. Add it back; the hand-made wizard project is the usual cause. |
+| `Cannot open include file: 'core/vs_compat.h'`, file names in capitals like `VS_PLATF.CPP` | The source was copied with 8.3 names. Copy it again (see "Building in a VirtualBox VM"). |
+| `Cannot open include file: 'core/...'`, file names normal | The include directory does not point at `engine\src`. Use its full path. |
 | `_vsnprintf` warnings | Harmless. |
 
 ### Building in a VirtualBox VM
@@ -181,6 +184,12 @@ failure, and prints the size of `out\Release\default.xex` on success.
 `build-xex.bat Debug` builds the Debug configuration. Run it from the
 *Xbox 360 Command Prompt* or the *Visual Studio Command Prompt (2010)*
 so `msbuild` and `XEDK` are set.
+
+Getting the source into the VM: use the shared folder, a `.zip` you
+extract inside the VM, or `git clone`. **Do not** burn the folder to an ISO
+and mount it: most ISO tools shorten names to 8.3 (`vs_platform_xdk.cpp`
+becomes `VS_PLATF.CPP`) and nothing compiles. A `.zip` placed inside an ISO
+is fine.
 
 Notes:
 

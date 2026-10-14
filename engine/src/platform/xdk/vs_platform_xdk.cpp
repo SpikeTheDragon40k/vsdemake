@@ -5,6 +5,12 @@
  * Rendering: one dynamic vertex batch per frame (position, colour, uv) with
  * tiny HLSL shaders compiled at start-up by D3DX, so sprites keep their real
  * tint and alpha (unlike the libxenon backend). */
+/* The XDK headers need _XBOX; without it d3dx9.h falls back to the Windows
+ * path and fails on ObjBase.h. The project defines it, but a project made
+ * from the wizard by hand may not. */
+#ifndef _XBOX
+#define _XBOX
+#endif
 #include <xtl.h>
 #include <xgraphics.h>
 #include <d3dx9.h>
