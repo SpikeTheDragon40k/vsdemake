@@ -3,6 +3,7 @@
 
 #include "core/vs_enums.h"
 #include "game/game.h"
+#include "core/vs_audio.h"
 
 /* notes/behaviour/levelup.md */
 
@@ -167,6 +168,8 @@ void vs_levelup_open(vs_game *g) {
     vs_levelup *lu = &g->levelup;
     lu->pending = 1;
     lu->selected = 0;
+    vs_sfx(g, VS_SND_LEVELUP, 1.5f, 0, 1, 0, 0);
+    vs_audio_music_fade(0.2f, 500);
     lu->items_mode = lu->weighted_count == 0;
     if (lu->items_mode) { lu->item_options[0] = VS_PICKUPS_COINBAG2; lu->item_options[1] = VS_PICKUPS_ROAST; lu->option_count = 2; }
     else pick_options(g);
@@ -193,6 +196,8 @@ void vs_levelup_choose(vs_game *g, int option) {
         vs_level_weapon_up(g, lu->options[option], 1);
     }
     lu->pending = 0;
+    vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0);
+    vs_audio_music_fade(0.3f, 500);
 }
 
 void vs_levelup_input(vs_game *g, const vs_pad *pad) {

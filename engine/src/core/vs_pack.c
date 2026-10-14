@@ -45,6 +45,10 @@ const char *vs_pack_entry_name(const vs_pack *p, int idx) {
     return (const char *)(p->dir + (uint32_t)idx * DIR + 8);
 }
 
+int vs_pack_entry_is(const vs_pack *p, int idx, const char *kind) {
+    return idx >= 0 && (uint32_t)idx < p->count && strncmp((const char *)(p->dir + (uint32_t)idx * DIR), kind, 4) == 0;
+}
+
 int vs_pack_find(const vs_pack *p, const char *kind, const char *name) {
     for (uint32_t i = 0; i < p->count; i++) {
         const uint8_t *e = p->dir + i * DIR;

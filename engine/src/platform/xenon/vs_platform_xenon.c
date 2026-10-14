@@ -252,3 +252,9 @@ void vs_plat_log(const char *fmt, ...) {
     va_end(ap);
     printf("\n");
 }
+
+/* Audio is not implemented for the libxenon fallback yet: silent. */
+int vs_plat_audio_open(int rate) { (void)rate; return -1; }
+void vs_plat_audio_close(void) {}
+int vs_plat_audio_queued(void) { return 0; }
+void vs_plat_audio_push(const int16_t *frames, int count) { (void)frames; (void)count; }

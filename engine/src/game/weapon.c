@@ -341,11 +341,27 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
         aim_for_nearest_enemy(g, b, true_speed(g, w, 1.0f));
         break;
     }
+    /* sound of the new projectile (notes/behaviour/audio.md) */
+    {
+        float det = -100.0f * index;
+        switch (w->type) {
+        case VS_WEAPONS_WHIP: case VS_WEAPONS_VAMPIRICA: vs_sfx(g, VS_SND_WHIP, 1.7f, det, 2, 0, 0); break;
+        case VS_WEAPONS_MAGIC_MISSILE: case VS_WEAPONS_HOLY_MISSILE: vs_sfx(g, VS_SND_MAGICMISSILE, w->volume > 0 ? w->volume : 0.15f, det, 1, 200, 12); break;
+        case VS_WEAPONS_DIAMOND: vs_sfx(g, VS_SND_MAGICMISSILE, 0.15f, det, 1, 200, 10); break;
+        case VS_WEAPONS_KNIFE: case VS_WEAPONS_THOUSAND: vs_sfx(g, VS_SND_SHOT, w->volume > 0 ? w->volume : 0.4f, det, 1, 200, 10); break;
+        case VS_WEAPONS_AXE: case VS_WEAPONS_CROSS: vs_sfx(g, VS_SND_SHOT, 0.45f, det, 1, 200, 10); break;
+        case VS_WEAPONS_SCYTHE: vs_sfx(g, VS_SND_SHOT, 0.4f, det, 1, 200, 10); break;
+        case VS_WEAPONS_HEAVENSWORD: vs_sfx(g, VS_SND_SHOT, 0.5f, det, 1, 200, 10); break;
+        case VS_WEAPONS_LIGHTNING: vs_sfx(g, VS_SND_LIGHTNING, 0.6f, det, 2, 200, 4); break;
+        default: break;
+        }
+    }
 }
 
 void vs_weapon_fire(vs_game *g, int slot) {
     vs_weapon *w = &g->weapons[slot];
     if (!w->active || w->is_power_up) return;
+    if (w->type == VS_WEAPONS_FIREBALL || w->type == VS_WEAPONS_HELLFIRE) vs_sfx(g, VS_SND_MAGICMISSILE, 0.2f, 0, 1, 200, 10);
     if (w->type == VS_WEAPONS_VORTEX) w->recovered_bonus = g->recovered_hp / 600.0f < 6 ? g->recovered_hp / 600.0f : 6;
     if (w->type == VS_WEAPONS_FIREBALL || w->type == VS_WEAPONS_DIAMOND || w->type == VS_WEAPONS_HELLFIRE) {
         int n = 0;
@@ -511,7 +527,10 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
     case VS_WEAPONS_HOLYWATER:
         if (b->state == 0) {
             float t = b->age_ms / 750.0f;
-            if (t >= 1) { t = 1; b->state = 1; b->hit_count = 0; b->hit_reset_ms = 0; b->f1 = b->age_ms; b->scale = area; b->body_r = 16.0f * area; }
+            if (t >= 1) {
+                t = 1; b->state = 1; b->hit_count = 0; b->hit_reset_ms = 0; b->f1 = b->age_ms; b->scale = area; b->body_r = 16.0f * area;
+                vs_sfx(g, VS_SND_HOLYWATER, 0.35f, -200.0f + 50.0f * b->index, 2, 200, 12);   /* the bottle breaks */
+            }
             b->x = b->ax + (b->bx - b->ax) * t; b->y = b->ay + (b->by - b->ay) * t;
             b->angle += 600.0f * dt;
         } else {

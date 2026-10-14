@@ -224,6 +224,8 @@ Controllers are supported through SDL2. A pause screen is not implemented yet.
 | `--level N` | Start the run at player level N |
 | `--show-levelup` | Open and hold the level-up screen; logs the offered choices |
 | `--show-gameover` | In headless runs, still show the game-over screen |
+| `--audio-dump FILE.wav` | Write the mixed sound of the run to a WAV file (works headless) |
+| `--mute` | No sound |
 | `--record DIR` | Save every rendered frame as BMP in `DIR` (for videos); `--record-from N` starts at frame N |
 
 Example headless regression run:
@@ -257,7 +259,9 @@ Do not include it in a shared executable package.
 
 The implementation is incomplete. Known gaps include:
 
-- No audio playback or audio data in the pack.
+- Sound and music play on PC; the Xbox 360 audio output is new and still
+  untested on hardware. There is no options screen for the volumes yet
+  (they are stored in the save file, default 50 %).
 - No shop yet: unlocked characters are playable without buying them, and
   gold can't be spent.
 - Incomplete weapon coverage.
@@ -385,5 +389,9 @@ law and license terms.
 Any license applied to this project's code covers only material the
 project is entitled to license. It does not grant rights to
 Vampire Survivors content or proprietary SDK components.
+
+Third-party code: `engine/src/third_party/stb_vorbis.c` (Sean Barrett,
+public domain or MIT, at your choice) decodes the game's OGG Vorbis sounds;
+the libxenon fallback embeds shader data from the libxenon examples (BSD).
 
 Support poncle by purchasing and playing the original game.

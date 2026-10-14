@@ -174,3 +174,23 @@ Checked every guide against the code and the original:
 
 Planned in `notes/audio-plan.md` (facts, steps, session estimate, how to
 resume in a fresh session).
+
+## 2026-10-14: audio
+
+- Behaviour: `notes/behaviour/audio.md` (every sound event with volume,
+  pitch, speed and repeat limits; music per stage and screen).
+- Patcher: the 30 OGG files the game loads are packed unchanged as `SND`
+  entries named by sound key (pack: 32.1 MB, 88 entries).
+- Engine: `core/vs_audio.c` mixer (32 voices, volume, pitch/speed with
+  linear resampling, repeat limits, music streaming with loop and fades),
+  stb_vorbis decoder vendored; short sounds decoded at start-up, the stage
+  tracks while playing. Push model, no threads: SDL2 queue on PC, XAudio2
+  source voice on the XDK build. Sound and music volumes in the save.
+- Hooked: weapons, enemy and player hits, pickups, chests, level-up (with
+  music fades), menus, stage music, game-over jingle, start-up jingle.
+- Checks: `--audio-dump` WAV of headless runs (no clipping, music loops
+  without a gap, Library track stereo), gameplay hash identical with and
+  without sound, ASan clean, C++03 clean. Not yet heard on the console.
+- Not done: volume options screen; explosions/alert/Pentagram/Nduja sounds
+  (those features don't exist yet); treasure opening animation (the chest
+  sound plays at once).

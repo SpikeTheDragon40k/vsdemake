@@ -261,6 +261,7 @@ int vs_save_write(vs_game *g) {
     sbuf b = { NULL, 0, 0 };
     put(&b, "%s\n", SAVE_MAGIC);
     put(&b, "coins=%.0f\nlifetime_coins=%.0f\nlifetime_heal=%.1f\nlifetime_survived=%.0f\n", sv->coins, sv->lifetime_coins, sv->lifetime_heal, sv->lifetime_survived);
+    put(&b, "sound_volume=%.2f\nmusic_volume=%.2f\n", sv->sound_volume, sv->music_volume);
     if (vs_pack_enum(g->pack, "characters", &ce) == 0 && (uint32_t)sv->selected_character < ce.count) put(&b, "selected_character=%s\n", vs_enum_value(&ce, (uint32_t)sv->selected_character));
     if (vs_pack_enum(g->pack, "stages", &se) == 0 && (uint32_t)sv->selected_stage < se.count) put(&b, "selected_stage=%s\n", vs_enum_value(&se, (uint32_t)sv->selected_stage));
     put_flags(&b, g->pack, "achievements", "achievement", sv->achieved, VS_ACHIEVEMENTS_COUNT);
@@ -301,6 +302,7 @@ static int parse(vs_game *g, char *text, size_t n) {
     if (crc32_of(text, (size_t)(crc_line - text)) != (uint32_t)want) return -1;
     *crc_line = 0;
     memset(sv, 0, sizeof *sv);
+    sv->sound_volume = sv->music_volume = 0.5f;
     for (char *line = strtok(text + strlen(SAVE_MAGIC) + 1, "\n"); line; line = strtok(NULL, "\n")) {
         char *eq = strchr(line, '=');
         if (!eq) continue;
@@ -311,6 +313,8 @@ static int parse(vs_game *g, char *text, size_t n) {
         else if (!strcmp(k, "lifetime_coins")) sv->lifetime_coins = atof(v);
         else if (!strcmp(k, "lifetime_heal")) sv->lifetime_heal = atof(v);
         else if (!strcmp(k, "lifetime_survived")) sv->lifetime_survived = atof(v);
+        else if (!strcmp(k, "sound_volume")) sv->sound_volume = (float)atof(v);
+        else if (!strcmp(k, "music_volume")) sv->music_volume = (float)atof(v);
         else if (!strcmp(k, "selected_character")) { if ((i = find_value(g->pack, "characters", v)) >= 0) sv->selected_character = i; }
         else if (!strcmp(k, "selected_stage")) { if ((i = find_value(g->pack, "stages", v)) >= 0) sv->selected_stage = i; }
         else if (!strcmp(k, "achievement")) { if ((i = find_value(g->pack, "achievements", v)) >= 0 && i < VS_ACHIEVEMENTS_COUNT) sv->achieved[i] = 1; }
@@ -343,6 +347,7 @@ int vs_save_load(vs_game *g, const char *path) {
     memset(&g->save, 0, sizeof g->save);
     g->save.selected_character = VS_CHARACTERS_ANTONIO;
     g->save.selected_stage = VS_STAGES_FOREST;
+    g->save.sound_volume = g->save.music_volume = 0.5f;
     snprintf(g->save_path, sizeof g->save_path, "%s", path ? path : "");
     if (!path || !*path) return -1;
     char bak[300];

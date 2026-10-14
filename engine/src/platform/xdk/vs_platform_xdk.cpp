@@ -14,6 +14,7 @@
 #include <xtl.h>
 #include <xgraphics.h>
 #include <d3dx9.h>
+#include <xaudio2.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -274,4 +275,64 @@ extern "C" void vs_plat_log(const char *fmt, ...) {
     va_end(ap);
     strcat(buf, "\n");
     OutputDebugStringA(buf);
+}
+
+/* ---- audio: XAudio2 source voice fed from the frame loop ----
+ * Pushed frames are gathered into 1024-frame buffers and submitted to one
+ * 16-bit stereo source voice (the console's native byte order is what
+ * XAudio2 expects for PCM here). At most XA_BUFS buffers are queued. */
+#define XA_BUFS 8
+#define XA_FRAMES 1024
+static IXAudio2 *g_xa;
+static IXAudio2MasteringVoice *g_xa_master;
+static IXAudio2SourceVoice *g_xa_src;
+static int16_t g_xa_buf[XA_BUFS][XA_FRAMES * 2];
+static int g_xa_next, g_xa_fill;
+
+extern "C" int vs_plat_audio_open(int rate) {
+    if (FAILED(XAudio2Create(&g_xa, 0, XAUDIO2_DEFAULT_PROCESSOR))) { vs_plat_log("audio: XAudio2Create failed"); return -1; }
+    if (FAILED(g_xa->CreateMasteringVoice(&g_xa_master))) { vs_plat_log("audio: no mastering voice"); return -1; }
+    WAVEFORMATEX wf;
+    memset(&wf, 0, sizeof wf);
+    wf.wFormatTag = WAVE_FORMAT_PCM; wf.nChannels = 2; wf.nSamplesPerSec = (DWORD)rate;
+    wf.wBitsPerSample = 16; wf.nBlockAlign = 4; wf.nAvgBytesPerSec = (DWORD)rate * 4;
+    if (FAILED(g_xa->CreateSourceVoice(&g_xa_src, &wf))) { vs_plat_log("audio: no source voice"); return -1; }
+    g_xa_src->Start(0);
+    return 0;
+}
+
+extern "C" void vs_plat_audio_close(void) {
+    if (g_xa_src) { g_xa_src->Stop(0); g_xa_src->DestroyVoice(); g_xa_src = NULL; }
+    if (g_xa_master) { g_xa_master->DestroyVoice(); g_xa_master = NULL; }
+    if (g_xa) { g_xa->Release(); g_xa = NULL; }
+}
+
+static int xa_buffers_queued(void) {
+    if (!g_xa_src) return 0;
+    XAUDIO2_VOICE_STATE st;
+    g_xa_src->GetState(&st);
+    return (int)st.BuffersQueued;
+}
+
+extern "C" int vs_plat_audio_queued(void) { return xa_buffers_queued() * XA_FRAMES + g_xa_fill; }
+
+extern "C" void vs_plat_audio_push(const int16_t *frames, int count) {
+    if (!g_xa_src) return;
+    while (count > 0) {
+        int n = XA_FRAMES - g_xa_fill;
+        if (n > count) n = count;
+        memcpy(&g_xa_buf[g_xa_next][g_xa_fill * 2], frames, (size_t)n * 4);
+        g_xa_fill += n; frames += n * 2; count -= n;
+        if (g_xa_fill == XA_FRAMES) {
+            if (xa_buffers_queued() < XA_BUFS - 1) {
+                XAUDIO2_BUFFER b;
+                memset(&b, 0, sizeof b);
+                b.AudioBytes = XA_FRAMES * 4;
+                b.pAudioData = (const BYTE *)g_xa_buf[g_xa_next];
+                g_xa_src->SubmitSourceBuffer(&b);
+                g_xa_next = (g_xa_next + 1) % XA_BUFS;
+            }
+            g_xa_fill = 0;
+        }
+    }
 }

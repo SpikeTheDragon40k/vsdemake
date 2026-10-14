@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/vs_audio.h"
 #include "core/vs_enums.h"
 #include "core/vs_text.h"
 
@@ -52,6 +53,40 @@ static void build_character_list(vs_game *g) {
         if (!vs_character_selectable(g, grp.enum_index)) continue;   /* unlocked, with a weapon the demake has */
         g->menu_char_list[g->menu_char_count++] = grp.enum_index;
     }
+}
+
+/* ---- sound (notes/behaviour/audio.md) ---- */
+static const char *const SND_KEYS[VS_SND_COUNT] = {
+    "Hit", "LossSFX", "Gem", "Coin", "Roast", "LittleHeart", "Vacuum",
+    "Rosary", "Orologion", "Whip", "MagicMissile", "Shot", "Holywater",
+    "Lightning", "LevelUp", "ClickIn", "ClickOut", "ThingFound",
+    "Treasure1", "Treasure2", "Treasure3", "BGM_Intro", "BGM_GameOver",
+};
+
+void vs_sfx(vs_game *g, int snd, float volume, float detune, float rate, float delay_ms, int max_instances) {
+    if (snd < 0 || snd >= VS_SND_COUNT) return;
+    vs_audio_play(g->snd[snd], volume, detune, rate, delay_ms, max_instances);
+}
+
+/* Math.random() for sound pitch, from its own generator */
+float vs_sfx_random(vs_game *g) { return vs_rng_f32(&g->audio_rng); }
+
+/* The stage's track (its BGM field; the "stream-safe" default), volume 0.3, looped. */
+void vs_music_for_stage(vs_game *g) {
+    int gi = vs_table_find_group_enum(&g->stages_table, g->selected_stage);
+    if (gi < 0) return;
+    vs_group grp; vs_table_group(&g->stages_table, (uint32_t)gi, &grp);
+    vs_stages_rec r; vs_table_record(&g->stages_table, grp.first, &r);
+    if (!VS_HAS(&r, VS_STAGES_F_BGM)) return;
+    vs_enum e;
+    if (vs_pack_enum(g->pack, "bgm", &e) != 0 || r.BGM < 0 || (uint32_t)r.BGM >= e.count) return;
+    vs_audio_music_play(vs_audio_find(vs_enum_value(&e, (uint32_t)r.BGM)), 0.3f, 1);
+}
+
+static void sound_init(vs_game *g) {
+    for (int i = 0; i < VS_SND_COUNT; i++) g->snd[i] = vs_audio_find(SND_KEYS[i]);
+    vs_rng_seed(&g->audio_rng, 0x5eedu);
+    vs_audio_set_volumes(g->save.sound_volume, g->save.music_volume);
 }
 
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
@@ -105,6 +140,8 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
         g->tex_damage = load_texture(g, vs_pack_entry_name(pack, g->damage_font.tex_entry));
     }
     if (vs_text_init() != 0) return -1;
+    sound_init(g);
+    vs_sfx(g, VS_SND_BGM_INTRO, 0.7f, 0, 1, 0, 0);   /* after the start-up warning in the original */
     build_character_list(g);
     /* menus start on the last run's choices (save), command line wins */
     if (!g->selected_character) g->selected_character = vs_character_selectable(g, g->save.selected_character) ? g->save.selected_character : VS_CHARACTERS_ANTONIO;
@@ -158,6 +195,7 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
         if (s->has_tileset && vs_tilemap_init(g, vs_table_str(&s->table, row0->tileset_mapKey)) != 0) vs_plat_log("tilemap failed to load");
         vs_tilemap_update(g);
     }
+    vs_music_for_stage(g);
     g->screen = VS_SCREEN_GAME;
     return g->tex_bg < 0 ? -1 : 0;
 }
@@ -167,15 +205,16 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
     g->prev_buttons = pad->buttons;
     switch (g->screen) {
     case VS_SCREEN_TITLE:
-        if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; }
+        if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         break;
     case VS_SCREEN_SELECT: {
         int n = g->menu_char_count;
-        if (pressed & VS_BTN_UP) g->menu_sel = (g->menu_sel + n - 1) % n;
-        if (pressed & VS_BTN_DOWN) g->menu_sel = (g->menu_sel + 1) % n;
-        if ((pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) && vs_stage_selectable(g, VS_STAGES_LIBRARY)) g->menu_stage ^= 1;
-        if (pressed & VS_BTN_B) g->screen = VS_SCREEN_TITLE;
+        if (pressed & VS_BTN_UP) { g->menu_sel = (g->menu_sel + n - 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_DOWN) { g->menu_sel = (g->menu_sel + 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if ((pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) && vs_stage_selectable(g, VS_STAGES_LIBRARY)) { g->menu_stage ^= 1; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_B) { g->screen = VS_SCREEN_TITLE; vs_sfx(g, VS_SND_CLICKOUT, -1, -400, 1, 0, 0); }
         if (pressed & (VS_BTN_A | VS_BTN_START)) {
+            vs_sfx(g, VS_SND_CLICKIN, -1, 200, 1, 0, 0);
             g->selected_character = g->menu_char_list[g->menu_sel];
             g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
             g->seed = g->seed * 6364136223846793005ull + 1442695040888963407ull;
@@ -184,7 +223,7 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
         break;
     }
     case VS_SCREEN_GAMEOVER:
-        if (pressed & (VS_BTN_A | VS_BTN_START)) g->screen = VS_SCREEN_TITLE;
+        if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_TITLE; vs_audio_music_stop(); vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         break;
     default: break;
     }
@@ -193,9 +232,15 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
 void vs_game_update(vs_game *g, const vs_pad *pad) {
     if (g->screen != VS_SCREEN_GAME) { menu_update(g, pad); return; }
     if (g->game_over) {
-        if (g->gameover_ms == 0) vs_save_run_end(g);   /* lifetime counters, achievements, save */
+        if (g->gameover_ms == 0) {
+            vs_save_run_end(g);                       /* lifetime counters, achievements, save */
+            vs_audio_music_fade(0, 500);
+        }
         g->gameover_ms += VS_TICK_MS;
-        if (g->gameover_ms > 1250 && (!g->auto_pick || g->show_gameover)) { g->screen = VS_SCREEN_GAMEOVER; g->prev_buttons = pad->buttons; }
+        if (g->gameover_ms > 1250 && (!g->auto_pick || g->show_gameover)) {
+            g->screen = VS_SCREEN_GAMEOVER; g->prev_buttons = pad->buttons;
+            vs_sfx(g, VS_SND_BGM_GAMEOVER, 1.4f, 0, 1, 0, 0);
+        }
         return;
     }
     if (g->levelup.pending) {

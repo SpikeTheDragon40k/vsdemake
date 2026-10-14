@@ -70,7 +70,7 @@ All OGG Vorbis, 44.1 kHz; the two library tracks are stereo, the rest mono.
 | Self-destruct enemy warning, on each blink | Alert | 0.2 | | | 250 / 3 |
 | Gem picked up | Gem | 0.1 | | | 1 / 1 |
 | Coin, coin bag | Coin | 0.5 | | | |
-| Big coin bag | Coin | 0.65 | | | |
+| Biggest coin bag (COINBAGMAX; bag 2 inherits bag 1) | Coin | 0.65 | | | |
 | Floor Chicken | Roast | 0.6 | | 1 | |
 | Little Heart | LittleHeart | 0.35 | 200 (r − 0.5) | 1.2 | 50 / 3 |
 | Vacuum | Vacuum | 0.6 | | 1 | |

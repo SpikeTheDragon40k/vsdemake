@@ -19,6 +19,12 @@ fallback for people without the XDK. See `docs/XBOX360_GUIDE.md`.
   (`vs_compat.h`); `vs_platform.h` has C linkage for the backend.
 - Aspect-fit scale (not integer) to the 1280×720 back buffer; `vs_game` is a
   static (604 KB); boot failures show `fatal_screen` from `main.c`.
+- Audio: XAudio2 (`xaudio2.h`, `xaudio2.lib` in both configurations): one
+  mastering voice, one 44.1 kHz 16-bit stereo PCM source voice in the
+  console's native byte order, fed 1024-frame buffers from the frame loop
+  (up to 7 queued). If the build fails to link, check the XAudio2 library
+  name in your XDK (a debug variant may exist). If the sound is noise, the
+  first suspect is byte order (swap the samples before submitting).
 - Saves: plain `fopen`/`fwrite` on `game:\vsdemake.sav` (no `rename`, which
   the first console test suggested is unreliable); `vsnprintf` is mapped to
   `_vsnprintf` in `vs_compat.h`. The game-over screen reports the result. If

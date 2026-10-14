@@ -96,29 +96,36 @@ static void get_taken(vs_game *g, vs_pickup *p) {
     switch (p->type) {
     case VS_PICKUPS_GEM:
         pl->xp += p->value * pl->growth;
+        vs_sfx(g, VS_SND_GEM, 0.1f, 0, 1, 1, 1);
         break;
     case VS_PICKUPS_COIN: case VS_PICKUPS_COINBAG1: case VS_PICKUPS_COINBAG2: case VS_PICKUPS_COINBAGMAX:
         g->coins += p->value * g->gold_multiplier * pl->greed;
+        vs_sfx(g, VS_SND_COIN, p->type == VS_PICKUPS_COINBAGMAX ? 0.65f : 0.5f, 0, 1, 0, 0);
         break;
     case VS_PICKUPS_ROAST:
         vs_player_recover_hp(g, p->value);
         pl->invul_ms += 300;   /* SetInvulForMilliSeconds(300) */
+        vs_sfx(g, VS_SND_ROAST, 0.6f, 0, 1, 0, 0);
         break;
     case VS_PICKUPS_LITTLEHEART:
         vs_player_recover_hp(g, 1);
+        vs_sfx(g, VS_SND_LITTLEHEART, 0.35f, 200 * (vs_sfx_random(g) - 0.5f), 1.2f, 50, 3);
         break;
     case VS_PICKUPS_CLOVER:
         pl->luck += p->value;
         break;
     case VS_PICKUPS_VACUUM:
         vs_pickups_vacuum_all(g);
+        vs_sfx(g, VS_SND_VACUUM, 0.6f, 0, 1, 0, 0);
         break;
     case VS_PICKUPS_OROLOGION:
         vs_enemy_time_stop_all(g, 1);
         vs_timer_cancel(g, VS_TIMER_TIMESTOP, 0);
         vs_timer_add(g, VS_TIMER_TIMESTOP, 10000, 0, 0, 0);
+        vs_sfx(g, VS_SND_OROLOGION, 1.8f, 0, 2, 0, 0);
         break;
     case VS_PICKUPS_ROSARY:
+        vs_sfx(g, VS_SND_ROSARY, 1.8f, 0, 2, 0, 0);
         for (int i = 0; i < g->enemy_count; i++) {
             vs_enemy *e = &g->enemies[i];
             if (!e->active || e->res_Rosary) continue;
@@ -192,6 +199,9 @@ void vs_treasure_open(vs_game *g, int level, int treasure_row) {
         }
     }
     int slots = level >= 3 ? 5 : level == 2 ? 3 : 1;
+    /* no chest animation yet: the opening sound plays right away */
+    if (slots == 5) vs_sfx(g, VS_SND_TREASURE3, 1.1f, 0, 1, 0, 0);
+    else vs_sfx(g, slots == 3 ? VS_SND_TREASURE2 : VS_SND_TREASURE1, 1.0f, 0, 1, 0, 0);
     float coins = level >= 3 ? 200 + 100 * vs_rng_f32(&g->rng) : level == 2 ? 100 + 100 * vs_rng_f32(&g->rng) : 50 + 50 * vs_rng_f32(&g->rng);
     coins = (float)(int)coins;
     int prizes[5]; int prize_count = 0;

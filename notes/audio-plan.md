@@ -1,7 +1,7 @@
 # Audio: work plan
 
-Status: planned, not started (2026-10-14). Saves and unlocks are done and
-confirmed on the console; audio is the next feature.
+Status (2026-10-14): steps 1–6 done on PC; the XDK output (step 4) is
+written but not yet run on the console. libxenon stays silent.
 
 ## What the original has (facts gathered so far)
 
