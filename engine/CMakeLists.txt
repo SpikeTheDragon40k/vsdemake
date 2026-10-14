@@ -24,6 +24,7 @@ set(VS_CORE_SOURCES
   src/game/levelup.c
   src/game/tilemap.c
   src/game/fx.c
+  src/game/save.c
   src/main.c)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")

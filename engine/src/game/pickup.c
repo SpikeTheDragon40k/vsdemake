@@ -92,6 +92,7 @@ void vs_pickups_vacuum_all(vs_game *g) {
 
 static void get_taken(vs_game *g, vs_pickup *p) {
     vs_player *pl = &g->player;
+    vs_save_count_pickup(g, p->type);
     switch (p->type) {
     case VS_PICKUPS_GEM:
         pl->xp += p->value * pl->growth;
@@ -269,6 +270,7 @@ void vs_destructible_damage(vs_game *g, vs_destructible *d, float dmg) {
     d->blink_ms = 120;
     if (d->hp <= 0) {
         d->is_dead = 1;
+        vs_save_count_destroyed(g, d->type);
         vs_pickup_make(g, d->x, d->y, vs_loot_random_item(g));
     }
 }

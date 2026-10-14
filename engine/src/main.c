@@ -80,8 +80,8 @@ static int fatal_screen(const char *msg) {
 #endif
 
 static int vs_main(int argc, char **argv) {
-    const char *pack_path = NULL, *screenshot = NULL, *input = NULL, *record_dir = NULL;
-    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, locked = 0, give_count = 0, chest = 0, show_levelup = 0;
+    const char *pack_path = NULL, *screenshot = NULL, *input = NULL, *record_dir = NULL, *save_arg = NULL;
+    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, unlock_all = 0, show_gameover = 0, start_level = 0, give_count = 0, chest = 0, show_levelup = 0;
     const char *give[16];
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
@@ -91,7 +91,10 @@ static int vs_main(int argc, char **argv) {
         else if (strcmp(argv[i], "--no-render") == 0) no_render = 1;
         else if (strcmp(argv[i], "--hitboxes") == 0) hitboxes = 1;
         else if (strcmp(argv[i], "--menu") == 0) menu = 1;
-        else if (strcmp(argv[i], "--locked") == 0) locked = 1;
+        else if (strcmp(argv[i], "--unlock-all") == 0) unlock_all = 1;
+        else if (strcmp(argv[i], "--show-gameover") == 0) show_gameover = 1;
+        else if (strcmp(argv[i], "--level") == 0 && i + 1 < argc) start_level = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--save") == 0 && i + 1 < argc) save_arg = argv[++i];
         else if (strcmp(argv[i], "--chest") == 0) chest = 1;
         else if (strcmp(argv[i], "--show-levelup") == 0) show_levelup = 1;
         else if (strcmp(argv[i], "--give") == 0 && i + 1 < argc) { if (give_count < 16) give[give_count++] = argv[++i]; else ++i; }
@@ -148,7 +151,17 @@ static int vs_main(int argc, char **argv) {
     game.auto_pick = (auto_pick || headless) && !menu;   /* --menu: stay on the title */
     game.menu_stage = stage;
     game.debug_hitboxes = hitboxes;
-    game.locked_items = locked;
+    game.unlock_all = unlock_all;
+    game.show_gameover = show_gameover;
+    /* The save lives next to the pack (game:\\vsdemake.sav on the console).
+     * Headless runs only save with an explicit --save, so tests stay repeatable. */
+    if (save_arg) snprintf(game.save_path, sizeof game.save_path, "%s", save_arg);
+    else if (!headless) {
+        const char *slash = NULL;
+        for (const char *c = pack_path; *c; c++) if (*c == '/' || *c == '\\' || *c == ':') slash = c;
+        int dir_len = slash ? (int)(slash - pack_path + 1) : 0;
+        snprintf(game.save_path, sizeof game.save_path, "%.*svsdemake.sav", dir_len, pack_path);
+    }
     if (character > 0) game.selected_character = character;
     if (vs_game_init(&game, &pack, LOGICAL_W, LOGICAL_H, seed) != 0) {
         fprintf(stderr, "game init failed\n");
@@ -175,8 +188,14 @@ static int vs_main(int argc, char **argv) {
             }
         }
     }
+    /* dev aid: --level N starts the run at player level N */
+    if (start_level > 1 && game.screen == VS_SCREEN_GAME) { game.player.level = start_level; vs_levelup_calculate_xp_factor(&game); game.player.xp = game.levelup.previous_xp_factor; }
     /* dev aid: --show-levelup opens a level-up and leaves it on screen */
-    if (show_levelup && game.screen == VS_SCREEN_GAME) { game.auto_pick = 0; vs_levelup_open(&game); }
+    if (show_levelup && game.screen == VS_SCREEN_GAME) {
+        game.auto_pick = 0;
+        vs_levelup_open(&game);
+        for (int i = 0; i < game.levelup.option_count && !game.levelup.items_mode; i++) vs_plat_log("offered: %s", vs_weapon_name(&game, game.levelup.options[i]));
+    }
     /* dev aid: --chest opens one treasure chest now and lists what the player owns */
     if (chest && game.screen == VS_SCREEN_GAME) {
         vs_treasure_open(&game, 1, -1);

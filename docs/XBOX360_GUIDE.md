@@ -221,6 +221,11 @@ mounted for a homebrew XEX by default, so **keep the pack next to
 `default.xex`**. If the pack is missing or damaged, a red error screen
 says so (press BACK to return to the dashboard).
 
+Progress is saved as `vsdemake.sav` in the same folder (with the previous
+version as `vsdemake.sav.bak`), written when a run ends. The folder must be
+writable, which it is on the HDD and on USB. To back up or reset progress,
+copy or delete that file over FTP.
+
 How to copy:
 
 - **FTP** (recommended): Aurora/FSD run an FTP server; connect with any FTP
@@ -277,6 +282,8 @@ Nothing has run on hardware yet. Confirm these in order and report:
 - New patcher version → rebuild `vsdata.vspack` (the engine refuses packs
   whose table layout differs: "table … layout mismatch").
 - New engine → rebuild `default.xex`, copy it over.
+- Keep `vsdemake.sav` when updating; it is plain text and stays valid
+  across engine and pack updates.
 
 ## 9. Fallback: libxenon / XeLL
 

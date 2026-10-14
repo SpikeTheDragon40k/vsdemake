@@ -122,11 +122,11 @@ Checked every guide against the code and the original:
 - All 14 passive items checked against the original's passive class.
 - Items locked on a fresh save (most passives, so most evolutions) are now
   offered: the demake has no save yet and behaves like the original's
-  unlock-all developer switch. `--locked` restores the fresh-save rule.
+  unlock-all developer switch. (Superseded by saves below.)
 - Unimplemented weapons (Peachone, Ebony Wings, Vandalier, Pentagram, Clock
   Lancet, Laurel, Bone) are no longer offered; Laurel used to be offered and
   fired a plain shot.
-- Dev options: `--give NAME[:LEVEL]`, `--chest`, `--locked`.
+- Dev options: `--give NAME[:LEVEL]`, `--chest`.
 - Checked: chest after Whip 8 + Hollow Heart gives Bloody Tear; Whip 7 or no
   Hollow Heart gives none; ASan/UBSan runs clean; C++03 check clean.
 
@@ -140,3 +140,22 @@ Checked every guide against the code and the original:
 - New pack entry `LNG en`, new computed field `weapons.levelUpText`: packs
   must be rebuilt (the engine refuses the old table layout).
 - Still our 5x7 font; the original's own UI font is not used yet.
+
+## 2026-10-14: saves and unlocks
+
+- `vsdemake.sav` (text, CRC, `.bak` fallback) next to the pack, written at
+  game over: gold, lifetime totals, per-type kill/pickup/destroy counters,
+  achievements, unlocked items/characters/stages/hypers, seen items, last
+  choices. Behaviour in `notes/behaviour/saves.md`.
+- All 40 achievements checked after each run with the original's
+  conditions; unlocks applied; gold prizes added; the game-over screen
+  lists the new ones; title/select show gold and the achievement count.
+- Fresh-save rules are the default again: level-ups offer only unlocked
+  items, Inlaid Library needs "Reach LV 20 in Mad Forest", hidden
+  characters appear when unlocked. `--unlock-all` replaces `--locked`.
+- No shop: unlocked characters are playable without buying; gold only
+  accumulates.
+- Checked: unlocks change the level-up pool (fresh vs saved vs
+  unlock-all), counters accumulate over runs, damaged saves fall back to the
+  backup, ASan runs clean, C++03 check clean. Not checked on the console.
+- New dev options: `--save PATH`, `--level N`, `--show-gameover`.
