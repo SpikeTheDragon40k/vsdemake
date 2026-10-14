@@ -307,19 +307,20 @@ static int text_wrapped(float x, float y, float scale, uint32_t tint, const char
     return lines;
 }
 
-/* Level-up screen laid out like the original's (menu frame, "Level Up!",
- * one panel per choice: icon, name, "New!" / "level: N", what it does). */
+/* Level-up screen laid out like the original's (menu frame, header, one
+ * panel per choice: icon, name, new/level marker, what it does). Text comes
+ * from the pack's LNG strings; the fallbacks here are our own wording. */
 static void render_levelup(vs_game *g) {
     vs_levelup *lu = &g->levelup;
     const float bw = 0.8f * g->logical_w, bh = 0.8f * g->logical_h;
     const float left = 0.5f * (g->logical_w - bw), top = 0.5f * (g->logical_h - bh);
     const float pw = 0.95f * bw, ph = 0.2f * bh, px = left + 0.025f * bw;
     nine_slice(g, "frame5_c4.png", left, top, bw, bh, 12, 0xffffff);
-    const char *header = vs_lang_get(&g->lang, "levelup_header", "Level Up!");
+    const char *header = vs_lang_get(&g->lang, "levelup_header", "LEVEL UP");
     vs_text_draw(0.5f * (g->logical_w - vs_text_width(3, header)), top + 14, 3, 0xffffff, header);
     if (lu->option_count < 4) {
         /* the original's footer sits where a 4th panel would be */
-        const char *footer = vs_lang_get(&g->lang, "levelup_footer", "increase your Luck\n\nfor a chance to get 4 choices");
+        const char *footer = vs_lang_get(&g->lang, "levelup_footer", "More Luck may add a fourth choice");
         char buf[160]; int n = 0; float fy = top + 3.85f * ph;
         for (const char *p = footer;; p++) {
             if (*p == '\n' || *p == 0) {
@@ -354,9 +355,9 @@ static void render_levelup(vs_game *g) {
                 if (VS_HAS(&r0, VS_WEAPONS_F_FRAMENAME)) frame = vs_table_str(&g->weapons_table, r0.frameName);
                 if (r0.isEvolution) bg_tint = 0xffff00;
             }
-            if (next == 0) { level = vs_lang_get(&g->lang, "weapon_new", "New!"); level_tint = 0xffff00; }
+            if (next == 0) { level = vs_lang_get(&g->lang, "weapon_new", "NEW"); level_tint = 0xffff00; }
             else {
-                snprintf(level_buf, sizeof level_buf, "%s%d", vs_lang_get(&g->lang, "weapon_level_", "level: "), next + 1);
+                snprintf(level_buf, sizeof level_buf, "%s%d", vs_lang_get(&g->lang, "weapon_level_", "LV "), next + 1);
                 level = level_buf;
                 if (vs_weapon_record(g, type, next, &rn) == 0 && VS_HAS(&rn, VS_WEAPONS_F_LEVELUPTEXT)) desc = vs_table_str(&g->weapons_table, rn.levelUpText);
             }
