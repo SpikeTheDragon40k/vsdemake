@@ -263,6 +263,7 @@ typedef struct {
     float coins;
     int chests_opened;
     int auto_pick;          /* headless: take the first level-up option */
+    int debug_hitboxes;     /* dev aid: outline colliders */
     int screen;             /* VS_SCREEN_* */
     int menu_sel, menu_stage, menu_char_list[16], menu_char_count;
     int selected_character, selected_stage;

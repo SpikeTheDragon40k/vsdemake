@@ -119,6 +119,8 @@ Game controllers work through SDL2.
 
 Headless/regression runs (no window): `--headless --no-render --frames 18000
 --seed 3 --input "R240 L240" --screenshot last.bmp` prints a state hash.
+`--char N` starts with character N (1 Antonio, 2 Imelda, ...) and
+`--hitboxes` outlines colliders (green enemies, yellow bullets, cyan player).
 
 ## Step 5: Xbox 360
 

@@ -101,6 +101,14 @@ void vs_atlas_get(const vs_atlas *a, uint32_t i, vs_frame *out) {
     out->src_w = vs_be16(f + 20);
     out->src_h = vs_be16(f + 22);
     out->rotated = vs_be16(f + 24);
+    /* Packs built before the patcher fix kept the stale offsets of untrimmed
+     * frames. A frame that does not fit inside its source size is one of
+     * those: treat it as untrimmed, as Phaser does. */
+    if (out->off_x < 0 || out->off_y < 0 || out->off_x + out->w > out->src_w || out->off_y + out->h > out->src_h) {
+        out->off_x = out->off_y = 0;
+        out->src_w = out->w;
+        out->src_h = out->h;
+    }
 }
 
 int vs_atlas_find(const vs_atlas *a, const char *name, vs_frame *out) {

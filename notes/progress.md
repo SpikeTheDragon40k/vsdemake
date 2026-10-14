@@ -98,3 +98,15 @@ Checked every guide against the code and the original:
   Windows VM. Added `engine/xdk/build-xex.bat` (unattended msbuild with log
   and first-error summary) and a VirtualBox section to the Xbox guide.
 - Still waiting for the first real XDK build/boot report.
+
+## 2026-10-14: first console run
+
+- First XEX built with the real XDK (after fixes: `_XBOX` guard, 8.3 copy
+  check, msbuild lookup, output names before `Microsoft.Cpp.props`) and
+  booted on the console from the dashboard.
+- Reported: sprites far from their hitboxes. Cause, on every platform: the
+  patcher used `spriteSourceSize` offsets of untrimmed atlas frames, which
+  Phaser ignores (1,048 enemy, 41 character, 134 vfx, 8 angel frames).
+  Fixed in the patcher, with a matching guard in the engine for old packs.
+  Gameplay unchanged (state hash identical); only drawing moved.
+- New dev aids: `--hitboxes` overlay, `--char N` start character.

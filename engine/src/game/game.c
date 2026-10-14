@@ -56,9 +56,11 @@ static void build_character_list(vs_game *g) {
 }
 
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
-    int auto_pick = g->auto_pick, menu_stage = g->menu_stage;
+    int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes;
+    int selected_character = g->selected_character;
     memset(g, 0, sizeof *g);
-    g->auto_pick = auto_pick; g->menu_stage = menu_stage;
+    g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes;
+    g->selected_character = selected_character;
     g->pack = pack;
     g->logical_w = lw;
     g->logical_h = lh;
@@ -88,7 +90,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     }
     if (vs_text_init() != 0) return -1;
     build_character_list(g);
-    g->selected_character = VS_CHARACTERS_ANTONIO;
+    if (!g->selected_character) g->selected_character = VS_CHARACTERS_ANTONIO;
     g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
     g->screen = VS_SCREEN_TITLE;
     if (g->auto_pick) return vs_game_start_run(g, g->selected_character, g->selected_stage);
@@ -315,6 +317,38 @@ static void render_menu(vs_game *g) {
     vs_plat_end_frame();
 }
 
+/* Dev aid (--hitboxes): square outline around every collider. Green =
+ * enemies, yellow = bullets, cyan = player. */
+static void outline(vs_game *g, float x, float y, float w, float h, uint32_t tint) {
+    vs_frame white;
+    if (vs_atlas_find(&g->atl_characters, "whiteDot.png", &white) != 0) return;
+    vs_sprite s = {0};
+    s.tex = g->textures[g->tex_characters]; s.sx = (int16_t)white.x; s.sy = (int16_t)white.y; s.sw = 1; s.sh = 1;
+    s.alpha = 255; s.tint = tint;
+    s.dx = x; s.dy = y; s.scale_x = w; s.scale_y = 1; vs_plat_draw(&s);
+    s.dy = y + h - 1; vs_plat_draw(&s);
+    s.dy = y; s.scale_x = 1; s.scale_y = h; vs_plat_draw(&s);
+    s.dx = x + w - 1; vs_plat_draw(&s);
+}
+
+static void render_hitboxes(vs_game *g, float cam_x, float cam_y) {
+    for (int i = 0; i < VS_MAX_ENEMIES; i++) {
+        const vs_enemy *e = &g->enemies[i];
+        if (!e->active || e->is_dead) continue;
+        float cx = e->x + e->body_ox - cam_x, cy = e->y + e->body_oy - cam_y, r = e->body_r;
+        outline(g, cx - r, cy - r, 2 * r, 2 * r, 0x00ff00);
+        outline(g, e->x - cam_x - 1, e->y - cam_y - 1, 3, 3, 0xff00ff);   /* sprite anchor */
+    }
+    for (int i = 0; i < VS_MAX_BULLETS; i++) {
+        const vs_bullet *b = &g->bullets[i];
+        if (!b->active) continue;
+        if (b->body_r > 0) outline(g, b->x - b->body_r - cam_x, b->y - b->body_r - cam_y, 2 * b->body_r, 2 * b->body_r, 0xffff00);
+        else if (b->body_w > 0) outline(g, b->x - 0.5f * b->body_w - cam_x, b->y - 0.5f * b->body_h - cam_y, b->body_w, b->body_h, 0xffff00);
+    }
+    const vs_player *p = &g->player;
+    outline(g, p->x + p->body_ox - p->body_r - cam_x, p->y + p->body_oy - p->body_r - cam_y, 2 * p->body_r, 2 * p->body_r, 0x00ffff);
+}
+
 void vs_game_render(vs_game *g) {
     if (g->screen != VS_SCREEN_GAME) { render_menu(g); return; }
     vs_player *p = &g->player;
@@ -426,6 +460,7 @@ void vs_game_render(vs_game *g) {
     }
     vs_fx_render(g, cam_x, cam_y);
     vs_render_end(g);
+    if (g->debug_hitboxes) render_hitboxes(g, cam_x, cam_y);
     render_hud(g);
     if (g->levelup.pending) render_levelup(g);
     vs_plat_end_frame();

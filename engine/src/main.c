@@ -81,13 +81,15 @@ static int fatal_screen(const char *msg) {
 
 static int vs_main(int argc, char **argv) {
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL;
-    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0;
+    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0;
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) scale = atoi(argv[++i]);
         else if (strcmp(argv[i], "--headless") == 0) headless = 1;
         else if (strcmp(argv[i], "--auto-pick") == 0) auto_pick = 1;
         else if (strcmp(argv[i], "--no-render") == 0) no_render = 1;
+        else if (strcmp(argv[i], "--hitboxes") == 0) hitboxes = 1;
+        else if (strcmp(argv[i], "--char") == 0 && i + 1 < argc) character = atoi(argv[++i]);
         else if (strcmp(argv[i], "--stage") == 0 && i + 1 < argc) stage = strcmp(argv[++i], "library") == 0;
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) frames = atoi(argv[++i]);
         else if (strcmp(argv[i], "--screenshot") == 0 && i + 1 < argc) screenshot = argv[++i];
@@ -137,6 +139,8 @@ static int vs_main(int argc, char **argv) {
     memset(&game, 0, sizeof game);
     game.auto_pick = auto_pick || headless;
     game.menu_stage = stage;
+    game.debug_hitboxes = hitboxes;
+    if (character > 0) game.selected_character = character;
     if (vs_game_init(&game, &pack, LOGICAL_W, LOGICAL_H, seed) != 0) {
         fprintf(stderr, "game init failed\n");
 #if defined(VS_XENON) || defined(VS_XDK)

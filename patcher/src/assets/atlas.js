@@ -9,11 +9,14 @@ function parseMultiatlas(json) {
   return json.textures.map((t) => ({
     image: t.image,
     size: t.size,
+    // Phaser applies spriteSourceSize/sourceSize only when "trimmed" is true.
+    // Many untrimmed frames in this build carry stale offsets (e.g. Bat3_i01:
+    // 30x27 frame, offset 48,51), which must be ignored as Phaser does.
     frames: t.frames.map((f) => ({
       name: f.filename,
       x: f.frame.x, y: f.frame.y, w: f.frame.w, h: f.frame.h,
-      offX: f.spriteSourceSize.x, offY: f.spriteSourceSize.y,
-      srcW: f.sourceSize.w, srcH: f.sourceSize.h,
+      offX: f.trimmed ? f.spriteSourceSize.x : 0, offY: f.trimmed ? f.spriteSourceSize.y : 0,
+      srcW: f.trimmed ? f.sourceSize.w : f.frame.w, srcH: f.trimmed ? f.sourceSize.h : f.frame.h,
       rotated: f.rotated ? 1 : 0,
     })),
   }));

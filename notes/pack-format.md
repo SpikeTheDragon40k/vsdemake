@@ -58,6 +58,11 @@ Frame frames[frameCount], sorted by nameHash ascending:
   u16 x, y, w, h        rectangle in the texture (trimmed frame)
   i16 offX, offY        trimmed frame's offset inside the source sprite
   u16 srcW, srcH        source sprite size (untrimmed)
+                        (frames with "trimmed": false get offX = offY = 0
+                        and srcW/srcH = w/h, as Phaser ignores their
+                        spriteSourceSize; ~1,200 such frames carry stale
+                        offsets in this build. The engine applies the same
+                        rule to packs built before the fix.)
   u16 rotated (0/1), u16 pad
 ```
 
