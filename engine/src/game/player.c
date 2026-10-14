@@ -136,6 +136,8 @@ void vs_player_get_damaged(vs_game *g, float dmg) {
     }
     if (p->armor > 0) { dmg -= p->armor; if (dmg < 1) dmg = 1; }
     p->hp -= dmg;
+    vs_sfx(g, VS_SND_HIT, 0.4f, 1000 + 500 * vs_sfx_random(g), 1, 150, 3);
+    vs_sfx(g, VS_SND_LOSS, 0.1f, -500 * vs_sfx_random(g) - 500, 1, 450, 1);
     if (p->hp <= 0) {
         p->hp = 0;
         p->is_dead = 1;

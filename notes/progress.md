@@ -163,3 +163,47 @@ Checked every guide against the code and the original:
   `rename` (copy to `.bak`, then overwrite in place); the game-over timer is
   reset each run (only the first run after launch used to save); the
   game-over screen now shows the save result and path.
+- Second console report: still no save, and no way to tell why. The title
+  screen now shows the save path and its state (loaded / new save created /
+  restored from backup / SAVE FAILED with the C library's error reason and
+  errno). A missing save is created immediately at start-up, so a folder
+  that can't be written shows on the title, without playing a run.
+- Console confirmed: saving works (title shows the save created/loaded).
+
+## Next: audio
+
+Planned in `notes/audio-plan.md` (facts, steps, session estimate, how to
+resume in a fresh session).
+
+## 2026-10-14: audio
+
+- Behaviour: `notes/behaviour/audio.md` (every sound event with volume,
+  pitch, speed and repeat limits; music per stage and screen).
+- Patcher: the 30 OGG files the game loads are packed unchanged as `SND`
+  entries named by sound key (pack: 32.1 MB, 88 entries).
+- Engine: `core/vs_audio.c` mixer (32 voices, volume, pitch/speed with
+  linear resampling, repeat limits, music streaming with loop and fades),
+  stb_vorbis decoder vendored; short sounds decoded at start-up, the stage
+  tracks while playing. Push model, no threads: SDL2 queue on PC, XAudio2
+  source voice on the XDK build. Sound and music volumes in the save.
+- Hooked: weapons, enemy and player hits, pickups, chests, level-up (with
+  music fades), menus, stage music, game-over jingle, start-up jingle.
+- Checks: `--audio-dump` WAV of headless runs (no clipping, music loops
+  without a gap, Library track stereo), gameplay hash identical with and
+  without sound, ASan clean, C++03 clean. Not yet heard on the console.
+- Not done: volume options screen; explosions/alert/Pentagram/Nduja sounds
+  (those features don't exist yet); treasure opening animation (the chest
+  sound plays at once).
+
+### Console silence (same day)
+
+- Symptom on the Xbox: sounds decoded, XAudio2 consuming buffers, but mix
+  level 0. Ruled out byte order: the decoder and mixer built for big-endian
+  PowerPC (cross gcc + qemu-ppc) give the same output as on x86.
+- Cause: `vs_save_load` cleared the save a second time when no save existed,
+  setting both volumes to 0, and the new save was written that way, so every
+  sound was refused ("volume 0"). PC tests ran without a save file. Fixed;
+  saves holding 0/0 (no options screen exists yet) get the defaults.
+- Title diagnostics: Y = LevelUp sound, X = plain 440 Hz tone, B = swap the
+  byte order of the XAudio2 output; a line with volumes, voices, play
+  requests (and why the last one was refused) and the LevelUp sound's data.

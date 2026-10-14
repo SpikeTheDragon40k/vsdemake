@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/vs_audio.h"
 #include "core/vs_enums.h"
 #include "core/vs_text.h"
 
@@ -54,14 +55,50 @@ static void build_character_list(vs_game *g) {
     }
 }
 
+/* ---- sound (notes/behaviour/audio.md) ---- */
+static const char *const SND_KEYS[VS_SND_COUNT] = {
+    "Hit", "LossSFX", "Gem", "Coin", "Roast", "LittleHeart", "Vacuum",
+    "Rosary", "Orologion", "Whip", "MagicMissile", "Shot", "Holywater",
+    "Lightning", "LevelUp", "ClickIn", "ClickOut", "ThingFound",
+    "Treasure1", "Treasure2", "Treasure3", "BGM_Intro", "BGM_GameOver",
+};
+
+void vs_sfx(vs_game *g, int snd, float volume, float detune, float rate, float delay_ms, int max_instances) {
+    if (snd < 0 || snd >= VS_SND_COUNT) return;
+    vs_audio_play(g->snd[snd], volume, detune, rate, delay_ms, max_instances);
+}
+
+/* Math.random() for sound pitch, from its own generator */
+float vs_sfx_random(vs_game *g) { return vs_rng_f32(&g->audio_rng); }
+
+/* The stage's track (its BGM field; the "stream-safe" default), volume 0.3, looped. */
+void vs_music_for_stage(vs_game *g) {
+    int gi = vs_table_find_group_enum(&g->stages_table, g->selected_stage);
+    if (gi < 0) return;
+    vs_group grp; vs_table_group(&g->stages_table, (uint32_t)gi, &grp);
+    vs_stages_rec r; vs_table_record(&g->stages_table, grp.first, &r);
+    if (!VS_HAS(&r, VS_STAGES_F_BGM)) return;
+    vs_enum e;
+    if (vs_pack_enum(g->pack, "bgm", &e) != 0 || r.BGM < 0 || (uint32_t)r.BGM >= e.count) return;
+    vs_audio_music_play(vs_audio_find(vs_enum_value(&e, (uint32_t)r.BGM)), 0.3f, 1);
+}
+
+static void sound_init(vs_game *g) {
+    for (int i = 0; i < VS_SND_COUNT; i++) g->snd[i] = vs_audio_find(SND_KEYS[i]);
+    vs_rng_seed(&g->audio_rng, 0x5eedu);
+    vs_audio_set_volumes(g->save.sound_volume, g->save.music_volume);
+}
+
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
     int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes, unlock_all = g->unlock_all, show_gameover = g->show_gameover;
     int selected_character = g->selected_character;
-    char save_path[sizeof g->save_path];
+    char save_path[sizeof g->save_path], audio_status[sizeof g->audio_status];
     memcpy(save_path, g->save_path, sizeof save_path);
+    memcpy(audio_status, g->audio_status, sizeof audio_status);
     memset(g, 0, sizeof *g);
     g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes; g->unlock_all = unlock_all; g->show_gameover = show_gameover;
     g->selected_character = selected_character;
+    memcpy(g->audio_status, audio_status, sizeof audio_status);
     g->pack = pack;
     g->logical_w = lw;
     g->logical_h = lh;
@@ -105,6 +142,8 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
         g->tex_damage = load_texture(g, vs_pack_entry_name(pack, g->damage_font.tex_entry));
     }
     if (vs_text_init() != 0) return -1;
+    sound_init(g);
+    vs_sfx(g, VS_SND_BGM_INTRO, 0.7f, 0, 1, 0, 0);   /* after the start-up warning in the original */
     build_character_list(g);
     /* menus start on the last run's choices (save), command line wins */
     if (!g->selected_character) g->selected_character = vs_character_selectable(g, g->save.selected_character) ? g->save.selected_character : VS_CHARACTERS_ANTONIO;
@@ -158,6 +197,7 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
         if (s->has_tileset && vs_tilemap_init(g, vs_table_str(&s->table, row0->tileset_mapKey)) != 0) vs_plat_log("tilemap failed to load");
         vs_tilemap_update(g);
     }
+    vs_music_for_stage(g);
     g->screen = VS_SCREEN_GAME;
     return g->tex_bg < 0 ? -1 : 0;
 }
@@ -167,15 +207,19 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
     g->prev_buttons = pad->buttons;
     switch (g->screen) {
     case VS_SCREEN_TITLE:
-        if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; }
+        if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_Y) vs_sfx(g, VS_SND_LEVELUP, 1.5f, 0, 1, 0, 0);   /* sound test */
+        if (pressed & VS_BTN_X) vs_audio_test_tone();                         /* tone, no decoder */
+        if (pressed & VS_BTN_B) g->audio_swap = vs_plat_audio_toggle_swap();  /* byte-order test */
         break;
     case VS_SCREEN_SELECT: {
         int n = g->menu_char_count;
-        if (pressed & VS_BTN_UP) g->menu_sel = (g->menu_sel + n - 1) % n;
-        if (pressed & VS_BTN_DOWN) g->menu_sel = (g->menu_sel + 1) % n;
-        if ((pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) && vs_stage_selectable(g, VS_STAGES_LIBRARY)) g->menu_stage ^= 1;
-        if (pressed & VS_BTN_B) g->screen = VS_SCREEN_TITLE;
+        if (pressed & VS_BTN_UP) { g->menu_sel = (g->menu_sel + n - 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_DOWN) { g->menu_sel = (g->menu_sel + 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if ((pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) && vs_stage_selectable(g, VS_STAGES_LIBRARY)) { g->menu_stage ^= 1; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_B) { g->screen = VS_SCREEN_TITLE; vs_sfx(g, VS_SND_CLICKOUT, -1, -400, 1, 0, 0); }
         if (pressed & (VS_BTN_A | VS_BTN_START)) {
+            vs_sfx(g, VS_SND_CLICKIN, -1, 200, 1, 0, 0);
             g->selected_character = g->menu_char_list[g->menu_sel];
             g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
             g->seed = g->seed * 6364136223846793005ull + 1442695040888963407ull;
@@ -184,7 +228,7 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
         break;
     }
     case VS_SCREEN_GAMEOVER:
-        if (pressed & (VS_BTN_A | VS_BTN_START)) g->screen = VS_SCREEN_TITLE;
+        if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_TITLE; vs_audio_music_stop(); vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         break;
     default: break;
     }
@@ -193,9 +237,15 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
 void vs_game_update(vs_game *g, const vs_pad *pad) {
     if (g->screen != VS_SCREEN_GAME) { menu_update(g, pad); return; }
     if (g->game_over) {
-        if (g->gameover_ms == 0) vs_save_run_end(g);   /* lifetime counters, achievements, save */
+        if (g->gameover_ms == 0) {
+            vs_save_run_end(g);                       /* lifetime counters, achievements, save */
+            vs_audio_music_fade(0, 500);
+        }
         g->gameover_ms += VS_TICK_MS;
-        if (g->gameover_ms > 1250 && (!g->auto_pick || g->show_gameover)) { g->screen = VS_SCREEN_GAMEOVER; g->prev_buttons = pad->buttons; }
+        if (g->gameover_ms > 1250 && (!g->auto_pick || g->show_gameover)) {
+            g->screen = VS_SCREEN_GAMEOVER; g->prev_buttons = pad->buttons;
+            vs_sfx(g, VS_SND_BGM_GAMEOVER, 1.4f, 0, 1, 0, 0);
+        }
         return;
     }
     if (g->levelup.pending) {
@@ -452,7 +502,18 @@ static void render_menu(vs_game *g) {
     }
     if (g->screen == VS_SCREEN_TITLE) {
         vs_text_draw(g->logical_w * 0.5f - 60, 260, 1.5f, 0xffffff, "PRESS START");
-        vs_text_draw(g->logical_w * 0.5f - 140, 400, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
+        vs_text_draw(g->logical_w * 0.5f - 140, 398, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
+        const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
+        vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 411, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
+        if (g->audio_status[0]) {
+            /* live diagnostics: decoded seconds, peak of the latest mix, frames the device played */
+            snprintf(buf, sizeof buf, "%s | %.0f s decoded | level %d (max %d) | played %lu", g->audio_status, vs_audio_decoded_seconds(), vs_audio_last_peak(), vs_audio_max_peak(), (unsigned long)vs_plat_audio_played());
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 424, 1, strstr(g->audio_status, "NO ") ? 0xff4040 : 0x60a060, buf);
+            snprintf(buf, sizeof buf, "Sound test: Y = game sound, X = plain tone, B = byte order (now %s)", g->audio_swap ? "SWAPPED" : "normal");
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 434, 1, 0x808080, buf);
+            vs_audio_debug("LevelUp", buf, sizeof buf);
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 444, 1, 0x808080, buf);
+        }
     } else if (g->screen == VS_SCREEN_SELECT) {
         vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
         for (int i = 0; i < g->menu_char_count; i++) {

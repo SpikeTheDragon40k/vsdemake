@@ -4,6 +4,7 @@
  * names, so it survives pack rebuilds and can be read by hand, ending with a
  * CRC32 line. Writes go to <path>.tmp, the old file becomes <path>.bak, then
  * the new file takes its place. */
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -229,12 +230,16 @@ static void put_counts(sbuf *b, const vs_pack *p, const char *enum_name, const c
     for (int i = 0; i < count && (uint32_t)i < e.count; i++) if (v[i]) put(b, "%s.%s=%lu\n", key, vs_enum_value(&e, (uint32_t)i), (unsigned long)v[i]);
 }
 
+static int g_last_errno;   /* errno of the last failed write, for the on-screen status */
+
 static int write_whole(const char *path, const char *data, size_t n) {
+    errno = 0;
     FILE *f = fopen(path, "wb");
-    if (!f) return -1;
+    if (!f) { g_last_errno = errno; return -1; }
     size_t w = fwrite(data, 1, n, f);
     int rc = fclose(f);
-    return (rc != 0 || w != n) ? -2 : 0;
+    if (rc != 0 || w != n) { g_last_errno = errno; return -2; }
+    return 0;
 }
 
 /* No rename: the console's CRT can't be relied on for it. The current save
@@ -256,6 +261,7 @@ int vs_save_write(vs_game *g) {
     sbuf b = { NULL, 0, 0 };
     put(&b, "%s\n", SAVE_MAGIC);
     put(&b, "coins=%.0f\nlifetime_coins=%.0f\nlifetime_heal=%.1f\nlifetime_survived=%.0f\n", sv->coins, sv->lifetime_coins, sv->lifetime_heal, sv->lifetime_survived);
+    put(&b, "sound_volume=%.2f\nmusic_volume=%.2f\n", sv->sound_volume, sv->music_volume);
     if (vs_pack_enum(g->pack, "characters", &ce) == 0 && (uint32_t)sv->selected_character < ce.count) put(&b, "selected_character=%s\n", vs_enum_value(&ce, (uint32_t)sv->selected_character));
     if (vs_pack_enum(g->pack, "stages", &se) == 0 && (uint32_t)sv->selected_stage < se.count) put(&b, "selected_stage=%s\n", vs_enum_value(&se, (uint32_t)sv->selected_stage));
     put_flags(&b, g->pack, "achievements", "achievement", sv->achieved, VS_ACHIEVEMENTS_COUNT);
@@ -273,7 +279,7 @@ int vs_save_write(vs_game *g) {
     int rc = write_file_safely(g->save_path, b.buf, b.len);
     free(b.buf);
     if (rc == 0) snprintf(g->save_status, sizeof g->save_status, "Progress saved");
-    else snprintf(g->save_status, sizeof g->save_status, "SAVE FAILED (%s %s)", rc == -1 ? "cannot create" : "cannot write", g->save_path);
+    else snprintf(g->save_status, sizeof g->save_status, "SAVE FAILED: %s %s (%s, errno %d)", rc == -1 ? "cannot create" : "cannot write", g->save_path, g_last_errno ? strerror(g_last_errno) : "no reason given", g_last_errno);
     vs_plat_log("save: %s", g->save_status);
     return rc;
 }
@@ -296,6 +302,7 @@ static int parse(vs_game *g, char *text, size_t n) {
     if (crc32_of(text, (size_t)(crc_line - text)) != (uint32_t)want) return -1;
     *crc_line = 0;
     memset(sv, 0, sizeof *sv);
+    sv->sound_volume = sv->music_volume = 0.5f;
     for (char *line = strtok(text + strlen(SAVE_MAGIC) + 1, "\n"); line; line = strtok(NULL, "\n")) {
         char *eq = strchr(line, '=');
         if (!eq) continue;
@@ -306,6 +313,8 @@ static int parse(vs_game *g, char *text, size_t n) {
         else if (!strcmp(k, "lifetime_coins")) sv->lifetime_coins = atof(v);
         else if (!strcmp(k, "lifetime_heal")) sv->lifetime_heal = atof(v);
         else if (!strcmp(k, "lifetime_survived")) sv->lifetime_survived = atof(v);
+        else if (!strcmp(k, "sound_volume")) sv->sound_volume = (float)atof(v);
+        else if (!strcmp(k, "music_volume")) sv->music_volume = (float)atof(v);
         else if (!strcmp(k, "selected_character")) { if ((i = find_value(g->pack, "characters", v)) >= 0) sv->selected_character = i; }
         else if (!strcmp(k, "selected_stage")) { if ((i = find_value(g->pack, "stages", v)) >= 0) sv->selected_stage = i; }
         else if (!strcmp(k, "achievement")) { if ((i = find_value(g->pack, "achievements", v)) >= 0 && i < VS_ACHIEVEMENTS_COUNT) sv->achieved[i] = 1; }
@@ -338,22 +347,31 @@ int vs_save_load(vs_game *g, const char *path) {
     memset(&g->save, 0, sizeof g->save);
     g->save.selected_character = VS_CHARACTERS_ANTONIO;
     g->save.selected_stage = VS_STAGES_FOREST;
+    g->save.sound_volume = g->save.music_volume = 0.5f;
     snprintf(g->save_path, sizeof g->save_path, "%s", path ? path : "");
     if (!path || !*path) return -1;
     char bak[300];
     snprintf(bak, sizeof bak, "%s.bak", path);
-    int rc = load_one(g, path);
-    if (rc != 0) {
-        rc = load_one(g, bak);
-        vs_plat_log(rc == 0 ? "save: %s damaged or missing, using the backup" : "save: none at %s, starting fresh", path);
-    } else vs_plat_log("save: loaded %s", path);
+    int rc = load_one(g, path), from_backup = 0;
+    if (rc != 0) { rc = load_one(g, bak); from_backup = rc == 0; }
     if (rc != 0) {
         memset(&g->save, 0, sizeof g->save);
         g->save.selected_character = VS_CHARACTERS_ANTONIO;
         g->save.selected_stage = VS_STAGES_FOREST;
+        g->save.sound_volume = g->save.music_volume = 0.5f;
     }
+    /* Builds before this fix wrote new saves with both volumes at 0, and there
+     * is no options screen yet to change them: such saves get the defaults. */
+    if (g->save.sound_volume <= 0 && g->save.music_volume <= 0) g->save.sound_volume = g->save.music_volume = 0.5f;
     g->save.stage_unlocked[VS_STAGES_FOREST] = 1;
     restore_achievement_unlocks(g);
+    /* A new save is written right away, so a folder that can't be written is
+     * reported on the title screen instead of after a whole run. */
+    if (rc == 0) snprintf(g->save_boot_status, sizeof g->save_boot_status, "Save: %s (%s)", path, from_backup ? "restored from backup" : "loaded");
+    else if (vs_save_write(g) == 0) snprintf(g->save_boot_status, sizeof g->save_boot_status, "Save: %s (new save created)", path);
+    else snprintf(g->save_boot_status, sizeof g->save_boot_status, "%s", g->save_status);
+    g->save_status[0] = 0;
+    vs_plat_log("%s", g->save_boot_status);
     return rc;
 }
 

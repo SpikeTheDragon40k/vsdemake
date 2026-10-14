@@ -190,3 +190,22 @@ void vs_plat_log(const char *fmt, ...) {
     va_end(ap);
     fputc('\n', stderr);
 }
+
+/* ---- audio: SDL queue (no callback thread) ---- */
+static SDL_AudioDeviceID g_audio;
+
+int vs_plat_audio_open(int rate) {
+    if (!SDL_WasInit(SDL_INIT_AUDIO) && SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) { vs_plat_log("audio: %s", SDL_GetError()); return -1; }
+    SDL_AudioSpec want, have;
+    SDL_zero(want);
+    want.freq = rate; want.format = AUDIO_S16SYS; want.channels = 2; want.samples = 1024;
+    g_audio = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (!g_audio) { vs_plat_log("audio: %s", SDL_GetError()); return -1; }
+    SDL_PauseAudioDevice(g_audio, 0);
+    return 0;
+}
+void vs_plat_audio_close(void) { if (g_audio) SDL_CloseAudioDevice(g_audio); g_audio = 0; }
+int vs_plat_audio_queued(void) { return g_audio ? (int)(SDL_GetQueuedAudioSize(g_audio) / 4) : 0; }
+void vs_plat_audio_push(const int16_t *frames, int count) { if (g_audio) SDL_QueueAudio(g_audio, frames, (Uint32)count * 4); }
+uint64_t vs_plat_audio_played(void) { return 0; }
+int vs_plat_audio_toggle_swap(void) { return 0; }

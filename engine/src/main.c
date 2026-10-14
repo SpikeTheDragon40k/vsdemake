@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/vs_audio.h"
 #include "core/vs_compat.h"
 #include "core/vs_pack.h"
 #include "core/vs_platform.h"
@@ -80,7 +81,8 @@ static int fatal_screen(const char *msg) {
 #endif
 
 static int vs_main(int argc, char **argv) {
-    const char *pack_path = NULL, *screenshot = NULL, *input = NULL, *record_dir = NULL, *save_arg = NULL;
+    const char *pack_path = NULL, *screenshot = NULL, *input = NULL, *record_dir = NULL, *save_arg = NULL, *audio_dump_path = NULL;
+    int mute = 0;
     int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, unlock_all = 0, show_gameover = 0, start_level = 0, give_count = 0, chest = 0, show_levelup = 0;
     const char *give[16];
     uint64_t seed = 1;
@@ -104,6 +106,8 @@ static int vs_main(int argc, char **argv) {
         else if (strcmp(argv[i], "--screenshot") == 0 && i + 1 < argc) screenshot = argv[++i];
         else if (strcmp(argv[i], "--record") == 0 && i + 1 < argc) record_dir = argv[++i];
         else if (strcmp(argv[i], "--record-from") == 0 && i + 1 < argc) record_from = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--audio-dump") == 0 && i + 1 < argc) audio_dump_path = argv[++i];
+        else if (strcmp(argv[i], "--mute") == 0) mute = 1;
         else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) input = argv[++i];
         else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) seed = strtoull(argv[++i], NULL, 10);
         else if (argv[i][0] != '-') pack_path = argv[i];
@@ -163,6 +167,24 @@ static int vs_main(int argc, char **argv) {
         snprintf(game.save_path, sizeof game.save_path, "%.*svsdemake.sav", dir_len, pack_path);
     }
     if (character > 0) game.selected_character = character;
+    /* Sounds: loaded unless the run is headless (then only for --audio-dump). */
+    int audio_live = 0;
+    FILE *audio_dump = NULL;
+    int sounds = 0;
+    if (!mute && (!headless || audio_dump_path)) sounds = vs_audio_init(&pack);
+    if (!mute && !headless) audio_live = vs_plat_audio_open(VS_AUDIO_RATE) == 0;
+    if (mute) snprintf(game.audio_status, sizeof game.audio_status, "Sound: muted");
+    else if (headless && audio_dump_path) snprintf(game.audio_status, sizeof game.audio_status, "Sound: %d sounds, recording", sounds);
+    else if (!headless) {
+        if (sounds == 0) snprintf(game.audio_status, sizeof game.audio_status, "Sound: NO SOUNDS IN THE PACK (rebuild vsdata.vspack)");
+        else if (!audio_live) snprintf(game.audio_status, sizeof game.audio_status, "Sound: %d sounds, NO AUDIO OUTPUT (device failed)", sounds);
+        else snprintf(game.audio_status, sizeof game.audio_status, "Sound: %d sounds, output on", sounds);
+    }
+    if (game.audio_status[0]) vs_plat_log("%s", game.audio_status);
+    if (audio_dump_path) {
+        audio_dump = fopen(audio_dump_path, "wb");
+        if (audio_dump) { static const uint8_t blank[44] = {0}; fwrite(blank, 1, 44, audio_dump); }   /* WAV header written at the end */
+    }
     if (vs_game_init(&game, &pack, LOGICAL_W, LOGICAL_H, seed) != 0) {
         fprintf(stderr, "game init failed\n");
 #if defined(VS_XENON) || defined(VS_XDK)
@@ -227,6 +249,18 @@ static int vs_main(int argc, char **argv) {
         for (int s = 0; s < steps; s++) {
             if (input) pad.buttons = scripted_buttons(input, &input_pos, &input_left);
             vs_game_update(&game, &pad);
+            vs_audio_advance(tick_ms);
+            if (audio_dump) {   /* exactly one tick of sound: 44100 / 60 = 735 frames */
+                static int16_t tick_buf[735 * 2];
+                vs_audio_mix(tick_buf, 735);
+                for (int k = 0; k < 735 * 2; k++) { uint8_t le[2] = { (uint8_t)(tick_buf[k] & 0xff), (uint8_t)((uint16_t)tick_buf[k] >> 8) }; fwrite(le, 1, 2, audio_dump); }
+            }
+        }
+        /* keep ~70 ms queued at the audio device, mixed in 1024-frame chunks */
+        while (audio_live && vs_plat_audio_queued() < 3072) {
+            static int16_t chunk[1024 * 2];
+            vs_audio_mix(chunk, 1024);
+            vs_plat_audio_push(chunk, 1024);
         }
         int recording = record_dir && rendered >= record_from;
         if (!no_render || recording || (frames >= 0 && rendered + 1 >= frames)) vs_game_render(&game);
@@ -245,6 +279,22 @@ static int vs_main(int argc, char **argv) {
         else vs_plat_log("screenshot failed");
     }
     vs_plat_log("ticks %u, %02d:%02d, player at (%.1f, %.1f) hp %.0f lv %d kills %u gold %.0f, state hash %08x%s", game.tick, game.survived_seconds / 60, game.survived_seconds % 60, game.player.x, game.player.y, game.player.hp, game.player.level, game.kills, game.coins, vs_game_state_hash(&game), game.game_over ? " GAME OVER" : "");
+    if (audio_dump) {   /* little-endian PCM WAV header */
+        long bytes = ftell(audio_dump) - 44;
+        uint8_t h[44];
+        const uint32_t rate = VS_AUDIO_RATE;
+        uint32_t vals[] = { (uint32_t)(bytes + 36), 16, 0, rate, rate * 4, 0, (uint32_t)bytes };
+        memcpy(h, "RIFF", 4); memcpy(h + 8, "WAVEfmt ", 8); memcpy(h + 36, "data", 4);
+        h[4] = (uint8_t)vals[0]; h[5] = (uint8_t)(vals[0] >> 8); h[6] = (uint8_t)(vals[0] >> 16); h[7] = (uint8_t)(vals[0] >> 24);
+        h[16] = 16; h[17] = h[18] = h[19] = 0;           /* fmt chunk size */
+        h[20] = 1; h[21] = 0; h[22] = 2; h[23] = 0;       /* PCM, stereo */
+        for (int k = 0; k < 4; k++) { h[24 + k] = (uint8_t)(rate >> (8 * k)); h[28 + k] = (uint8_t)((rate * 4) >> (8 * k)); h[40 + k] = (uint8_t)((uint32_t)bytes >> (8 * k)); }
+        h[32] = 4; h[33] = 0; h[34] = 16; h[35] = 0;      /* block align, bits */
+        fseek(audio_dump, 0, SEEK_SET); fwrite(h, 1, 44, audio_dump); fclose(audio_dump);
+        vs_plat_log("wrote %s (%.1f s of sound)", audio_dump_path, bytes / (4.0 * rate));
+    }
+    if (audio_live) vs_plat_audio_close();
+    vs_audio_shutdown();
     vs_game_shutdown(&game);
     vs_plat_free(data);
     vs_plat_shutdown();

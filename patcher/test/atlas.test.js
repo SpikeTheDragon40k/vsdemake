@@ -42,3 +42,13 @@ test('level-up text follows the entry key order and the passive/weapon wording',
   assert.equal(levelUpText({ amount: 1, duration: 500 }, false, t), '1 proj\neff 0.5 s\n');
   assert.equal(getLang({ k: 'a %0 b %1' }, 'k', [1, 2]), 'a 1 b 2');
 });
+
+test('sound keys come from the preload calls; SND blobs carry the OGG unchanged', () => {
+  const { findSoundKeys, soundBlob } = require('../src/assets/sound');
+  const code = 'this["load"]["audio"](_0xa["Gem"],["assets/sfx/VS_Gem.ogg"]),this[\'load\'][\'audio\'](_0xb[\'BGM_Forest\'],[\'assets/sfx/music.ogg\'])';
+  assert.deepEqual(findSoundKeys(code), { VS_Gem: 'Gem', music: 'BGM_Forest' });
+  const b = soundBlob(Buffer.from('OggS1234'));
+  assert.equal(b.readUInt32BE(0), 1);
+  assert.equal(b.readUInt32BE(4), 8);
+  assert.equal(b.subarray(16).toString(), 'OggS1234');
+});

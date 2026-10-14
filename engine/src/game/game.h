@@ -232,9 +232,19 @@ typedef struct {
 } vs_tilemap;
 
 /* ---- game */
+/* Sound effects the game plays (keys in notes/behaviour/audio.md). */
+enum {
+    VS_SND_HIT, VS_SND_LOSS, VS_SND_GEM, VS_SND_COIN, VS_SND_ROAST, VS_SND_LITTLEHEART, VS_SND_VACUUM,
+    VS_SND_ROSARY, VS_SND_OROLOGION, VS_SND_WHIP, VS_SND_MAGICMISSILE, VS_SND_SHOT, VS_SND_HOLYWATER,
+    VS_SND_LIGHTNING, VS_SND_LEVELUP, VS_SND_CLICKIN, VS_SND_CLICKOUT, VS_SND_THINGFOUND,
+    VS_SND_TREASURE1, VS_SND_TREASURE2, VS_SND_TREASURE3, VS_SND_BGM_INTRO, VS_SND_BGM_GAMEOVER,
+    VS_SND_COUNT
+};
+
 /* Persistent player data (game/save.c, notes/behaviour/saves.md). */
 typedef struct {
     double coins, lifetime_coins, lifetime_heal, lifetime_survived;
+    float sound_volume, music_volume;   /* options, 0..1 (default 0.5) */
     int selected_character, selected_stage;
     uint8_t achieved[VS_ACHIEVEMENTS_COUNT];
     uint8_t weapon_unlocked[VS_WEAPONS_COUNT], weapon_seen[VS_WEAPONS_COUNT];
@@ -283,7 +293,10 @@ typedef struct {
     int show_gameover;      /* dev aid: headless runs still switch to the game-over screen */
     vs_save save;
     char save_path[260];    /* empty: no saving (headless tests) */
-    char save_status[300];  /* result of the last save, shown on the game-over screen */
+    char save_status[600];  /* result of the last save, shown on the game-over screen */
+    char save_boot_status[600]; /* save found/created/failed at start-up, shown on the title */
+    char audio_status[160];     /* sounds loaded / output state, shown on the title */
+    int audio_swap;             /* diagnostics: byte order swapped at the output */
     vs_table achievements_table, stages_table;
     uint32_t run_kills[VS_ENEMIES_COUNT], run_pickups[VS_PICKUPS_COUNT], run_destroyed[VS_DESTRUCTIBLES_COUNT];
     float run_heal;
@@ -305,6 +318,8 @@ typedef struct {
     vs_atlas atl_characters, atl_enemies, atl_items, atl_vfx, atl_ui;
     int tex_ui, tex_damage, tex_title, title_w, title_h;
     vs_lang lang;           /* English UI strings (empty for packs without LNG) */
+    int snd[VS_SND_COUNT];  /* sound ids (vs_audio_find), -1 when missing */
+    vs_rng audio_rng;       /* random pitch for sounds; separate so audio never changes gameplay */
     vs_font damage_font;
 } vs_game;
 
@@ -351,6 +366,10 @@ int vs_weapon_add(vs_game *g, int type, int from_levelup);
 int vs_weapon_find(const vs_game *g, int type);
 /* 1 if the demake has this weapon's own behaviour (others fall back to a plain shot) */
 int vs_weapon_implemented(int type);
+/* sound (game.c): the original's PlaySound with this game's sound ids */
+void vs_sfx(vs_game *g, int snd, float volume, float detune, float rate, float delay_ms, int max_instances);
+float vs_sfx_random(vs_game *g);
+void vs_music_for_stage(vs_game *g);
 /* saves and unlocks (save.c) */
 int vs_save_load(vs_game *g, const char *path);
 int vs_save_write(vs_game *g);

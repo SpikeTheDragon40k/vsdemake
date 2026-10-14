@@ -33,7 +33,8 @@ gem 602–649, vacuum 650–675, rosary 676–699, magnet 480–493, pools
   physics position is set from the curve each update.)
 - Depth: `y − player.y − H` (always behind enemies).
 - Taken: `player.xp += value × player.growth`; gem sound (volume 0.1,
-  detune cycling through a 24-step melody table × 60 cents); level-up check.
+  throttle 1 ms / 1, no pitch change: a 24-step × 60-cent melody table and
+  its getter exist at lines 619–649 but are never called); level-up check.
 
 ### Gem cap and merging (`MakePickup` for GEM, line 6610)
 

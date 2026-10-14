@@ -280,6 +280,8 @@ Nothing has run on hardware yet. Confirm these in order and report:
 
 ## 8. Updating
 
+- Sound needs a pack with the `SND` entries (the patcher reports 88
+  entries, 30 SND). An older pack still works, but the game is silent.
 - New patcher version → rebuild `vsdata.vspack` (the engine refuses packs
   whose table layout differs: "table … layout mismatch").
 - New engine → rebuild `default.xex`, copy it over.

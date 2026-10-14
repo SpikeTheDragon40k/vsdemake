@@ -70,6 +70,18 @@ void vs_plat_free(void *p);
 int vs_plat_screenshot(const char *path);
 void vs_plat_log(const char *fmt, ...);
 
+/* Audio output, 16-bit stereo at `rate`. Push model: the game mixes and
+ * pushes frames each frame, keeping a few thousand frames queued.
+ * open returns 0 on success (-1: no audio, the game runs silent). */
+int vs_plat_audio_open(int rate);
+void vs_plat_audio_close(void);
+int vs_plat_audio_queued(void);                       /* frames not played yet */
+void vs_plat_audio_push(const int16_t *frames, int count);
+/* Diagnostics: frames the output device reports as played (0 if unknown). */
+uint64_t vs_plat_audio_played(void);
+/* Diagnostics: swap the byte order of pushed samples (console test); returns the new state. */
+int vs_plat_audio_toggle_swap(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -32,6 +32,8 @@ int vs_pack_init(vs_pack *p, const void *data, size_t size);
 int vs_pack_find(const vs_pack *p, const char *kind, const char *name);
 const uint8_t *vs_pack_blob(const vs_pack *p, int idx, uint32_t *size);
 const char *vs_pack_entry_name(const vs_pack *p, int idx);
+/* 1 if entry idx is of `kind` ("SND", ...). */
+int vs_pack_entry_is(const vs_pack *p, int idx, const char *kind);
 
 /* TEX */
 typedef struct {

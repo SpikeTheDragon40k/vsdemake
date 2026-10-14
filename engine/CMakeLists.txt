@@ -13,6 +13,8 @@ set(VS_CORE_SOURCES
   src/core/vs_pack.c
   src/core/vs_rng.c
   src/core/vs_text.c
+  src/core/vs_audio.c
+  src/core/vs_vorbis.c
   src/game/game.c
   src/game/timer.c
   src/game/player.c
@@ -53,3 +55,6 @@ target_include_directories(test_pack PRIVATE src)
 add_test(NAME pack_reader COMMAND test_pack ${CMAKE_SOURCE_DIR}/../work/vsdata.vspack)
 # test_pack exits 77 when no pack has been built yet
 set_tests_properties(pack_reader PROPERTIES SKIP_RETURN_CODE 77)
+
+# third-party decoder (stb_vorbis via vs_vorbis.c): built as is, without our warnings
+set_source_files_properties(src/core/vs_vorbis.c PROPERTIES COMPILE_OPTIONS "-w")
