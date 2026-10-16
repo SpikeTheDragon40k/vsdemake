@@ -247,3 +247,21 @@ resume in a fresh session).
   unlocked; the birds join the level-up pool once unlocked.
 - Checks: video of Peachone + Ebony 8 and of Vandalier; gameplay hash of a
   bird-less run unchanged; ASan/UBSan clean; C++03 clean.
+
+## 2026-10-16: chest animation and map bonus items
+
+- Treasure chest screen (`engine/src/game/treasure.c`, `treasure.md`):
+  OPEN, chest animation, reels of item icons, coins, ribbons, coin counter,
+  prize icons with stars, DONE and the prize panels; level timelines, quick
+  skip (B) for experienced players, ThingFound / Treasure sounds (the skip
+  seeks the chest sound to its ending: new `vs_audio_seek_last`), music
+  fades. Prizes are decided at pickup and given when the screen closes.
+- Map bonus items (`stage-map.md`): the maps' `Weapon` / `Item` script
+  objects are placed at the start (chance × luck, separate random stream);
+  WEAPON pickups float, glow and sparkle; taking one opens the "Weapon
+  Found!" screen (take / leave).
+- The level-up panel is a shared function now (`vs_ui_weapon_panel`).
+- Dev options: `--chest [LEVEL]`, `--show-chest`, `--map-item NAME`.
+- Checks: chest screens of all levels and the item-found screen recorded;
+  headless runs (screens skipped) keep their state hashes; ASan/UBSan
+  clean; C++03 clean.

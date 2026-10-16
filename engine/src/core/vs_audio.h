@@ -28,6 +28,9 @@ int vs_audio_find(const char *key);
  * (both > 0 to apply). */
 void vs_audio_play(int id, float volume, float detune_cents, float rate, float delay_ms, int max_instances);
 void vs_audio_stop(int id);
+/* Moves the sound the latest vs_audio_play started to `ms` from its start
+ * (the original's `seek`; decoded sounds only). */
+void vs_audio_seek_last(float ms);
 
 /* Music: one track at a time. volume is the base (0.3 in the game), played
  * at base × music volume option. */

@@ -47,6 +47,7 @@ static int g_tone_left;            /* frames of test tone still to mix */
 static double g_tone_phase;
 static unsigned g_plays_asked, g_plays_started;   /* diagnostics */
 static const char *g_play_last = "none";
+static voice_t *g_last_voice;      /* the voice the latest vs_audio_play started */
 
 /* ---- loading ---- */
 
@@ -88,6 +89,7 @@ int vs_audio_init(const vs_pack *pack) {
 }
 
 static void voice_release(voice_t *v) {
+    if (v == g_last_voice) g_last_voice = NULL;
     if (v->vorbis) stb_vorbis_close(v->vorbis);
     free(v->win);
     memset(v, 0, sizeof *v);
@@ -207,8 +209,15 @@ void vs_audio_play(int id, float volume, float detune_cents, float rate, float d
         }
         if (!v) { g_play_last = "no voice"; return; }
     }
-    if (voice_start(v, id, vol, speed, 0) == 0) { g_plays_started++; g_play_last = "started"; }
+    if (voice_start(v, id, vol, speed, 0) == 0) { g_plays_started++; g_play_last = "started"; g_last_voice = v; }
     else g_play_last = "start failed";
+}
+
+void vs_audio_seek_last(float ms) {
+    voice_t *v = g_last_voice;
+    if (!v || !v->active || g_snd[v->id].streamed) return;
+    double pos = (double)ms * g_snd[v->id].rate / 1000.0;
+    if (pos < g_snd[v->id].frames) v->pos = pos;
 }
 
 void vs_audio_stop(int id) {

@@ -64,10 +64,65 @@ by the table data in 0.2.10); `AddCoins(CoinsAward + 25 × fillers)` (greed
 and GoldMultiplier apply, `pickups.md`); player invulnerable 1000 ms;
 resume.
 
-## Presentation (for the demake's own UI)
+## Presentation (treasure scene, line 9385)
 
-Chest open animation, 2/6/… ribbons, coin particle bursts (level 1: 1 reel;
-levels 2–3: one reel per prize), counter ticking up to the coin award. A
-"quick skip" appears after 900 ms once the player has opened ≥ 5 level-1
-chests, ≥ 1 level-3 chest, or ≥ 50 chests in total (line 9589). Timings:
-level 1 reels stop after 6300 ms, prizes shown, OK button 6000 ms later.
+Scene start (`create`): background nine-slice grows from scale (−0.2,
+−0.1) turned 180° to full in 150 ms; yellow `Burst1–6` (30 fps, scale 8,
+additive) when flashing VFX are on; header `treasure_header`; chest
+`TreasureIdle_01–08` (15 fps, played again every 3 s), origin (0.5, 1),
+scale 5, at panel bottom − 110; OPEN button (`button_c9`, `treasure_open`)
+at panel bottom − 64, growing in after 300 ms; ThingFound sound (0.7). The
+prizes are decided now (`MakePrize`); the main scene is paused.
+
+On OPEN (per level, ms after the press):
+
+| | Level 1 | Level 2 | Level 3 |
+| --- | --- | --- | --- |
+| sound | Treasure1 (1) | Treasure2 (1) | Treasure3 (1.1) |
+| chest opens | 0 | 0 | 1600 (fireworks first) |
+| coin counter runs | 0–7500 | 0–11000 | 1600–15500 |
+| coins emitted until | 6300 | 11000 | 16000 |
+| reels start | 0 | reel 2 at 0, 0 at 80, 1 at 160 | 0–2 at 1600, 3–4 at 9500 |
+| reels stop, prizes appear | 6300 | 9700 | 13700 |
+| ribbons | 2 | 6 | 8 (+ a second set) |
+| reel colours | blue | violet, magenta ×2 | red, orange ×2, yellow ×2 |
+| background glow (`frame5_c4_ad`) | — | to 0.7 while spinning | flash, then 1 |
+
+- Chest: `TreasureOpen_01–08` plus a front layer `TreasureOpenFront_01–08`
+  (30 fps) drawn over the reels and coins.
+- Reels: a 32 px strip of item icons every 32 px on a coloured background
+  (alpha 0.5), shown at scale 2, conveyor-like along a line from the chest
+  to (0, −1536) turned by 0, 20, −20, 40, −40°, 2 s per pass; masked to the
+  panel above the chest. Contents: power-ups for POWERUP prizes, owned
+  weapons for EXISTING ones, any item for EVOLUTION / FIXED; at least 12,
+  padded with money bags. On stop each turns into its empty strip with a
+  50 ms white flash, staggered [0], [600, 0, 300] or [600, 300, 300, 0,
+  0] ms; the prize icons appear with the same delays.
+- Prize icons at chest + (0, −250), (∓115, −325), (∓150, −190):
+  `PrizeBG` and the item at scale 2, two `HitStarWhite2` stars that become
+  `HitStar2`, pulse 2↔4 and turn.
+- Coins: two back emitters (gold, scale 2 → 1) and two front ones
+  (silver, 2 → 2.1) at the chest: 225–315°, 450–600 px/s, gravity 500,
+  4 s, bouncing on the screen sides; one coin every 2 × [100, 50, 25] ms
+  (back) / 2 × [200, 100, 50] ms (front).
+- Ribbons: `Ribbon1` ropes (32 points) following a fixed spline (jittered,
+  mirrored every other one, 50 % turned ±10°), there and back in 1.5 s
+  (Sine.easeInOut), 100 ms apart; fade out as the reels stop.
+- Counter: `CoinsAward × GoldMultiplier × greed` (rounded up) shown with two
+  decimals, ticking up; at the end it turns yellow, a ring flashes and it
+  pulses.
+- 6000 ms after the stop: reels fade, the counter moves to the header, the
+  button comes back as DONE and the prizes are shown one at a time in a
+  panel at the bottom (`CyclePrizes`: icon, name, level, description; 4.5 s
+  each, next every 5 s). DONE: everything shrinks away in 150 ms; 500 ms
+  later `OnSceneOver` gives the prizes.
+- Quick skip (levels 1 and 2, after 900 / 1800 ms, if enough chests were
+  opened before): the counter finishes 1.2 / 1.3 s later, coins stop, the
+  reels stop at once, the wait before DONE is 3 × shorter, and the chest
+  sound restarts at 6.3 / 9.7 s (its ending).
+- The music fades to 0 while the scene is open and back to 0.3 after.
+
+Demake: same timeline and layout scaled by 0.6, the panel moved up so the
+prize panel fits under it; additive effects drawn with plain alpha; level
+3's fireworks and the background "bubbles" are not drawn. Headless runs
+skip the screen and give the prizes at once (`--show-chest` plays it).

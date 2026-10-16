@@ -30,6 +30,7 @@ vs_pickup *vs_pickup_make(vs_game *g, float x, float y, int type) {
     p->speed = 250; p->t = 1; p->t_from = 1; p->tween_ms = 500;
     p->treasure_row = -1;
     if (type == VS_PICKUPS_TREASURE) p->go_to_player = 1;
+    if (type == VS_PICKUPS_WEAPON) p->stationary = 1;   /* isStationary: the magnet doesn't pull it */
     return p;
 }
 
@@ -136,6 +137,13 @@ static void get_taken(vs_game *g, vs_pickup *p) {
     case VS_PICKUPS_TREASURE:
         vs_treasure_open(g, p->treasure_level, p->treasure_row);
         break;
+    case VS_PICKUPS_WEAPON:
+        /* map bonus item: the item-found screen offers it (take / leave);
+         * headless runs take it */
+        if (p->weapon_type <= 0) break;
+        if (g->auto_pick && !g->show_chest) vs_level_weapon_up(g, p->weapon_type, 1);
+        else vs_item_found_start(g, p->weapon_type);
+        break;
     default: break;
     }
     p->active = 0;
@@ -165,6 +173,7 @@ void vs_pickups_physics(vs_game *g) {
     for (int i = 0; i < VS_MAX_PICKUPS; i++) {
         vs_pickup *p = &g->pickups[i];
         if (!p->active) continue;
+        if (p->type == VS_PICKUPS_WEAPON) p->anim_ms += VS_TICK_MS;
         if (p->tween_ms < 500) {
             p->tween_ms += VS_TICK_MS;
             float f = p->tween_ms >= 500 ? 1 : p->tween_ms / 500.0f;
@@ -180,10 +189,10 @@ void vs_pickups_physics(vs_game *g) {
     }
 }
 
-/* Treasure chest: resolve prizes immediately (treasure.md; the chest
- * animation is not reproduced). */
+/* Treasure chest (treasure.md): the prizes are decided now, as the
+ * original does when its treasure scene starts; they are given when the
+ * screen closes (vs_treasure_award). Headless runs skip the screen. */
 void vs_treasure_open(vs_game *g, int level, int treasure_row) {
-    vs_player *pl = &g->player;
     vs_stage *s = &g->stage;
     int prize_types[5] = {VS_PRIZES_EVOLUTION, VS_PRIZES_POWERUP, VS_PRIZES_POWERUP, VS_PRIZES_POWERUP, VS_PRIZES_POWERUP};
     int fixed[5] = {-1, -1, -1, -1, -1};
@@ -199,12 +208,10 @@ void vs_treasure_open(vs_game *g, int level, int treasure_row) {
         }
     }
     int slots = level >= 3 ? 5 : level == 2 ? 3 : 1;
-    /* no chest animation yet: the opening sound plays right away */
-    if (slots == 5) vs_sfx(g, VS_SND_TREASURE3, 1.1f, 0, 1, 0, 0);
-    else vs_sfx(g, slots == 3 ? VS_SND_TREASURE2 : VS_SND_TREASURE1, 1.0f, 0, 1, 0, 0);
+    vs_save_count_pickup(g, VS_PICKUPS_STATS_TREASURE_1 + (slots == 5 ? 2 : slots == 3 ? 1 : 0));
     float coins = level >= 3 ? 200 + 100 * vs_rng_f32(&g->rng) : level == 2 ? 100 + 100 * vs_rng_f32(&g->rng) : 50 + 50 * vs_rng_f32(&g->rng);
     coins = (float)(int)coins;
-    int prizes[5]; int prize_count = 0;
+    int prizes[5];
     for (int i = 0; i < slots; i++) {
         int type = prize_types[i], item = -1;
         if (type == VS_PRIZES_RANDOM) type = vs_rng_f32(&g->rng) < 0.5f ? VS_PRIZES_POWERUP : VS_PRIZES_EXISTING_ANY;
@@ -216,10 +223,26 @@ void vs_treasure_open(vs_game *g, int level, int treasure_row) {
         case VS_PRIZES_FIXED: item = fixed[i] >= 0 ? vs_levelup_pull_fixed(g, fixed[i]) : -1; if (item < 0) item = vs_levelup_pull_existing(g, 1); break;
         default: break;
         }
-        if (item >= 0) { prizes[prize_count++] = item; vs_levelup_remove_from_store(g, item); }
+        prizes[i] = item;
+        if (item >= 0) vs_levelup_remove_from_store(g, item);
+    }
+    if (g->auto_pick && !g->show_chest) {
+        if (slots == 5) vs_sfx(g, VS_SND_TREASURE3, 1.1f, 0, 1, 0, 0);
+        else vs_sfx(g, slots == 3 ? VS_SND_TREASURE2 : VS_SND_TREASURE1, 1.0f, 0, 1, 0, 0);
+        vs_treasure_award(g, slots, prizes, coins);
+    } else vs_treasure_ui_start(g, level >= 3 ? 3 : level == 2 ? 2 : 1, slots, prizes, coins);
+}
+
+/* OnSceneOver: every prize levelled up (store untouched), CoinsAward plus
+ * 25 per filler as coins (Greed and gold multiplier apply), 1 s of
+ * invulnerability. */
+void vs_treasure_award(vs_game *g, int n, const int *prizes, float coins_award) {
+    vs_player *pl = &g->player;
+    float coins = coins_award;
+    for (int i = 0; i < n; i++) {
+        if (prizes[i] >= 0) vs_level_weapon_up(g, prizes[i], 0);
         else coins += 25;
     }
-    for (int i = 0; i < prize_count; i++) vs_level_weapon_up(g, prizes[i], 0);
     g->coins += coins * g->gold_multiplier * pl->greed;
     pl->invul_ms += 1000;
     g->chests_opened++;

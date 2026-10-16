@@ -142,6 +142,36 @@ typedef struct {
     int visible;
 } vs_bullet;
 
+/* ---- treasure and item-found screens (treasure.c, notes/behaviour/treasure.md) */
+#define VS_TREASURE_COINS 256
+#define VS_TREASURE_RIBBONS 8
+#define VS_TREASURE_TRAIL 32
+typedef struct { float x, y, vx, vy, age, life, s0, s1, rot; int kind, front; } vs_ui_particle;
+typedef struct {
+    int active, level, n;           /* n = prize slots / reels (1, 3, 5) */
+    int prize[5];                   /* item per slot, -1 = filler (+25 gold) */
+    int reel_type[5];               /* prize type of the slot (reel contents) */
+    float coins_award;              /* before Greed and the stage's gold multiplier */
+    float t_ms;                     /* since the screen appeared */
+    float open_ms;                  /* since OPEN was pressed; < 0 before */
+    float time_scale;               /* 3 after a quick skip (second wait only) */
+    float open_delay;               /* the chest opens this long after OPEN (level 3: fireworks first) */
+    float stop_at, ok_at, coins_end;  /* timeline, ms after OPEN */
+    float c_t0, c_v0, c_end;        /* coin counter: from c_v0 at c_t0 to the award at c_end */
+    float reel_start[5], stop_delay[5];
+    int skippable, skipped, done_shown, closing; float close_ms;
+    vs_ui_particle coin[VS_TREASURE_COINS];
+    float emit_acc[4];
+    int ribbon_n; float ribbon_pts[VS_TREASURE_RIBBONS][10][2];
+    float ribbon_hist[VS_TREASURE_RIBBONS][VS_TREASURE_TRAIL][2]; int ribbon_hist_n[VS_TREASURE_RIBBONS];
+    int reel_icons[5][12]; int reel_icon_n[5];
+} vs_treasure_ui;
+typedef struct {
+    int active, type, sel;          /* sel: 0 take, 1 leave */
+    float t_ms;
+    vs_ui_particle confetti[128];
+} vs_item_found_ui;
+
 /* ---- pickups (notes/behaviour/pickups.md) */
 typedef struct {
     int active;
@@ -153,6 +183,8 @@ typedef struct {
     float t, t_from, tween_ms;  /* "time" tween: t_from → 1 over 500 ms */
     int treasure_level;     /* chests */
     int treasure_row;
+    int weapon_type;        /* WEAPON pickups (map bonus items): the item it gives */
+    float anim_ms;          /* WEAPON pickups: float / glow / sparkle clock */
 } vs_pickup;
 
 typedef struct { float radius, percentage; } vs_magnet;
@@ -299,6 +331,7 @@ typedef struct {
     int debug_hitboxes;     /* dev aid: outline colliders */
     int unlock_all;         /* dev/PC option: every item, character and stage available */
     int show_gameover;      /* dev aid: headless runs still switch to the game-over screen */
+    int show_chest;         /* dev aid: headless runs still play the treasure / item-found screens */
     vs_save save;
     char save_path[260];    /* empty: no saving (headless tests) */
     char save_status[600];  /* result of the last save, shown on the game-over screen */
@@ -335,6 +368,9 @@ typedef struct {
     vs_lang lang;           /* English UI strings (empty for packs without LNG) */
     int snd[VS_SND_COUNT];  /* sound ids (vs_audio_find), -1 when missing */
     vs_rng audio_rng;       /* random pitch for sounds; separate so audio never changes gameplay */
+    vs_rng ui_rng;          /* decoration only (ribbons, coins, confetti) */
+    vs_treasure_ui treasure;
+    vs_item_found_ui item_found;
     vs_font damage_font;
 } vs_game;
 
@@ -443,6 +479,15 @@ void vs_levelup_open(vs_game *g);
 void vs_levelup_choose(vs_game *g, int option);
 void vs_levelup_input(vs_game *g, const vs_pad *pad);
 void vs_level_weapon_up(vs_game *g, int type, int from_levelup);
+/* treasure.c */
+void vs_treasure_ui_start(vs_game *g, int level, int n, const int *prizes, float coins_award);
+void vs_treasure_award(vs_game *g, int n, const int *prizes, float coins_award);
+void vs_treasure_ui_update(vs_game *g, const vs_pad *pad);
+void vs_treasure_ui_render(vs_game *g);
+void vs_item_found_start(vs_game *g, int type);
+void vs_item_found_update(vs_game *g, const vs_pad *pad);
+void vs_item_found_render(vs_game *g);
+void vs_ui_weapon_panel(vs_game *g, int type, float px, float py, float pw, float ph);
 int vs_levelup_pull_remaining_powerup(vs_game *g);
 int vs_levelup_pull_existing(vs_game *g, int include_passives);
 int vs_levelup_pull_evolution(vs_game *g);
@@ -477,6 +522,7 @@ void vs_options_input(vs_game *g, const vs_pad *pad);
 void vs_options_render(vs_game *g);
 /* game.c UI helpers shared with options.c */
 void vs_ui_nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint);
+void vs_ui_nine_slice_alpha(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint, uint8_t alpha);
 void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha);
 const char *vs_weapon_name(const vs_game *g, int type);
 

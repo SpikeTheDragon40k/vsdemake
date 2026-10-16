@@ -87,6 +87,32 @@ static void update_all_data(vs_game *g, const vs_stages_rec *row) {
     play_events(g, row);
 }
 
+/* Map bonus items (`Scripts` objects "Weapon" / "Item", lines 4967–5010):
+ * placed once at the start, at (x + 2048 × xMultiplier, y + 2048 ×
+ * yMultiplier), when random() <= chance × luck (no chance: always). The
+ * object's type is the item's id: a weapon/passive ("POWER" is Might), or
+ * a pickup (GEM uses the `value` property as its experience). */
+static void spawn_map_item(vs_game *g, const vs_map_object *o, vs_rng *rng) {
+    float chance = vs_map_object_prop(o, "chance", -1);
+    if (chance >= 0 && vs_rng_f32(rng) > chance * g->player.luck) return;
+    float x = o->x + 2048.0f * vs_map_object_prop(o, "xMultiplier", 0);
+    float y = o->y + 2048.0f * vs_map_object_prop(o, "yMultiplier", 0);
+    vs_enum e;
+    if (strcmp(o->name, "Weapon") == 0) {
+        int type = vs_pack_enum(g->pack, "weapons", &e) == 0 ? vs_enum_find_value(&e, o->type) : -1;
+        if (type <= 0) return;
+        vs_pickup *p = vs_pickup_make(g, x, y, VS_PICKUPS_WEAPON);
+        if (p) p->weapon_type = type;
+        vs_plat_log("map item: %s at (%.0f, %.0f)", o->type, x, y);
+        return;
+    }
+    int type = vs_pack_enum(g->pack, "pickups", &e) == 0 ? vs_enum_find_value(&e, o->type) : -1;
+    if (type < 0) return;
+    if (type == VS_PICKUPS_GEM) vs_pickup_make_gem(g, x, y, vs_map_object_prop(o, "value", 1));
+    else vs_pickup_make(g, x, y, type);
+    vs_plat_log("map item: %s at (%.0f, %.0f)", o->type, x, y);
+}
+
 int vs_stage_init(vs_game *g, int stage_enum) {
     vs_stage *s = &g->stage;
     memset(s, 0, sizeof *s);
@@ -128,6 +154,8 @@ int vs_stage_init(vs_game *g, int stage_enum) {
     if (s->has_tileset) {
         const char *map_key = vs_table_str(&s->table, row0->tileset_mapKey);
         vs_map m;
+        vs_rng map_rng;   /* the original rolls these with Math.random; a stream of its own keeps the run's randomness unchanged */
+        vs_rng_seed(&map_rng, g->seed ^ 0x6d61702dull);
         int mi = vs_pack_find(g->pack, "MAP", map_key);
         if (mi >= 0 && vs_pack_map(g->pack, mi, &m) == 0) {
             for (uint32_t gi2 = 0; gi2 < m.object_group_count; gi2++) {
@@ -139,6 +167,7 @@ int vs_stage_init(vs_game *g, int stage_enum) {
                     if (strcmp(gname, "Spawners") == 0 && s->spawner_count < 64) s->spawner_y[s->spawner_count++] = o.y;
                     if (strcmp(gname, "Destructibles") == 0 && s->destructible_count < 64) { s->destructible_x[s->destructible_count] = o.x; s->destructible_y[s->destructible_count++] = o.y; }
                     if (strcmp(gname, "Scripts") == 0 && strcmp(o.name, "PlayerStart") == 0) { s->start_x = o.x; s->start_y = o.y; }
+                    if (strcmp(gname, "Scripts") == 0 && (strcmp(o.name, "Weapon") == 0 || strcmp(o.name, "Item") == 0)) spawn_map_item(g, &o, &map_rng);
                 }
             }
         }

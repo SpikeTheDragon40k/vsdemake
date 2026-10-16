@@ -86,17 +86,18 @@ void vs_music_for_stage(vs_game *g) {
 static void sound_init(vs_game *g) {
     for (int i = 0; i < VS_SND_COUNT; i++) g->snd[i] = vs_audio_find(SND_KEYS[i]);
     vs_rng_seed(&g->audio_rng, 0x5eedu);
+    vs_rng_seed(&g->ui_rng, 0x7ea5u);
     vs_audio_set_volumes(g->save.sound_volume, g->save.music_volume);
 }
 
 int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed) {
-    int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes, unlock_all = g->unlock_all, show_gameover = g->show_gameover;
+    int auto_pick = g->auto_pick, menu_stage = g->menu_stage, debug_hitboxes = g->debug_hitboxes, unlock_all = g->unlock_all, show_gameover = g->show_gameover, show_chest = g->show_chest;
     int selected_character = g->selected_character;
     char save_path[sizeof g->save_path], audio_status[sizeof g->audio_status];
     memcpy(save_path, g->save_path, sizeof save_path);
     memcpy(audio_status, g->audio_status, sizeof audio_status);
     memset(g, 0, sizeof *g);
-    g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes; g->unlock_all = unlock_all; g->show_gameover = show_gameover;
+    g->auto_pick = auto_pick; g->menu_stage = menu_stage; g->debug_hitboxes = debug_hitboxes; g->unlock_all = unlock_all; g->show_gameover = show_gameover; g->show_chest = show_chest;
     g->selected_character = selected_character;
     memcpy(g->audio_status, audio_status, sizeof audio_status);
     g->pack = pack;
@@ -160,6 +161,8 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
 int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     g->paused = 0;
     g->quit_run = 0;
+    memset(&g->treasure, 0, sizeof g->treasure);
+    memset(&g->item_found, 0, sizeof g->item_found);
     memset(&g->player, 0, sizeof g->player);
     memset(g->enemies, 0, sizeof g->enemies);
     memset(g->weapons, 0, sizeof g->weapons);
@@ -242,6 +245,8 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
 void vs_game_update(vs_game *g, const vs_pad *pad) {
     if (g->screen != VS_SCREEN_GAME) { menu_update(g, pad); return; }
     if (g->paused) { vs_options_input(g, pad); return; }   /* the run is frozen */
+    if (g->treasure.active) { vs_treasure_ui_update(g, pad); return; }
+    if (g->item_found.active) { vs_item_found_update(g, pad); return; }
     if (g->game_over) {
         if (g->gameover_ms == 0) {
             vs_save_run_end(g);                       /* lifetime counters, achievements, save */
@@ -326,6 +331,10 @@ static const char *character_name(vs_game *g, int type, char *buf, size_t n) {
 /* Draws `frame` from the UI atlas stretched over (x, y, w, h) as a nine-slice
  * with corners of `c` px (the original's NineSlice configs). */
 void vs_ui_nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint) {
+    vs_ui_nine_slice_alpha(g, frame, x, y, w, h, cw, ch, tint, 255);
+}
+
+void vs_ui_nine_slice_alpha(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint, uint8_t alpha) {
     vs_frame f;
     if (vs_atlas_find(&g->atl_ui, frame, &f) != 0) return;
     /* whole pixels, or the stretched rows leave 1 px seams */
@@ -342,7 +351,7 @@ void vs_ui_nine_slice(vs_game *g, const char *frame, float x, float y, float w, 
             s.tex = g->textures[g->tex_ui];
             s.sx = (int16_t)sx[i]; s.sy = (int16_t)sy[j]; s.sw = (int16_t)sw[i]; s.sh = (int16_t)sh[j];
             s.dx = dx[i]; s.dy = dy[j]; s.scale_x = dw[i] / sw[i]; s.scale_y = dh[j] / sh[j];
-            s.tint = tint; s.alpha = 255;
+            s.tint = tint; s.alpha = alpha;
             vs_plat_draw(&s);
         }
     }
@@ -396,6 +405,55 @@ static int text_wrapped(float x, float y, float scale, uint32_t tint, const char
     return lines;
 }
 
+/* One choice panel of the level-up / item-found screens: icon in its frame,
+ * name, the new/level marker and the description. */
+static void choice_panel(vs_game *g, const char *name, const char *level, uint32_t level_tint, const char *desc,
+                         const char *frame, uint32_t bg_tint, float px, float py, float pw, float ph) {
+    nine_slice(g, "frame1_c2.png", px, py, pw, ph, 12, bg_tint);
+    vs_frame f;
+    if (vs_atlas_find(&g->atl_ui, "frameB.png", &f) == 0) {
+        vs_sprite s = {0};
+        s.tex = g->textures[g->tex_ui]; s.sx = (int16_t)f.x; s.sy = (int16_t)f.y; s.sw = (int16_t)f.w; s.sh = (int16_t)f.h;
+        s.dx = px + 4; s.dy = py + 4; s.scale_x = s.scale_y = 2; s.tint = 0xffffff; s.alpha = 255;
+        vs_plat_draw(&s);
+    }
+    if (frame && vs_atlas_find(&g->atl_items, frame, &f) == 0) {
+        vs_sprite s = {0};
+        s.tex = g->textures[g->tex_items]; s.sx = (int16_t)f.x; s.sy = (int16_t)f.y; s.sw = (int16_t)f.w; s.sh = (int16_t)f.h;
+        s.scale_x = s.scale_y = 2; s.tint = 0xffffff; s.alpha = 255;
+        /* centred on (28, 28) like the original, using the untrimmed size */
+        s.dx = px + 28 + (f.off_x - 0.5f * f.src_w) * 2; s.dy = py + 28 + (f.off_y - 0.5f * f.src_h) * 2;
+        vs_plat_draw(&s);
+    }
+    vs_text_draw(px + 64, py + 8, 2, 0xffffff, name);
+    vs_text_draw(px + 0.7f * pw, py + 8, 2, level_tint, level);
+    text_wrapped(px + 64, py + 28, 1.5f, 0xffffff, desc, pw - 64 - 10, 12, 3);
+}
+
+/* The panel for a weapon or passive: "NEW" or the level it would reach, and
+ * the description (for an upgrade: what that level adds). */
+void vs_ui_weapon_panel(vs_game *g, int type, float px, float py, float pw, float ph) {
+    const char *name = "?", *level = "", *desc = "", *frame = NULL;
+    uint32_t level_tint = 0xffffff, bg_tint = 0xffffff;
+    char level_buf[32];
+    int slot = vs_weapon_find(g, type);
+    int next = slot >= 0 ? g->weapons[slot].level : 0;   /* table index of the level offered */
+    vs_weapons_rec r0, rn;
+    if (vs_weapon_record(g, type, 0, &r0) == 0) {
+        if (VS_HAS(&r0, VS_WEAPONS_F_NAME)) name = vs_table_str(&g->weapons_table, r0.name);
+        if (VS_HAS(&r0, VS_WEAPONS_F_DESCRIPTION)) desc = vs_table_str(&g->weapons_table, r0.description);
+        if (VS_HAS(&r0, VS_WEAPONS_F_FRAMENAME)) frame = vs_table_str(&g->weapons_table, r0.frameName);
+        if (r0.isEvolution) bg_tint = 0xffff00;
+    }
+    if (next == 0) { level = vs_lang_get(&g->lang, "weapon_new", "NEW"); level_tint = 0xffff00; }
+    else {
+        snprintf(level_buf, sizeof level_buf, "%s%d", vs_lang_get(&g->lang, "weapon_level_", "LV "), next + 1);
+        level = level_buf;
+        if (vs_weapon_record(g, type, next, &rn) == 0 && VS_HAS(&rn, VS_WEAPONS_F_LEVELUPTEXT)) desc = vs_table_str(&g->weapons_table, rn.levelUpText);
+    }
+    choice_panel(g, name, level, level_tint, desc, frame, bg_tint, px, py, pw, ph);
+}
+
 /* Level-up screen laid out like the original's (menu frame, header, one
  * panel per choice: icon, name, new/level marker, what it does). Text comes
  * from the pack's LNG strings; the fallbacks here are our own wording. */
@@ -422,10 +480,8 @@ static void render_levelup(vs_game *g) {
     }
     for (int i = 0; i < lu->option_count; i++) {
         float py = top + ph * i + ph - 0.025f * bw;
-        const char *name = "?", *level = "", *desc = "", *frame = NULL;
-        uint32_t level_tint = 0xffffff, bg_tint = 0xffffff;
-        char level_buf[32];
         if (lu->items_mode) {
+            const char *name = "?", *desc = "", *frame = NULL;
             int gi = vs_table_find_group_enum(&g->pickups_table, lu->item_options[i]);
             if (gi >= 0) {
                 vs_group grp; vs_table_group(&g->pickups_table, (uint32_t)gi, &grp);
@@ -434,42 +490,8 @@ static void render_levelup(vs_game *g) {
                 if (VS_HAS(&r, VS_PICKUPS_F_DESCRIPTION)) desc = vs_table_str(&g->pickups_table, r.description);
                 if (VS_HAS(&r, VS_PICKUPS_F_FRAMENAME)) frame = vs_table_str(&g->pickups_table, r.frameName);
             }
-        } else {
-            int type = lu->options[i], slot = vs_weapon_find(g, type);
-            int next = slot >= 0 ? g->weapons[slot].level : 0;   /* table index of the level offered */
-            vs_weapons_rec r0, rn;
-            if (vs_weapon_record(g, type, 0, &r0) == 0) {
-                if (VS_HAS(&r0, VS_WEAPONS_F_NAME)) name = vs_table_str(&g->weapons_table, r0.name);
-                if (VS_HAS(&r0, VS_WEAPONS_F_DESCRIPTION)) desc = vs_table_str(&g->weapons_table, r0.description);
-                if (VS_HAS(&r0, VS_WEAPONS_F_FRAMENAME)) frame = vs_table_str(&g->weapons_table, r0.frameName);
-                if (r0.isEvolution) bg_tint = 0xffff00;
-            }
-            if (next == 0) { level = vs_lang_get(&g->lang, "weapon_new", "NEW"); level_tint = 0xffff00; }
-            else {
-                snprintf(level_buf, sizeof level_buf, "%s%d", vs_lang_get(&g->lang, "weapon_level_", "LV "), next + 1);
-                level = level_buf;
-                if (vs_weapon_record(g, type, next, &rn) == 0 && VS_HAS(&rn, VS_WEAPONS_F_LEVELUPTEXT)) desc = vs_table_str(&g->weapons_table, rn.levelUpText);
-            }
-        }
-        nine_slice(g, "frame1_c2.png", px, py, pw, ph, 12, bg_tint);
-        vs_frame f;
-        if (vs_atlas_find(&g->atl_ui, "frameB.png", &f) == 0) {
-            vs_sprite s = {0};
-            s.tex = g->textures[g->tex_ui]; s.sx = (int16_t)f.x; s.sy = (int16_t)f.y; s.sw = (int16_t)f.w; s.sh = (int16_t)f.h;
-            s.dx = px + 4; s.dy = py + 4; s.scale_x = s.scale_y = 2; s.tint = 0xffffff; s.alpha = 255;
-            vs_plat_draw(&s);
-        }
-        if (frame && vs_atlas_find(&g->atl_items, frame, &f) == 0) {
-            vs_sprite s = {0};
-            s.tex = g->textures[g->tex_items]; s.sx = (int16_t)f.x; s.sy = (int16_t)f.y; s.sw = (int16_t)f.w; s.sh = (int16_t)f.h;
-            s.scale_x = s.scale_y = 2; s.tint = 0xffffff; s.alpha = 255;
-            /* centred on (28, 28) like the original, using the untrimmed size */
-            s.dx = px + 28 + (f.off_x - 0.5f * f.src_w) * 2; s.dy = py + 28 + (f.off_y - 0.5f * f.src_h) * 2;
-            vs_plat_draw(&s);
-        }
-        vs_text_draw(px + 64, py + 8, 2, 0xffffff, name);
-        vs_text_draw(px + 0.7f * pw, py + 8, 2, level_tint, level);
-        text_wrapped(px + 64, py + 28, 1.5f, 0xffffff, desc, pw - 64 - 10, 12, 3);
+            choice_panel(g, name, "", 0xffffff, desc, frame, 0xffffff, px, py, pw, ph);
+        } else vs_ui_weapon_panel(g, lu->options[i], px, py, pw, ph);
         if (i == lu->selected) nine_slice(g, "selectionSquareActive_03.png", px - 4, py - 4, pw + 8, ph + 8, 7, 0xffffff);
     }
 }
@@ -616,6 +638,44 @@ static void render_hitboxes(vs_game *g, float cam_x, float cam_y) {
     outline(g, p->x + p->body_ox - p->body_r - cam_x, p->y + p->body_oy - p->body_r - cam_y, 2 * p->body_r, 2 * p->body_r, 0x00ffff);
 }
 
+/* Map bonus item (WEAPON pickup, line 1274): the item's icon floating 8 px
+ * up and down (1 s, Sine), a shadow spot that breathes with it, a glow
+ * whose colour cycles and fades in and out every 500 ms, and a puff of 10
+ * sparkles every 200 ms (falling, 100–400 ms). Additive glow drawn with
+ * plain alpha. */
+static float hash01(uint32_t v) { v ^= v >> 16; v *= 0x7feb352du; v ^= v >> 15; v *= 0x846ca68bu; v ^= v >> 16; return (v & 0xffffff) / 16777216.0f; }
+static void render_map_item(vs_game *g, const vs_pickup *pk, int index) {
+    const float t = pk->anim_ms, dy = g->player.y;
+    float s = 0.5f - 0.5f * cosf(3.14159265f * t / 1000.0f);   /* 0 → 1 → 0 over 2 s */
+    float y = pk->y - 8 * s;
+    vs_frame f;
+    if (vs_atlas_find(&g->atl_items, "ShadowSpot.png", &f) == 0)
+        vs_render_sprite(g, g->tex_items, &f, pk->x, pk->y, 0.5f, 0.5f, 1 - 0.25f * s, 0, 0, 0, 0xffffff, 128, pk->y - dy);
+    if (vs_atlas_find(&g->atl_vfx, "round.png", &f) == 0) {
+        float c = 0.1f * t / VS_TICK_MS;
+        uint32_t r = (uint32_t)(255 * fabsf(sinf(c))), gg = (uint32_t)(255 * fabsf(cosf(0.5f * c))), b = (uint32_t)(200 + 55 * fabsf(cosf(c)));
+        float a = 0.5f * (0.5f + 0.5f * cosf(3.14159265f * t / 500.0f));
+        vs_render_sprite(g, g->tex_vfx, &f, pk->x, y, 0.5f, 0.5f, 1, 0, 0, 0, (r << 16) | (gg << 8) | b, (uint8_t)(255 * a), pk->y - dy);
+    }
+    vs_weapons_rec rec;
+    if (vs_weapon_record(g, pk->weapon_type, 0, &rec) == 0 && VS_HAS(&rec, VS_WEAPONS_F_FRAMENAME) &&
+        vs_atlas_find(&g->atl_items, vs_table_str(&g->weapons_table, rec.frameName), &f) == 0)
+        vs_render_sprite(g, g->tex_items, &f, pk->x, y, 0.5f, 0.5f, 1, 0, 0, 0, 0xffffff, 255, 9 + pk->y - dy);
+    for (int burst = 0; burst < 2; burst++) {
+        int b = (int)(t / 200) - burst;
+        if (b < 0) continue;
+        float age = t - b * 200.0f;
+        for (int k = 0; k < 10; k++) {
+            uint32_t seed = (uint32_t)index * 7919u + (uint32_t)b * 104729u + (uint32_t)k * 31u;
+            float life = 100 + 300 * hash01(seed), ang = 3.14159265f * hash01(seed + 1), sp = 25 + 25 * hash01(seed + 2);
+            if (age >= life) continue;
+            if (vs_atlas_find(&g->atl_vfx, hash01(seed + 3) < 0.5f ? "PfxColor1.png" : "PfxColor2.png", &f) != 0) continue;
+            vs_render_sprite(g, g->tex_vfx, &f, pk->x + cosf(ang) * sp * age / 1000.0f, y + sinf(ang) * sp * age / 1000.0f, 0.5f, 0.5f, 1, 0, 0, 0,
+                             0xffffff, (uint8_t)(255 * (1 - age / life)), 10 + pk->y - dy);
+        }
+    }
+}
+
 /* Bird bolt trail: the original's Rope of a small gradient texture along the
  * bolt's last 24 positions (one per frame). Drawn as 24 strips along the
  * flight curve, each with its share of the texture's columns (head first);
@@ -695,6 +755,7 @@ void vs_game_render(vs_game *g) {
             int gi = vs_table_find_group_enum(&g->pickups_table, pk->type);
             if (gi >= 0) { vs_group grp; vs_table_group(&g->pickups_table, (uint32_t)gi, &grp); vs_pickups_rec r; vs_table_record(&g->pickups_table, grp.first, &r); if (VS_HAS(&r, VS_PICKUPS_F_FRAMENAME)) fname = vs_table_str(&g->pickups_table, r.frameName); }
         }
+        if (pk->type == VS_PICKUPS_WEAPON) { render_map_item(g, pk, (int)i); continue; }
         vs_frame f;
         if (vs_atlas_find(&g->atl_items, fname, &f) != 0) continue;
         float depth = pk->type == VS_PICKUPS_GEM ? pk->y - p->y - g->logical_h : 9 + pk->y - p->y;
@@ -834,6 +895,8 @@ void vs_game_render(vs_game *g) {
     if (g->debug_hitboxes) render_hitboxes(g, cam_x, cam_y);
     render_hud(g);
     if (g->levelup.pending) render_levelup(g);
+    if (g->treasure.active) vs_treasure_ui_render(g);
+    if (g->item_found.active) vs_item_found_render(g);
     if (g->paused) vs_options_render(g);
     vs_plat_end_frame();
 }

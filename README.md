@@ -48,6 +48,14 @@ on Steam and supply the supported game files yourself.
   game's own English strings when the pack is made.
 - **Pickups:** gems, gold, coin bags, Floor Chicken, hearts, Vacuum,
   Rosary, Orologion and treasure chests.
+- **Treasure chests:** the original's opening screen: press OPEN, the chest
+  bursts open with coins, ribbons and reels of item icons, the gold counter
+  ticks up, the prizes pop in, then DONE. Experienced players can skip the
+  animation with B, as in the original.
+- **Map bonus items:** the passives hidden far out on the Mad Forest and
+  Inlaid Library maps (Might, Luck, Max Health, Recovery, Greed,
+  Cooldown) appear by chance (Luck helps); picking one up opens the
+  "Weapon Found!" screen to take or leave it.
 - **Saves and unlocks:** gold, lifetime totals, the original's 40
   achievements, unlocked items, characters and stages (see
   [Saves and unlocks](#saves-and-unlocks)).
@@ -275,7 +283,9 @@ entry of the title menu. Changes are saved when the screen closes.
 | `--hitboxes` | Draw collision overlays |
 | `--menu` | Stay on the title screen in headless mode |
 | `--give NAME[:LEVEL]` | Add an item at startup; repeatable |
-| `--chest` | Open a treasure chest immediately |
+| `--chest [LEVEL]` | Open a treasure chest (level 1–3) immediately |
+| `--show-chest` | In headless runs, still play the chest and item-found screens (pressing their buttons by itself) |
+| `--map-item NAME` | Put a map bonus item (e.g. `POWER`, `LUCK`) next to the player |
 | `--unlock-all` | Make every implemented item, character and stage available, ignoring the save |
 | `--save PATH` | Use this save file (headless runs do not save without it) |
 | `--level N` | Start the run at player level N |
@@ -332,8 +342,9 @@ The implementation is incomplete. Known gaps include:
   gold only accumulates.
 - Weapons not implemented yet: Pentagram, Clock Lancet, Laurel and Bone. They are never offered, and the
   characters who start with them are not listed.
-- Some enemy behaviours (exploding enemies and their sounds) and the
-  treasure-chest opening animation are missing.
+- Some enemy behaviours (exploding enemies and their sounds) are missing.
+- The chest screen leaves out the level-3 fireworks and the background
+  bubbles, and glowing effects use plain transparency.
 - The interface uses a simple built-in font, not the original's.
 - The libxenon build has no sound.
 - Xbox 360 sound and performance validation are ongoing.
