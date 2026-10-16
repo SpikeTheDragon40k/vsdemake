@@ -157,11 +157,23 @@ void vs_enemy_get_damaged(vs_game *g, vs_enemy *e, float dmg, int hit_type, floa
     if (dmg >= 10000) vs_player_get_damaged(g, 9);
 }
 
+/* Freeze (line 4483, Clock Lancet): ignored when res_Freeze is above the
+ * power or the enemy is already stopped; a new freeze replaces the timer. */
+void vs_enemy_freeze(vs_game *g, vs_enemy *e, float ms, float power) {
+    (void)g;
+    if (e->res_Freeze > power || e->time_stopped) return;
+    e->freeze_ms = ms;
+    e->time_stopped = 1;
+    e->speed = 0;
+    e->vx = e->vy = 0;
+}
+
 void vs_enemy_time_stop_all(vs_game *g, int stopped) {
     g->time_stopped = stopped;
     for (int i = 0; i < g->enemy_count; i++) {
         vs_enemy *e = &g->enemies[i];
         if (!e->active) continue;
+        e->freeze_ms = 0;   /* TimeStop replaces a freeze */
         e->time_stopped = stopped;
         e->speed = stopped ? 0 : e->default_speed;
         if (stopped) e->vx = e->vy = 0;
@@ -188,6 +200,10 @@ static void update_one(vs_game *g, vs_enemy *e) {
     if (e->blink_ms > 0) {
         e->blink_ms -= VS_TICK_MS;
         if (e->blink_ms <= 0) { e->blink_ms = 0; e->receiving_damage = 0; }
+    }
+    if (e->freeze_ms > 0) {   /* ResumeFromFreeze when the freeze runs out */
+        e->freeze_ms -= VS_TICK_MS;
+        if (e->freeze_ms <= 0) { e->freeze_ms = 0; e->time_stopped = 0; e->speed = e->default_speed; }
     }
     if (e->time_stopped) return;
     if (!e->fixed_direction || (e->dir_x == 0 && e->dir_y == 0)) {

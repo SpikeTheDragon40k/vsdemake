@@ -279,3 +279,16 @@ resume in a fresh session).
   ranks), refund, character purchase (10, then 110 / 550 with the markup),
   stats applied at run start (Might 1.25, Armor 3, Max HP 133, magnet 47);
   hash of runs without a save unchanged; ASan/UBSan clean; C++03 clean.
+
+## 2026-10-16: Bone, Clock Lancet, Laurel, Pentagram
+
+- The last four weapons of 0.2.10 (`notes/behaviour/weapons.md`): Bone
+  (bouncing), Clock Lancet (turning freeze line; new per-enemy freeze),
+  Laurel (shield charges with the coloured ring), Pentagram (screen wipe:
+  erase or kill, shattering picture, flash, PentagramSFX).
+- Every weapon of the version is now in the game; Mortaccio (Bone) can be
+  listed once unlocked.
+- Checks: recorded all four (and a Pentagram wipe at 1:30 with a crowd:
+  enemies and gems gone, kills unchanged); bird-less/weapon-less hash
+  unchanged; ASan/UBSan clean (including a long unlock-all auto run);
+  C++03 clean.

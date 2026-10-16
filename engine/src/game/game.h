@@ -76,6 +76,7 @@ typedef struct {
     int sd_triggered;
     float more_x, more_y;
     int cullable, teleport_on_cull, time_stopped, receiving_damage;
+    float freeze_ms;        /* Clock Lancet freeze left (time_stopped while > 0) */
     float blink_ms;         /* > 0 while blinking */
     int treasure_row;       /* stage row index whose treasure is attached, or -1 */
     int from_event;         /* counted in eventSpawned */
@@ -110,6 +111,9 @@ typedef struct {
     int target_uid;         /* Fire Wand: random target picked at Fire */
     float heal_cd_ms;       /* Bloody Tear: heal on crit at most once per 1000 ms */
     float recovered_bonus;  /* Soul Eater: min(6, recovered HP / 600), taken at Fire */
+    /* Clock Lancet: direction step (of 12) and the last shot's streak */
+    int lancet_ticks; float lancet_angle, lancet_x, lancet_y, lancet_ms;
+    float flash_ms;         /* Pentagram: time since the screen flash (< 0: none) */
     /* Peachone / Ebony Wings / Vandalier: the bird, the circling zone(s) and
      * the points the next volley aims at (notes/behaviour/weapons.md) */
     float bird_x, bird_y, bird_dx, bird_dy; int bird_flip;
@@ -276,6 +280,7 @@ enum {
     VS_SND_ROSARY, VS_SND_OROLOGION, VS_SND_WHIP, VS_SND_MAGICMISSILE, VS_SND_SHOT, VS_SND_HOLYWATER,
     VS_SND_LIGHTNING, VS_SND_LEVELUP, VS_SND_CLICKIN, VS_SND_CLICKOUT, VS_SND_THINGFOUND,
     VS_SND_TREASURE1, VS_SND_TREASURE2, VS_SND_TREASURE3, VS_SND_BGM_INTRO, VS_SND_BGM_GAMEOVER,
+    VS_SND_PENTAGRAM,
     VS_SND_COUNT
 };
 
@@ -407,6 +412,7 @@ void vs_enemies_update(vs_game *g);
 void vs_enemies_cull_step(vs_game *g);
 int vs_enemies_permanent(const vs_game *g);
 void vs_enemy_time_stop_all(vs_game *g, int stopped);
+void vs_enemy_freeze(vs_game *g, vs_enemy *e, float ms, float power);
 vs_enemy *vs_enemy_closest_to_player(vs_game *g);
 
 /* stage */
