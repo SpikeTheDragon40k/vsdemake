@@ -85,7 +85,7 @@ static int fatal_screen(const char *msg) {
 #endif
 
 static int vs_main(int argc, char **argv) {
-    const char *map_item = NULL;
+    const char *map_item = NULL, *drop = NULL;
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL, *record_dir = NULL, *save_arg = NULL, *audio_dump_path = NULL;
     int mute = 0;
     int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, unlock_all = 0, show_gameover = 0, show_chest = 0, start_level = 0, give_count = 0, chest = 0, show_levelup = 0;
@@ -102,6 +102,7 @@ static int vs_main(int argc, char **argv) {
         else if (strcmp(argv[i], "--show-gameover") == 0) show_gameover = 1;
         else if (strcmp(argv[i], "--show-chest") == 0) show_chest = 1;
         else if (strcmp(argv[i], "--map-item") == 0 && i + 1 < argc) map_item = argv[++i];
+        else if (strcmp(argv[i], "--drop") == 0 && i + 1 < argc) drop = argv[++i];
         else if (strcmp(argv[i], "--level") == 0 && i + 1 < argc) start_level = atoi(argv[++i]);
         else if (strcmp(argv[i], "--save") == 0 && i + 1 < argc) save_arg = argv[++i];
         else if (strcmp(argv[i], "--chest") == 0) { chest = 1; if (i + 1 < argc && argv[i + 1][0] >= '1' && argv[i + 1][0] <= '3' && !argv[i + 1][1]) chest = argv[++i][0] - '0'; }
@@ -224,6 +225,12 @@ static int vs_main(int argc, char **argv) {
         int type = vs_pack_enum(&pack, "weapons", &we) == 0 ? vs_enum_find_value(&we, map_item) : -1;
         vs_pickup *p = type > 0 ? vs_pickup_make(&game, game.player.x, game.player.y + 60, VS_PICKUPS_WEAPON) : NULL;
         if (p) p->weapon_type = type; else fprintf(stderr, "--map-item: unknown item %s\n", map_item);
+    }
+    /* dev aid: --drop NAME puts a pickup (e.g. NFT, ROAST, VACUUM) 40 px below the player */
+    if (drop && game.screen == VS_SCREEN_GAME) {
+        vs_enum pe;
+        int type = vs_pack_enum(&pack, "pickups", &pe) == 0 ? vs_enum_find_value(&pe, drop) : -1;
+        if (type <= 0 || !vs_pickup_make(&game, game.player.x, game.player.y + 40, type)) fprintf(stderr, "--drop: unknown pickup %s\n", drop);
     }
     /* dev aid: --level N starts the run at player level N */
     if (start_level > 1 && game.screen == VS_SCREEN_GAME) { game.player.level = start_level; vs_levelup_calculate_xp_factor(&game); game.player.xp = game.levelup.previous_xp_factor; }

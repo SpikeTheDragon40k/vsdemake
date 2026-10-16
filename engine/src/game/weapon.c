@@ -64,7 +64,7 @@ int vs_weapon_implemented(int type) {
     case VS_WEAPONS_FIREBALL: case VS_WEAPONS_HELLFIRE: case VS_WEAPONS_GARLIC: case VS_WEAPONS_VORTEX:
     case VS_WEAPONS_HOLYWATER: case VS_WEAPONS_DIAMOND: case VS_WEAPONS_LIGHTNING:
     case VS_WEAPONS_SILF: case VS_WEAPONS_SILF2: case VS_WEAPONS_SILF3:
-    case VS_WEAPONS_BONE: case VS_WEAPONS_LANCET: case VS_WEAPONS_LAUREL:
+    case VS_WEAPONS_BONE: case VS_WEAPONS_LANCET: case VS_WEAPONS_LAUREL: case VS_WEAPONS_NDUJA:
         return 1;
     default: return 0;
     }
@@ -445,6 +445,18 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
         b->angle = 360 * vs_rng_f32(&g->rng);
         break;
     }
+    case VS_WEAPONS_NDUJA: {
+        /* bullet 1e8f43: a puff of fire 24 px above the player, thrown the
+         * way the player faces, spread by 100 px/s × (sin, cos) of its index;
+         * it grows to 16 × PArea and fades in 400 ms (its hit circle grows
+         * with it); sound Fireloop */
+        b->y = p->y - 24;
+        aim_player_facing(g, b, true_speed(g, w, 1.0f));
+        b->vx += 100 * sinf((float)index); b->vy += 100 * cosf((float)index);
+        b->scale = 0; b->body_r = 0.01f; b->cullable = 0; b->state = (int)vs_rng_below(&g->ui_rng, 3);
+        vs_sfx(g, VS_SND_FIRELOOP, 1, -100.0f * index, 2, 200, 1);
+        break;
+    }
     case VS_WEAPONS_LANCET:
         /* bullet 3764: invisible, radius 32, 50 px × (1 + index) along the
          * direction, gone after 20 ms; freezes what it touches */
@@ -536,6 +548,7 @@ void vs_weapons_update(vs_game *g) {
         if (w->heal_cd_ms > 0) w->heal_cd_ms -= VS_TICK_MS;
         if (is_bird(w->type)) bird_update(g, w);
         if (w->lancet_ms >= 0) w->lancet_ms += VS_TICK_MS;
+        if (w->hidden && (w->hidden_left_ms -= VS_TICK_MS) <= 0) { vs_weapon_remove(g, w->type); continue; }
     }
 }
 
@@ -695,6 +708,14 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
     case VS_WEAPONS_LANCET:
         if (b->age_ms >= 20) { b->active = 0; return; }
         break;
+    case VS_WEAPONS_NDUJA: {
+        float k = b->age_ms / 400.0f;
+        if (k >= 1) { b->active = 0; return; }
+        b->scale = 16.0f * area * k;
+        b->body_r = b->scale > 0.01f ? b->scale : 0.01f;
+        b->alpha = (uint8_t)(255 * (1 - k));
+        break;
+    }
     case VS_WEAPONS_LIGHTNING:
         if (b->state == 0) {
             float t = b->age_ms / 70.0f;

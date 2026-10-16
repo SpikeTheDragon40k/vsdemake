@@ -137,6 +137,17 @@ static void get_taken(vs_game *g, vs_pickup *p) {
     case VS_PICKUPS_TREASURE:
         vs_treasure_open(g, p->treasure_level, p->treasure_row);
         break;
+    case VS_PICKUPS_NFT: {
+        /* Nduja Fritta (line 1330): the hidden fire weapon for 10 s ×
+         * duration; another one restarts the time */
+        int slot = vs_weapon_find(g, VS_WEAPONS_NDUJA);
+        if (slot < 0) {
+            slot = vs_weapon_add(g, VS_WEAPONS_NDUJA, 0);
+            if (slot >= 0) g->weapons[slot].hidden = 1;
+        }
+        if (slot >= 0) g->weapons[slot].hidden_left_ms = 10000.0f * pl->duration;
+        break;
+    }
     case VS_PICKUPS_WEAPON:
         /* map bonus item: the item-found screen offers it (take / leave);
          * headless runs take it */

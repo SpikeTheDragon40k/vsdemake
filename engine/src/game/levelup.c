@@ -23,7 +23,7 @@ void vs_levelup_calculate_xp_factor(vs_game *g) {
 
 static int owned_count(const vs_game *g, int power_up) {
     int n = 0;
-    for (int i = 0; i < VS_MAX_WEAPONS; i++) if (g->weapons[i].active && g->weapons[i].is_power_up == power_up) n++;
+    for (int i = 0; i < VS_MAX_WEAPONS; i++) if (g->weapons[i].active && !g->weapons[i].hidden && g->weapons[i].is_power_up == power_up) n++;
     return n;
 }
 
@@ -236,7 +236,7 @@ int vs_levelup_pull_existing(vs_game *g, int include_passives) {
     vs_levelup *lu = &g->levelup;
     int types[VS_MAX_WEAPONS]; float ws[VS_MAX_WEAPONS]; int n = 0; float acc = 0;
     for (int i = 0; i < VS_MAX_WEAPONS; i++) {
-        if (!g->weapons[i].active) continue;
+        if (!g->weapons[i].active || g->weapons[i].hidden) continue;
         int type = g->weapons[i].type;
         if (lu->excluded[type]) continue;
         vs_weapons_rec r; int gi = vs_table_find_group_enum(&g->weapons_table, type);

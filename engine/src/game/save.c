@@ -143,7 +143,7 @@ static void check_achievements(vs_game *g) {
     if (owned_level(g, VS_WEAPONS_DIAMOND) >= 7) unlock_achievement(g, VS_ACHIEVEMENTS_GETRUNETRACERTOLEVEL7);
     if (owned_level(g, VS_WEAPONS_GARLIC) >= 7 || owned_level(g, VS_WEAPONS_VORTEX)) unlock_achievement(g, VS_ACHIEVEMENTS_GETGARLICTOLEVEL7);
     int owned = 0;
-    for (int i = 0; i < VS_MAX_WEAPONS; i++) owned += g->weapons[i].active;
+    for (int i = 0; i < VS_MAX_WEAPONS; i++) owned += g->weapons[i].active && !g->weapons[i].hidden;
     if (owned >= 6) unlock_achievement(g, VS_ACHIEVEMENTS_HAVE6DIFFERENTWEAPONS);
     if (sv->lifetime_heal >= 1000) unlock_achievement(g, VS_ACHIEVEMENTS_RECOVER1000HP);
     if (g->coins >= 5000) unlock_achievement(g, VS_ACHIEVEMENTS_EARN5000COINSINASINGLERUN);
