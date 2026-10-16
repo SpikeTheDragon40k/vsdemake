@@ -265,3 +265,17 @@ resume in a fresh session).
 - Checks: chest screens of all levels and the item-found screen recorded;
   headless runs (screens skipped) keep their state hashes; ASan/UBSan
   clean; C++03 clean.
+
+## 2026-10-16: shop
+
+- PowerUp selection screen (`engine/src/game/shop.c`, `notes/behaviour/shop.md`):
+  14 power-ups with ranks, the original's prices (rank and global markup),
+  buy, refund (gold = lifetime gold); ranks applied at run start.
+- Characters must be bought at the character select (price × markup,
+  paid from gold and lifetime gold). Note for existing saves: characters
+  unlocked earlier now need buying once.
+- Save keys `powerup.<id>` and `bought_character`. Title menu gains POWER UP.
+- Checks: prices against the formula (720 then 1560 for Armor with 2 Might
+  ranks), refund, character purchase (10, then 110 / 550 with the markup),
+  stats applied at run start (Might 1.25, Armor 3, Max HP 133, magnet 47);
+  hash of runs without a save unchanged; ASan/UBSan clean; C++03 clean.

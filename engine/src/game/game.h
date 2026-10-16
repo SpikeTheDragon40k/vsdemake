@@ -258,7 +258,7 @@ typedef struct {
     char frame[32];
 } vs_fx;
 
-enum { VS_SCREEN_TITLE = 0, VS_SCREEN_SELECT, VS_SCREEN_GAME, VS_SCREEN_GAMEOVER, VS_SCREEN_OPTIONS };
+enum { VS_SCREEN_TITLE = 0, VS_SCREEN_SELECT, VS_SCREEN_GAME, VS_SCREEN_GAMEOVER, VS_SCREEN_OPTIONS, VS_SCREEN_POWERUP };
 
 /* ---- tilemap (notes/behaviour/stage-map.md) */
 typedef struct {
@@ -289,6 +289,8 @@ typedef struct {
     uint8_t achieved[VS_ACHIEVEMENTS_COUNT];
     uint8_t weapon_unlocked[VS_WEAPONS_COUNT], weapon_seen[VS_WEAPONS_COUNT];
     uint8_t char_unlocked[VS_CHARACTERS_COUNT];
+    uint8_t char_bought[VS_CHARACTERS_COUNT];          /* bought at the character select (BoughtCharacters) */
+    uint32_t powerup_level[VS_WEAPONS_COUNT];           /* PowerUp ranks bought (BoughtPowerups) */
     uint8_t stage_unlocked[VS_STAGES_COUNT], hyper_unlocked[VS_STAGES_COUNT];
     uint8_t item_seen[VS_PICKUPS_COUNT];
     uint32_t kills[VS_ENEMIES_COUNT], pickups[VS_PICKUPS_COUNT], destroyed[VS_DESTRUCTIBLES_COUNT];
@@ -345,7 +347,9 @@ typedef struct {
     float recovered_hp;     /* HP actually recovered (Soul Eater's onHPRecoveryCallback) */
     int screen;             /* VS_SCREEN_* */
     int menu_sel, menu_stage, menu_char_list[16], menu_char_count;
-    int title_sel;          /* title menu: 0 start, 1 options */
+    int title_sel;          /* title menu: 0 start, 1 power up, 2 options */
+    int shop_sel;           /* power-up screen: panel index, -1 = refund button */
+    float shop_msg_ms; char shop_msg[64];   /* short notice ("not enough gold") */
     /* pause / options screen (options.c) */
     int paused;             /* run paused, options screen shown over it */
     int opt_sel, opt_btn;   /* selected row; on the button row, which button */
@@ -357,6 +361,7 @@ typedef struct {
     uint32_t prev_buttons;
 
     vs_table enemies_table, characters_table, hitvfx_table, weapons_table, pickups_table, destructibles_table;
+    vs_table powerups_table;
 
     /* render resources */
     vs_texture *textures[VS_MAX_TEXTURES];
@@ -515,6 +520,16 @@ void vs_render_sprite(vs_game *g, int tex, const vs_frame *f, float x, float y, 
 void vs_render_stretched(vs_game *g, int tex, const vs_frame *f, float cx, float cy, float w, float h,
                          float angle, uint32_t tint, uint8_t alpha, float depth);
 void vs_render_end(vs_game *g);
+
+/* shop.c: PowerUp selection and character purchase */
+void vs_shop_open(vs_game *g);
+void vs_shop_input(vs_game *g, const vs_pad *pad);
+void vs_shop_render(vs_game *g);
+void vs_powerups_apply(vs_game *g);
+float vs_powerup_markup(const vs_game *g);
+int vs_char_bought(const vs_game *g, int c);
+double vs_char_price(const vs_game *g, int c);
+int vs_char_buy(vs_game *g, int c);
 
 /* options.c: pause screen (in a run) and options screen (from the title) */
 void vs_options_open(vs_game *g);
