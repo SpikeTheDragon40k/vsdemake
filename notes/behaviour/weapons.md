@@ -192,3 +192,65 @@ only changes where the bolt is drawn in flight), the trail is drawn as 24
 strips along the curve, the circle outline as dots, plain alpha instead of
 additive blend; the hit circle is centred on the bolt (the original's is
 offset by 2.5 px × scale).
+
+## Bone (BONE; default weapon class, bullet 3693)
+
+- Fire: PAmount bullets at once. Each aims at a random enemy
+  (`AimForRandomEnemy`: towards it, or the facing direction without
+  enemies) at TrueSpeed, spinning (360° per s), scale 0.5 × PArea, circle
+  radius 8 × scale; sound Shot 0.45, −100 × index cents, 200 ms / 10.
+- Bounces: on the WorldBoxCollider (screen-sized box around the player) and
+  on walls (velocity flipped on the axis it hit), each time clearing its hit
+  list. Hitting an enemy that survives sends it straight back (velocity
+  × −1) and clears the list.
+- After PDuration it shrinks to 0 in 500 ms and despawns.
+
+## Clock Lancet (LANCET; weapon 5619, bullet 3764)
+
+- PAmount is always 6; power 0 (no damage), "ignores power, speed, amount,
+  area".
+- 12 directions (2π × k / 12); `ticks` starts at 8 and steps by one per
+  Fire, so the line turns 30° each shot.
+- Fire: a streak (`Pierce1–5`, 30 fps, origin (0, 0.5), scale 2 × 1, tint
+  0xcceeff, alpha 1 then fading from 200 to 700 ms) at the player along the
+  direction, and 6 invisible bullets at the player + 50 × (1 + index) along
+  it: circle radius 16 × 2, gone after 20 ms.
+- Hit (enemy alive): `Freeze(PDuration, 1)`: ignored if `res_Freeze` > 1
+  or the enemy is already stopped; otherwise speed 0, tinted blue, until the
+  timer ends (a new freeze replaces it). The Orologion's time stop cancels
+  freezes. Hit VFX TIMEFREEZE.
+
+## Laurel (LAUREL; weapon 5562)
+
+- PAmount 1; `maxCharges` 3; `charges` from the table (1, 2 at level 4, 3
+  at level 7). Fire (also right after it is obtained): +1 player shield if
+  shields < charges and < 3. No bullet.
+- A rank with `shieldInvulTime` adds it to the player's (base 240 ms).
+- Player damage with a shield up: a shield is spent instead, the player
+  blinks pale yellow for shieldInvulTime and is invulnerable meanwhile
+  (player GetDamaged, line 409).
+- Look: `Shockwave2` at the player (16 px up), scale 1.25, alpha 0.3 ↔ 0.6
+  (2 s), turning once in 12 s, tinted by the shields (1 0x8888ff, 2
+  0x88ff88, 3 0xffff00), hidden with none.
+
+## Pentagram (PENTAGRAM; weapon 5737, bullet 4045)
+
+- Interval 90 s (−10 s at levels 2, 4 and 6); fires 100 ms after it is
+  obtained (MakeLevelOne) and, like every weapon, on each level-up. One
+  bullet whatever the amount. `chance` 0.1, +0.15, +0.2, +0.2.
+- Fire: a white screen flash (alpha 0 → 0.5 → 0 in 200 ms, flashing VFX
+  only); sound PentagramSFX 0.9, rate 2.
+- `bad = random() × (1 / luck) > chance` (usually true). 100 ms later every
+  enemy in containmentRect_Screen (0.6 × screen around the player) without
+  `res_Rosary`: bad → `Disappear()` (dead, death animation, no gem, no kill
+  counted); else `GetDamaged(max(66, maxHp))` (a normal kill with drops).
+  Bad also despawns the pickups and destructibles in that rectangle.
+- Look: a picture 0.8 × the short screen side at the player, over
+  everything: a disc (radius 7/16 of that; bad 0x550044 alpha 0.5, good
+  0x0000ee alpha 0.35), `outer0`, the outer ring (`outer1`, `outer2` from
+  level 3, `outer3` from 6), the inner star (`inner1`, `inner2` from 4,
+  `inner3` from 7) and `center`, filled white-yellow; it shatters into
+  pieces that fly apart, turn ±90° and fade over 1 s after 150 ms.
+
+Demake: Pentagram's pieces are 4 × 4 tiles per layer instead of triangles,
+layers tinted rather than filled.

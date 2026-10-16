@@ -35,7 +35,8 @@ on Steam and supply the supported game files yourself.
   unlock is earned. Characters whose starting weapon is not implemented yet
   are not listed.
 - **Weapons:** Whip, Magic Wand, Knife, Axe, Cross, King Bible, Fire Wand,
-  Garlic, Santa Water, Runetracer, Lightning Ring, Peachone and Ebony Wings.
+  Garlic, Santa Water, Runetracer, Lightning Ring, Peachone, Ebony Wings,
+  Pentagram, Clock Lancet, Laurel and Bone: every weapon of this version.
 - **Evolutions:** Bloody Tear, Holy Wand, Thousand Edge, Death Spiral,
   Heaven Sword, Unholy Vespers, Hellfire, Soul Eater and Vandalier (the
   union of Peachone and Ebony Wings). They come from
@@ -343,8 +344,6 @@ Do not include it in a shared executable package.
 
 The implementation is incomplete. Known gaps include:
 
-- Weapons not implemented yet: Pentagram, Clock Lancet, Laurel and Bone. They are never offered, and the
-  characters who start with them are not listed.
 - Some enemy behaviours (exploding enemies and their sounds) are missing.
 - The chest screen leaves out the level-3 fireworks and the background
   bubbles, and glowing effects use plain transparency.
