@@ -66,5 +66,24 @@ Weapon/Item script objects spawn once at start, at
 luck` (lines 4967, 5010). The `xMultiplier` values of ±5..10 place them
 several map-copies away, i.e. far from the start.
 
+- The object's `type` is the item's id string: for `Weapon` an entry of
+  the weapons enum by value (`POWER` is Might's id), for `Item` a pickup
+  (`GEM` makes a gem whose experience is the `value` property). No
+  `chance` property → always placed.
+- Mad Forest: 9 Might/Luck/Max Health/Recovery items, chances 0.1–0.5;
+  Inlaid Library: Greed (always), 4 × Cooldown (0.2–0.5) and a 5-xp gem.
+- `Weapon` objects become WEAPON pickups (line 1274): stationary (the
+  magnet does not pull them), floating 8 px up and down (1 s, Sine), a
+  shadow spot breathing 1 ↔ 0.75, a glow (`round.png`, additive, alpha
+  0.5 ↔ 0 every 500 ms) whose tint cycles (r = |sin c|, g = |cos c/2|,
+  b = 200 + 55 |cos c|, c += 0.1 per frame), 10 sparkles every 200 ms.
+- Taken: the item-found scene (line 11333): the game pauses, music fades
+  to 0.2, LevelUp sound (1.25, +1000 cents), yellow burst, header
+  `newItem_header`, the item's level-up panel sliding in, buttons
+  `newItem_get` / `newItem_discard` (usable after 500 ms), confetti rising
+  from the bottom. Get: `LevelWeaponUp(item)`, weights recalculated,
+  ClickIn. Discard: ClickOut. Either way the item is gone and the music
+  goes back to 0.3.
+
 Enemy and bullet pools collide with the three collision layers of all four
 copies; enemies with `passThroughWalls` do not.
