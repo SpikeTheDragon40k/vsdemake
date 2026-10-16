@@ -110,6 +110,12 @@ typedef struct {
     int target_uid;         /* Fire Wand: random target picked at Fire */
     float heal_cd_ms;       /* Bloody Tear: heal on crit at most once per 1000 ms */
     float recovered_bonus;  /* Soul Eater: min(6, recovered HP / 600), taken at Fire */
+    /* Peachone / Ebony Wings / Vandalier: the bird, the circling zone(s) and
+     * the points the next volley aims at (notes/behaviour/weapons.md) */
+    float bird_x, bird_y, bird_dx, bird_dy; int bird_flip;
+    float zone_total_ms, zone_angle_ms; int zone_block;
+    float zone_x[2], zone_y[2];          /* drawn target circles (lag the damage zones) */
+    float tgt[24][2]; int tgt_n, tgt_i;
 } vs_weapon;
 
 typedef struct {
@@ -375,6 +381,10 @@ int vs_weapon_add(vs_game *g, int type, int from_levelup);
 int vs_weapon_find(const vs_game *g, int type);
 /* 1 if the demake has this weapon's own behaviour (others fall back to a plain shot) */
 int vs_weapon_implemented(int type);
+/* Peachone / Ebony Wings / Vandalier helpers (weapon.c), used for drawing */
+float vs_bird_ray_ms(int type);
+float vs_bird_zone_radius(void);
+void vs_bird_curve(const vs_bullet *b, float t, float *x, float *y);
 /* sound (game.c): the original's PlaySound with this game's sound ids */
 void vs_sfx(vs_game *g, int snd, float volume, float detune, float rate, float delay_ms, int max_instances);
 float vs_sfx_random(vs_game *g);

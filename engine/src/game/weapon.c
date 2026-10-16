@@ -61,6 +61,7 @@ int vs_weapon_implemented(int type) {
     case VS_WEAPONS_CROSS: case VS_WEAPONS_HEAVENSWORD: case VS_WEAPONS_HOLYBOOK: case VS_WEAPONS_VESPERS:
     case VS_WEAPONS_FIREBALL: case VS_WEAPONS_HELLFIRE: case VS_WEAPONS_GARLIC: case VS_WEAPONS_VORTEX:
     case VS_WEAPONS_HOLYWATER: case VS_WEAPONS_DIAMOND: case VS_WEAPONS_LIGHTNING:
+    case VS_WEAPONS_SILF: case VS_WEAPONS_SILF2: case VS_WEAPONS_SILF3:
         return 1;
     default: return 0;
     }
@@ -122,6 +123,7 @@ int vs_weapon_add(vs_game *g, int type, int from_levelup) {
         for (uint32_t i = 0; i < n; i++) vs_weapon_remove(g, vs_list_i32(items, i));
     }
     if (type == VS_WEAPONS_VORTEX) g->recovered_hp = 0;
+    w->bird_x = g->player.x; w->bird_y = g->player.y;
     vs_save_count_weapon(g, type);
     w->level = 1;
     if (w->is_power_up) passive_apply(g, w);
@@ -216,6 +218,94 @@ static float angle_from_target(vs_game *g, const vs_enemy *e) {
     vs_player *p = &g->player;
     float px = p->x + p->body_ox - p->body_r, py = p->y + p->body_oy - p->body_r;
     return atan2f(e->y - py, e->x - px);
+}
+
+/* ---- Peachone / Ebony Wings / Vandalier (weapons 5671, 5705, 5814;
+ * bullets 3899, 3961, 4234) ---- */
+
+static int is_bird(int type) { return type == VS_WEAPONS_SILF || type == VS_WEAPONS_SILF2 || type == VS_WEAPONS_SILF3; }
+
+/* Zone geometry: half the 456 px renderer height, a quarter of that is the
+ * zone radius, the rest its distance from the player (constructor). */
+#define BIRD_ZONE_RADIUS (0.25f * 0.5f * 456.0f)
+#define BIRD_ZONE_DIST (0.5f * 456.0f - BIRD_ZONE_RADIUS)
+
+float vs_bird_ray_ms(int type) { return type == VS_WEAPONS_SILF3 ? 400.0f : 500.0f; }
+float vs_bird_zone_radius(void) { return BIRD_ZONE_RADIUS; }
+
+/* Phaser.Geom.Circle.Random: uniform over the disc */
+static void circle_random(vs_game *g, float cx, float cy, float r, float *x, float *y) {
+    float t = 2 * PI * vs_rng_f32(&g->rng), u = vs_rng_f32(&g->rng) + vs_rng_f32(&g->rng);
+    float k = u > 1 ? 2 - u : u;
+    *x = cx + k * cosf(t) * r; *y = cy + k * sinf(t) * r;
+}
+
+/* Zone angle (radians) at a given clock; Ebony Wings turns the other way,
+ * Vandalier has one zone each way. */
+static float bird_angle(const vs_game *g, const vs_weapon *w, float ms) { return 0.001f * ms * p_speed(g, w); }
+
+static void bird_update(vs_game *g, vs_weapon *w) {
+    vs_player *p = &g->player;
+    const float dt_ms = VS_TICK_MS, dt = dt_ms / 1000.0f;
+    w->zone_total_ms += dt_ms; w->zone_angle_ms += dt_ms;
+    /* the bird flies to its side of the player (Peachone behind, Ebony in front) */
+    int behind = w->type != VS_WEAPONS_SILF2;
+    float off = (p->facing_left ? 24.0f : -24.0f) * (behind ? 1 : -1);
+    float tx = p->x + off, ty = p->y, dx = tx - w->bird_x, dy = ty - w->bird_y;
+    float vx, vy;
+    if (dx * dx + dy * dy > 5000) {
+        float nx = tx - w->bird_x, ny = p->y - 24 - w->bird_y, len = sqrtf(nx * nx + ny * ny);
+        if (len > 0) { nx /= len; ny /= len; }
+        w->bird_dx = nx; w->bird_dy = ny; w->bird_flip = nx < 0;
+        float run = g->player_px_speed / (w->type == VS_WEAPONS_SILF3 ? 1.0f : 1.178571428571429f);
+        vx = run * nx * p->moveSpeed; vy = run * ny * p->moveSpeed;
+    } else { vx = 35 * w->bird_dx; vy = 35 * w->bird_dy; }
+    w->bird_x += vx * dt; w->bird_y += vy * dt;
+    /* drawn zones lag by the bolt's flight time: they show where the bolts land */
+    float a = bird_angle(g, w, w->zone_angle_ms - vs_bird_ray_ms(w->type)), sgn = w->type == VS_WEAPONS_SILF2 ? -1.0f : 1.0f;
+    w->zone_x[0] = p->x + cosf(sgn * a) * BIRD_ZONE_DIST; w->zone_y[0] = p->y + sinf(sgn * a) * BIRD_ZONE_DIST;
+    w->zone_x[1] = p->x + cosf(-a) * BIRD_ZONE_DIST; w->zone_y[1] = p->y + sinf(-a) * BIRD_ZONE_DIST;
+    /* firing for PDuration, then resting PDuration × cooldown (Vandalier: × interval / 1000 too) */
+    float dur = p_duration(g, w);
+    if (w->zone_total_ms >= dur) {
+        float k = w->type == VS_WEAPONS_SILF3 ? w->interval / 1000.0f : 1.0f;
+        w->zone_total_ms = -dur * k * p->cooldown;
+        w->zone_block = 1;
+    } else if (w->zone_total_ms > 0) w->zone_block = 0;
+}
+
+/* Fire: 12 random points in each damage zone; the volley is spread over
+ * the whole interval. Returns 0 while resting. */
+static int bird_fire(vs_game *g, vs_weapon *w) {
+    if (w->zone_block) return 0;
+    vs_player *p = &g->player;
+    w->repeatInterval = w->interval / (float)vs_weapon_p_amount(g, w);
+    float a = bird_angle(g, w, w->zone_angle_ms);
+    int zones = w->type == VS_WEAPONS_SILF3 ? 2 : 1;
+    w->tgt_n = 0;
+    for (int z = 0; z < zones; z++) {
+        float sgn = (w->type == VS_WEAPONS_SILF2 || z == 1) ? -1.0f : 1.0f;
+        float cx = p->x + cosf(sgn * a) * BIRD_ZONE_DIST, cy = p->y + sinf(sgn * a) * BIRD_ZONE_DIST;
+        for (int i = 0; i < 12; i++, w->tgt_n++) circle_random(g, cx, cy, BIRD_ZONE_RADIUS, &w->tgt[w->tgt_n][0], &w->tgt[w->tgt_n][1]);
+    }
+    return 1;
+}
+
+/* Phaser.Curves.Spline.getPoint through three points (Catmull-Rom). The
+ * original moves along it by arc length (getPointAt); only the drawing
+ * depends on this, the bolt always lands on its target. */
+static float catmull(float t, float p0, float p1, float p2, float p3) {
+    float v0 = (p2 - p0) * 0.5f, v1 = (p3 - p1) * 0.5f, t2 = t * t, t3 = t * t2;
+    return (2 * p1 - 2 * p2 + v0 + v1) * t3 + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t2 + v0 * t + p1;
+}
+void vs_bird_curve(const vs_bullet *b, float t, float *x, float *y) {
+    const float px[3] = { b->ax, b->bx, b->f0 }, py[3] = { b->ay, b->by, b->f1 };
+    if (t <= 0) { *x = px[0]; *y = py[0]; return; }
+    if (t >= 1) { *x = px[2]; *y = py[2]; return; }
+    float f = 2 * t; int i = (int)f; float wgt = f - (float)i;
+    int i0 = i == 0 ? 0 : i - 1, i2 = i + 1 > 2 ? 2 : i + 1, i3 = i + 2 > 2 ? 2 : i + 2;
+    *x = catmull(wgt, px[i0], px[i], px[i2], px[i3]);
+    *y = catmull(wgt, py[i0], py[i], py[i2], py[i3]);
 }
 
 void vs_weapon_fire_one(vs_game *g, int slot, int index) {
@@ -336,6 +426,23 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
         b->ax = b->x; b->ay = b->y; b->bx = tx; b->by = ty;
         break;
     }
+    case VS_WEAPONS_SILF: case VS_WEAPONS_SILF2: case VS_WEAPONS_SILF3: {
+        /* the next point of the volley; flies from the bird along a curve */
+        if (w->tgt_n == 0) { b->active = 0; return; }
+        float tx = w->tgt[w->tgt_i % w->tgt_n][0], ty = w->tgt[w->tgt_i % w->tgt_n][1];
+        w->tgt_i++;
+        float sgn = w->tgt_i % 2 == 0 ? 1.0f : -1.0f;
+        b->ax = w->bird_x; b->ay = w->bird_y; b->f0 = tx; b->f1 = ty;
+        /* middle point: the start turned 10..30 degrees about the target
+         * (Vandalier: above the player instead, so its bolts arc down) */
+        float rot = sgn * DEG(10) + vs_rng_f32(&g->rng) * DEG(20) * sgn, c = cosf(rot), s = sinf(rot);
+        float rx = b->ax - tx, ry = b->ay - ty;
+        b->bx = rx * c - ry * s + tx; b->by = rx * s + ry * c + ty;
+        if (w->type == VS_WEAPONS_SILF3) { b->bx = p->x + 50 * (vs_rng_f32(&g->rng) - 0.5f); b->by = p->y - 150; }
+        b->x = b->ax; b->y = b->ay;
+        b->scale = 0.5f; b->body_r = 0; b->cullable = 0; b->state = 0;
+        break;
+    }
     default:
         b->body_r = 8.0f * area; b->scale = area;
         aim_for_nearest_enemy(g, b, true_speed(g, w, 1.0f));
@@ -353,6 +460,7 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
         case VS_WEAPONS_SCYTHE: vs_sfx(g, VS_SND_SHOT, 0.4f, det, 1, 200, 10); break;
         case VS_WEAPONS_HEAVENSWORD: vs_sfx(g, VS_SND_SHOT, 0.5f, det, 1, 200, 10); break;
         case VS_WEAPONS_LIGHTNING: vs_sfx(g, VS_SND_LIGHTNING, 0.6f, det, 2, 200, 4); break;
+        case VS_WEAPONS_SILF: case VS_WEAPONS_SILF2: case VS_WEAPONS_SILF3: vs_sfx(g, VS_SND_MAGICMISSILE, 0.15f, det, 1, 200, 12); break;
         default: break;
         }
     }
@@ -363,6 +471,7 @@ void vs_weapon_fire(vs_game *g, int slot) {
     if (!w->active || w->is_power_up) return;
     if (w->type == VS_WEAPONS_FIREBALL || w->type == VS_WEAPONS_HELLFIRE) vs_sfx(g, VS_SND_MAGICMISSILE, 0.2f, 0, 1, 200, 10);
     if (w->type == VS_WEAPONS_VORTEX) w->recovered_bonus = g->recovered_hp / 600.0f < 6 ? g->recovered_hp / 600.0f : 6;
+    if (is_bird(w->type) && !bird_fire(g, w)) return;
     if (w->type == VS_WEAPONS_FIREBALL || w->type == VS_WEAPONS_DIAMOND || w->type == VS_WEAPONS_HELLFIRE) {
         int n = 0;
         for (int i = 0; i < g->enemy_count; i++) if (g->enemies[i].active && !g->enemies[i].pass_through_walls) n++;
@@ -386,6 +495,7 @@ void vs_weapons_update(vs_game *g) {
         if (!w->active) continue;
         w->stats_lifetime += VS_TICK_MS;
         if (w->heal_cd_ms > 0) w->heal_cd_ms -= VS_TICK_MS;
+        if (is_bird(w->type)) bird_update(g, w);
     }
 }
 
@@ -507,6 +617,20 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
         b->x = p->x; b->y = p->y;
         if (b->age_ms >= vs_weapon_p_interval(g, w)) { b->active = 0; return; }
         break;
+    case VS_WEAPONS_SILF: case VS_WEAPONS_SILF2: case VS_WEAPONS_SILF3: {
+        /* flies for the ray duration; on arrival the hit body (radius 16 ×
+         * scale) grows from scale 0.5 to PArea in 120 ms; gone 200 ms later */
+        float ray = vs_bird_ray_ms(b->type);
+        if (b->state == 0) {
+            if (b->age_ms >= ray) { b->state = 1; b->x = b->f0; b->y = b->f1; }
+            else { vs_bird_curve(b, b->age_ms / ray, &b->x, &b->y); break; }
+        }
+        float e = b->age_ms - ray, k = e < 120 ? e / 120.0f : 1.0f;
+        b->scale = 0.5f + (area - 0.5f) * k;
+        b->body_r = 16.0f * b->scale;
+        if (e >= 200) b->active = 0;
+        break;
+    }
     case VS_WEAPONS_LIGHTNING:
         if (b->state == 0) {
             float t = b->age_ms / 70.0f;

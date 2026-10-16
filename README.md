@@ -35,9 +35,10 @@ on Steam and supply the supported game files yourself.
   unlock is earned. Characters whose starting weapon is not implemented yet
   are not listed.
 - **Weapons:** Whip, Magic Wand, Knife, Axe, Cross, King Bible, Fire Wand,
-  Garlic, Santa Water, Runetracer and Lightning Ring.
+  Garlic, Santa Water, Runetracer, Lightning Ring, Peachone and Ebony Wings.
 - **Evolutions:** Bloody Tear, Holy Wand, Thousand Edge, Death Spiral,
-  Heaven Sword, Unholy Vespers, Hellfire and Soul Eater. They come from
+  Heaven Sword, Unholy Vespers, Hellfire, Soul Eater and Vandalier (the
+  union of Peachone and Ebony Wings). They come from
   treasure chests, with the original's rules (max-level weapon plus the
   matching passive item).
 - **Passive items:** all 14, with their effect on every stat.
@@ -329,8 +330,7 @@ The implementation is incomplete. Known gaps include:
 
 - No shop yet: unlocked characters are playable without buying them, and
   gold only accumulates.
-- Weapons not implemented yet: Peachone, Ebony Wings, Vandalier,
-  Pentagram, Clock Lancet, Laurel and Bone. They are never offered, and the
+- Weapons not implemented yet: Pentagram, Clock Lancet, Laurel and Bone. They are never offered, and the
   characters who start with them are not listed.
 - Some enemy behaviours (exploding enemies and their sounds) and the
   treasure-chest opening animation are missing.

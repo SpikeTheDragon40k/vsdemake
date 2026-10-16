@@ -135,3 +135,60 @@ PENTAGRAM, HEAVENSWORD, VAMPIRICA, NDUJA, VORTEX. Passives share one class
 - The demake draws the trail as one 17 px strip rotated 90°, stretched from
   the start point to the bullet (the path is a vertical line). The additive
   blend is drawn as plain alpha.
+
+## Peachone, Ebony Wings, Vandalier (SILF, SILF2, SILF3; weapons 5671, 5705, 5814; bullets 3899, 3961, 4234)
+
+Weapon (one bird each; Vandalier is one bird with two zones):
+
+- Zone geometry from the renderer height (456 landscape, 342 portrait):
+  half of it is split into a zone radius of a quarter (57) and a distance
+  from the player of the rest (171).
+- Every update: `totalTime` and `angleTime` grow by the frame time. Zone
+  angle = 0.001 × angleTime × PSpeed radians (PSpeed = player speed ×
+  weapon speed). Peachone's damage zone is at that angle around the player,
+  Ebony Wings' at minus that angle, Vandalier has both. The drawn target
+  circle uses angleTime − rayDuration (500 ms; Vandalier 400), so it shows
+  where bolts fired now will land. 1 px outline, Peachone 0x8888ff, Ebony
+  0xff88ff, Vandalier white; alpha 0.5 while firing, 0.1 while resting.
+- Duty cycle: when totalTime ≥ PDuration it becomes −PDuration × player
+  cooldown (Vandalier: × interval / 1000 too) and firing is blocked; when it
+  is back above 0 firing is allowed.
+- Fire (only when not blocked): repeatInterval = interval / PAmount (the
+  volley is spread over the interval); 12 random points in the damage zone
+  (`Circle.Random`, uniform over the disc), 24 for Vandalier (12 per zone).
+- The bird: target point = player ± 24 px on x (Peachone behind the
+  player's facing, Ebony in front; Vandalier like Peachone). If the squared
+  distance to it is over 5000 it flies to (target x, player y − 24) at
+  PlayerPxSpeed / 1.178571 (Vandalier: PlayerPxSpeed) × player moveSpeed,
+  flipped when moving left; otherwise it drifts at 35 px/s in its last
+  direction. Animation `ProjectileBird1–2` (Peachone), `4–5` (Ebony),
+  `7–8` (Vandalier) at 6 fps, on top.
+
+Bullet:
+
+- Takes the weapon's next point (`enemyIndex` modulo the list, counting
+  up across volleys); none → despawns. Sound MagicMissile, volume 0.15,
+  detune −100 × index, 200 ms / 12.
+- Starts at the bird. Curve: a Phaser Spline through start, middle and
+  target; the middle is the start turned about the target by ±(10° + r ×
+  20°), sign alternating with the point counter. Vandalier's middle is
+  (player x + 50 × (r − 0.5), player y − 150), so its bolts arc from above.
+  Moves along the curve by arc length over rayDuration.
+- Sprite `HitWhite1` (Peachone, Vandalier) / `HitBlack1` (Ebony) at scale
+  0.5 while flying. Trail: Rope with 24 points of `Gradient3_4px` (Peachone;
+  6px when PArea ≥ 1.5, 8px when ≥ 2; additive, alpha 0.4), `Gradient4_4px`
+  (Ebony; 6px only when 1.5 ≤ PArea < 2; alpha 1), `Prism<1 + pool index %
+  9>_8px` (Vandalier, alpha 0.4). Trail fades in over 200 ms.
+- On arrival: body enabled (circle radius 16 × sprite scale), the sprite
+  grows to PArea and fades out in 120 ms (hidden without flashing VFX), the
+  trail fades out in 200 ms, then the bullet despawns. Each enemy is hit
+  once per bullet. Hit VFX LIGHT / DARK / PRISM, knockback 2.
+- Vandalier: `requires` Peachone at level 8; added to the evolution pool
+  when Ebony Wings reaches level 8 (`addEvolvedWeapon`), removes both
+  (`evolvesFrom`). Exdash starts with Ebony Wings.
+
+Demake: the curve is followed by its parameter instead of arc length (it
+only changes where the bolt is drawn in flight), the trail is drawn as 24
+strips along the curve, the circle outline as dots, plain alpha instead of
+additive blend; the hit circle is centred on the bolt (the original's is
+offset by 2.5 px × scale).
