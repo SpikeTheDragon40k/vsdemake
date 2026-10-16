@@ -51,7 +51,7 @@ float vs_weapon_p_area(const vs_game *g, const vs_weapon *w) {
 }
 int vs_weapon_p_amount(const vs_game *g, const vs_weapon *w) {
     if (w->type == VS_WEAPONS_LANCET) return 6;   /* PAmount getters (5619, 5562) */
-    if (w->type == VS_WEAPONS_LAUREL || w->type == VS_WEAPONS_PENTAGRAM) return 1;
+    if (w->type == VS_WEAPONS_LAUREL) return 1;
     return (w->type == VS_WEAPONS_GARLIC || w->type == VS_WEAPONS_VORTEX) ? 1 : (int)(g->player.amount + w->amount);
 }
 float vs_weapon_p_power(const vs_game *g, const vs_weapon *w) { return g->player.power * w->power + w->recovered_bonus; }
@@ -64,7 +64,7 @@ int vs_weapon_implemented(int type) {
     case VS_WEAPONS_FIREBALL: case VS_WEAPONS_HELLFIRE: case VS_WEAPONS_GARLIC: case VS_WEAPONS_VORTEX:
     case VS_WEAPONS_HOLYWATER: case VS_WEAPONS_DIAMOND: case VS_WEAPONS_LIGHTNING:
     case VS_WEAPONS_SILF: case VS_WEAPONS_SILF2: case VS_WEAPONS_SILF3:
-    case VS_WEAPONS_BONE: case VS_WEAPONS_LANCET: case VS_WEAPONS_LAUREL: case VS_WEAPONS_PENTAGRAM:
+    case VS_WEAPONS_BONE: case VS_WEAPONS_LANCET: case VS_WEAPONS_LAUREL:
         return 1;
     default: return 0;
     }
@@ -127,13 +127,12 @@ int vs_weapon_add(vs_game *g, int type, int from_levelup) {
     }
     if (type == VS_WEAPONS_VORTEX) g->recovered_hp = 0;
     w->bird_x = g->player.x; w->bird_y = g->player.y;
-    w->lancet_ticks = 8; w->lancet_ms = -1; w->flash_ms = -1;
+    w->lancet_ticks = 8; w->lancet_ms = -1;
     vs_save_count_weapon(g, type);
     w->level = 1;
     if (w->is_power_up) passive_apply(g, w);
     else reset_firing_timer(g, slot);
     if (type == VS_WEAPONS_LAUREL) vs_weapon_fire(g, slot);   /* OnStart: a shield at once */
-    if (type == VS_WEAPONS_PENTAGRAM) vs_timer_add(g, VS_TIMER_WEAPON_REPEAT, 100, 0, slot, 0);   /* MakeLevelOne: 100 ms later */
     if (from_levelup) vs_levelup_remove_from_store(g, type); else vs_levelup_calculate_weights(g);
     return slot;
 }
@@ -453,14 +452,6 @@ void vs_weapon_fire_one(vs_game *g, int slot, int index) {
         b->y = p->y + 50.0f * sinf(w->lancet_angle) * (1 + index);
         b->body_r = 32; b->scale = 2; b->visible = 0; b->cullable = 0;
         break;
-    case VS_WEAPONS_PENTAGRAM:
-        /* bullet 4045: usually (random / luck > chance) it erases the enemies
-         * and the items on screen; otherwise it kills the enemies (drops kept) */
-        b->f0 = vs_rng_f32(&g->rng) * (1.0f / g->player.luck) > w->chance ? 1.0f : 0.0f;
-        b->body_r = 0; b->cullable = 0; b->state = 0;
-        w->flash_ms = 0;
-        vs_sfx(g, VS_SND_PENTAGRAM, 0.9f, 0, 2, 0, 0);
-        break;
     case VS_WEAPONS_SILF: case VS_WEAPONS_SILF2: case VS_WEAPONS_SILF3: {
         /* the next point of the volley; flies from the bird along a curve */
         if (w->tgt_n == 0) { b->active = 0; return; }
@@ -512,7 +503,6 @@ void vs_weapon_fire(vs_game *g, int slot) {
         if (g->player.shields < w->charges && g->player.shields < 3) g->player.shields++;
         return;
     }
-    if (w->type == VS_WEAPONS_PENTAGRAM) { vs_weapon_fire_one(g, slot, 0); return; }   /* one, whatever the amount */
     if (w->type == VS_WEAPONS_LANCET) {
         /* the next of 12 directions; six hitboxes along it */
         w->lancet_ticks = (w->lancet_ticks + 1) % 12;
@@ -546,7 +536,6 @@ void vs_weapons_update(vs_game *g) {
         if (w->heal_cd_ms > 0) w->heal_cd_ms -= VS_TICK_MS;
         if (is_bird(w->type)) bird_update(g, w);
         if (w->lancet_ms >= 0) w->lancet_ms += VS_TICK_MS;
-        if (w->flash_ms >= 0) w->flash_ms += VS_TICK_MS;
     }
 }
 
@@ -705,33 +694,6 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
     }
     case VS_WEAPONS_LANCET:
         if (b->age_ms >= 20) { b->active = 0; return; }
-        break;
-    case VS_WEAPONS_PENTAGRAM:
-        /* 100 ms after the flash: the erasing; the picture shatters for 1 s after 150 ms */
-        b->x = p->x; b->y = p->y;
-        if (b->state == 0 && b->age_ms >= 100) {
-            b->state = 1;
-            int bad = b->f0 > 0.5f;
-            float hw = 0.6f * g->logical_w, hh = 0.6f * g->logical_h;   /* containmentRect_Screen */
-            for (int i = 0; i < g->enemy_count; i++) {
-                vs_enemy *e = &g->enemies[i];
-                if (!e->active || e->is_dead || e->res_Rosary || fabsf(e->x - p->x) >= hw || fabsf(e->y - p->y) >= hh) continue;
-                if (bad) vs_enemy_disappear(g, e);
-                else vs_enemy_get_damaged(g, e, e->maxHp > 66 ? e->maxHp : 66, VS_HITVFX_NONE, 1);
-                w->stats_damage += e->maxHp;
-            }
-            if (bad) {
-                for (int i = 0; i < VS_MAX_PICKUPS; i++) {
-                    vs_pickup *pk = &g->pickups[i];
-                    if (pk->active && fabsf(pk->x - p->x) < hw && fabsf(pk->y - p->y) < hh) pk->active = 0;
-                }
-                for (int i = 0; i < VS_MAX_DESTRUCTIBLES; i++) {
-                    vs_destructible *d = &g->destructibles[i];
-                    if (d->active && fabsf(d->x - p->x) < hw && fabsf(d->y - p->y) < hh) d->active = 0;
-                }
-            }
-        }
-        if (b->age_ms >= 1150) b->active = 0;
         break;
     case VS_WEAPONS_LIGHTNING:
         if (b->state == 0) {

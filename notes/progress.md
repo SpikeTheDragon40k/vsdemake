@@ -292,3 +292,7 @@ resume in a fresh session).
   enemies and gems gone, kills unchanged); bird-less/weapon-less hash
   unchanged; ASan/UBSan clean (including a long unlock-all auto run);
   C++03 clean.
+
+- Pentagram removed again at the owner's request (code, drawing, sound
+  hook); it is "not implemented" so it is never offered. The behaviour note
+  stays in `weapons.md`; the implementation is in commit 0c966d2.

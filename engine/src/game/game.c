@@ -61,7 +61,6 @@ static const char *const SND_KEYS[VS_SND_COUNT] = {
     "Rosary", "Orologion", "Whip", "MagicMissile", "Shot", "Holywater",
     "Lightning", "LevelUp", "ClickIn", "ClickOut", "ThingFound",
     "Treasure1", "Treasure2", "Treasure3", "BGM_Intro", "BGM_GameOver",
-    "PentagramSFX",
 };
 
 void vs_sfx(vs_game *g, int snd, float volume, float detune, float rate, float delay_ms, int max_instances) {
@@ -732,43 +731,6 @@ static void render_bird_bolt(vs_game *g, const vs_bullet *b, int pool_index) {
     }
 }
 
-static float hashf(uint32_t v) { v ^= v >> 16; v *= 0x7feb352du; v ^= v >> 15; v *= 0x846ca68bu; v ^= v >> 16; return (v & 0xffffff) / 16777216.0f; }
-
-/* Pentagram (weapon 5737, bullet 4045): a picture the size of 0.8 × the
- * screen's short side, drawn over everything at the player, then shattered:
- * after 150 ms its pieces fly apart, turn and fade for 1 s. Layers: a dark
- * (erase) or blue (kill) disc, the outline, the outer ring (better from
- * level 3 and 6), the inner star (level 4 and 7) and the centre, filled
- * white-yellow. The original breaks it into triangles; here every layer is
- * cut into 4 × 4 tiles and the tiles of one cell fly off together. */
-static void render_pentagram(vs_game *g, const vs_bullet *b) {
-    const vs_weapon *w = &g->weapons[b->weapon];
-    float gs = 0.8f * (g->logical_w < g->logical_h ? g->logical_w : g->logical_h), sc = gs / 128.0f;
-    float k = b->age_ms <= 150 ? 0 : (b->age_ms - 150) / 1000.0f;
-    if (k >= 1) return;
-    int lv = w->level;
-    const char *layers[5] = { "circle.png", "outer0.png", lv >= 6 ? "outer3.png" : lv >= 3 ? "outer2.png" : "outer1.png",
-                              lv >= 7 ? "inner3.png" : lv >= 4 ? "inner2.png" : "inner1.png", "center.png" };
-    int bad = b->f0 > 0.5f;
-    for (int l = 0; l < 5; l++) {
-        vs_frame f;
-        if (vs_atlas_find(&g->atl_vfx, layers[l], &f) != 0) continue;
-        float lsc = l == 0 ? 7.0f * gs / 16.0f * 2 / f.w : sc;   /* the disc: radius 7 × gs / 16 */
-        uint32_t tint = l == 0 ? (bad ? 0x550044 : 0x0000ee) : 0xffff70;
-        float base_a = l == 0 ? (bad ? 0.5f : 0.35f) : 1.0f;
-        for (int ty = 0; ty < 4; ty++) for (int tx = 0; tx < 4; tx++) {
-            vs_frame t = f;
-            t.x = f.x + tx * f.w / 4; t.w = (tx + 1) * f.w / 4 - tx * f.w / 4;
-            t.y = f.y + ty * f.h / 4; t.h = (ty + 1) * f.h / 4 - ty * f.h / 4;
-            float hx = b->x + (tx * f.w / 4 + 0.5f * t.w - 0.5f * f.w) * lsc, hy = b->y + (ty * f.h / 4 + 0.5f * t.h - 0.5f * f.h) * lsc;
-            /* the same cell of every layer moves as one piece */
-            uint32_t seed = (uint32_t)(ty * 4 + tx) * 2654435761u ^ (uint32_t)(b - g->bullets) * 40503u;
-            float dx = 1.2f * (hashf(seed) - 0.5f) * gs, dy = 1.2f * (hashf(seed + 1) - 0.5f) * gs, rot = 180 * hashf(seed + 2) - 90;
-            vs_render_stretched(g, g->tex_vfx, &t, hx + dx * k, hy + dy * k, t.w * lsc, t.h * lsc, rot * k, tint,
-                                (uint8_t)(255 * base_a * (1 - k)), 1e6f + 2 + l);
-        }
-    }
-}
 
 /* Clock Lancet's streak (Pierce1–5, 30 fps, scale 2 × 1, pale blue, fading
  * from 200 to 700 ms) and Laurel's ring (Shockwave2 at the player, tinted by
@@ -920,7 +882,6 @@ void vs_game_render(vs_game *g) {
         case VS_WEAPONS_SILF: case VS_WEAPONS_SILF3: fname = "HitWhite1.png"; depth = 1e6f; break;
         case VS_WEAPONS_SILF2: fname = "HitBlack1.png"; depth = 1e6f; break;
         case VS_WEAPONS_BONE: fname = "ProjectileBone2.png"; break;
-        case VS_WEAPONS_PENTAGRAM: render_pentagram(g, b); continue;
         case VS_WEAPONS_DIAMOND: fname = "Diamond2.png"; tex = g->tex_items; atl = &g->atl_items; break;
         case VS_WEAPONS_HOLYWATER:
             if (b->state == 0) { fname = "HolyWater.png"; tex = g->tex_items; atl = &g->atl_items; depth = (float)g->logical_h; }
@@ -981,12 +942,6 @@ void vs_game_render(vs_game *g) {
     render_weapon_effects(g);
     vs_fx_render(g, cam_x, cam_y);
     vs_render_end(g);
-    /* Pentagram's screen flash: white up to alpha 0.5 and back in 200 ms (flashing VFX only) */
-    for (int i = 0; i < VS_MAX_WEAPONS && g->save.flashing_vfx; i++) {
-        const vs_weapon *w = &g->weapons[i];
-        if (w->active && w->type == VS_WEAPONS_PENTAGRAM && w->flash_ms >= 0 && w->flash_ms < 200)
-            vs_ui_rect(g, 0, 0, (float)g->logical_w, (float)g->logical_h, 0xffffff, (uint8_t)(127 * (1 - fabsf(w->flash_ms - 100) / 100.0f)));
-    }
     if (g->debug_hitboxes) render_hitboxes(g, cam_x, cam_y);
     render_hud(g);
     if (g->levelup.pending) render_levelup(g);
