@@ -296,3 +296,17 @@ resume in a fresh session).
 - Pentagram removed again at the owner's request (code, drawing, sound
   hook); it is "not implemented" so it is never offered. The behaviour note
   stays in `weapons.md`; the implementation is in commit 0c966d2.
+
+## 2026-10-16: pause panels, Nduja Fritta, drop odds
+
+- Pause screen: weapons/passives panel and stats panel (`options.md`).
+- NFT pickup → Nduja Fritta, the hidden fire weapon for 10 s × duration
+  (`pickups.md`); hidden weapons take no slot and are not listed. New
+  sound key Fireloop. Revival does not exist in 0.2.10 (no data), so there
+  is nothing to implement.
+- Drop odds checked against the original (identical code path, measured
+  distribution in `pickups.md`): about 80 % of candle drops are money at
+  low levels; that is the original's table.
+- Dev option `--drop NAME`.
+- Checks: screenshots / recordings; hash unchanged; ASan/UBSan clean; C++03
+  clean.

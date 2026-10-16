@@ -49,7 +49,10 @@ on Steam and supply the supported game files yourself.
   adds (for example "Base damage up by 5"). The text is built from the
   game's own English strings when the pack is made.
 - **Pickups:** gems, gold, coin bags, Floor Chicken, hearts, Vacuum,
-  Rosary, Orologion and treasure chests.
+  Rosary, Orologion, Clover, Nduja Fritta (10 s of fire breath) and
+  treasure chests, dropped by candles with the original's odds (about 80 %
+  money at the start; the rarer items unlock at player levels 4–12 and
+  Luck makes them likelier).
 - **Treasure chests:** the original's opening screen: press OPEN, the chest
   bursts open with coins, ribbons and reels of item icons, the gold counter
   ticks up, the prizes pop in, then DONE. Experienced players can skip the
@@ -272,6 +275,8 @@ Press **Start** during a run to pause. The pause screen is the original's:
 - **Flashing VFX**: the white flash on hit enemies and the Lightning Ring
   impact flash.
 - **Damage Numbers**: the numbers over hit enemies.
+- On the left, your weapons and passives with their levels and your
+  current stats (as in the original).
 - **Sound test** (demake only): **A** plays a game sound, **X** a plain
   beep, **Y** swaps the byte order of the sound output (diagnostic); while
   this row is selected the sound status is shown under the panel.
@@ -293,6 +298,7 @@ entry of the title menu. Changes are saved when the screen closes.
 | `--chest [LEVEL]` | Open a treasure chest (level 1–3) immediately |
 | `--show-chest` | In headless runs, still play the chest and item-found screens (pressing their buttons by itself) |
 | `--map-item NAME` | Put a map bonus item (e.g. `POWER`, `LUCK`) next to the player |
+| `--drop NAME` | Put a pickup (e.g. `NFT`, `ROAST`, `VACUUM`) next to the player |
 | `--unlock-all` | Make every implemented item, character and stage available, ignoring the save |
 | `--save PATH` | Use this save file (headless runs do not save without it) |
 | `--level N` | Start the run at player level N |

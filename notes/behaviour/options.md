@@ -58,3 +58,18 @@ options 2779 (defaults), 2857 (save), 2914 (load).
   `sound_volume`, `music_volume`, `flashing_vfx`, `damage_numbers`).
 - Flashing VFX currently gates the enemy hit tint and the Lightning Ring
   impact circle (the other flashes are not drawn by the demake yet).
+
+## Weapons and stats panels (pause only)
+
+- Weapons panel (class 7432) at the top left: weapons first, then passives,
+  6 per row, 32 px apart, 64 px per row: `weaponBG` / `passiveBG` at scale
+  2 (tinted yellow when maxed), the icon at scale 2, and one pip per level
+  (`weaponLevelFull` / `weaponLevelEmpty`, 3 per row) under it.
+- Stats panel (class 1779) under it, 16 px per line with two gaps: Max
+  Health (whole number), Recovery (one decimal, "-" for 0), Armor (+N),
+  Move Speed, | Might, Area, Speed, Duration, Amount (+N), Cooldown, | Luck,
+  Growth, Greed (±N % from 1, "-" when 0), Magnet (the magnet radius); each
+  with the power-up's icon and name.
+- Both on panels at alpha 0.75. The original shows them only when more than
+  5 weapons are unlocked in the save; the demake always does. Hidden weapons
+  (Nduja Fritta) are not listed.

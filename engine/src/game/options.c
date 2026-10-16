@@ -120,12 +120,102 @@ static void button(vs_game *g, const char *frame, const char *label, float x, fl
     if (selected) vs_ui_nine_slice(g, "selectionSquareActive_03.png", x - 4, y - 4, w + 8, h + 8, 7, 7, 0xffffff);
 }
 
+/* ---- the pause screen's weapons and stats panels (classes 7432 and
+ * 1779): weapons and passives with their level pips, then the player's
+ * stats as the original formats them. The original shows them only once
+ * more than 5 weapons are unlocked in the save; here always. ---- */
+
+static void ui_item(vs_game *g, int tex, const vs_atlas *atl, const char *name, float cx, float cy, float scale, uint32_t tint) {
+    vs_frame f;
+    if (!name || vs_atlas_find(atl, name, &f) != 0) return;
+    vs_sprite s = {0};
+    s.tex = g->textures[tex]; s.sx = (int16_t)f.x; s.sy = (int16_t)f.y; s.sw = (int16_t)f.w; s.sh = (int16_t)f.h;
+    s.scale_x = s.scale_y = scale; s.tint = tint; s.alpha = 255;
+    s.dx = cx + (f.off_x - 0.5f * f.src_w) * scale; s.dy = cy + (f.off_y - 0.5f * f.src_h) * scale;
+    vs_plat_draw(&s);
+}
+
+static float weapons_panel(vs_game *g, float x, float y, float w) {
+    int list[2][VS_MAX_WEAPONS], n[2] = { 0, 0 };
+    for (int i = 0; i < VS_MAX_WEAPONS; i++) {
+        const vs_weapon *wp = &g->weapons[i];
+        if (wp->active && !wp->hidden) list[wp->is_power_up ? 1 : 0][n[wp->is_power_up ? 1 : 0]++] = i;
+    }
+    float rows0 = (float)((n[0] + 5) / 6), rows1 = (float)((n[1] + 5) / 6), h = 64 * (rows0 + rows1);
+    if (h <= 0) return 0;
+    vs_ui_nine_slice_alpha(g, "frame1_c2.png", x, y, w, h, 12, 12, 0xffffff, 191);
+    for (int kind = 0; kind < 2; kind++) {
+        float y0 = y + 20 + (kind ? 64 * rows0 : 0);
+        for (int k = 0; k < n[kind]; k++) {
+            const vs_weapon *wp = &g->weapons[list[kind][k]];
+            vs_group grp; int gi = vs_table_find_group_enum(&g->weapons_table, wp->type);
+            if (gi < 0) continue;
+            vs_table_group(&g->weapons_table, (uint32_t)gi, &grp);
+            vs_weapons_rec r; vs_table_record(&g->weapons_table, grp.first, &r);
+            float cx = x + 20 + (k % 6) * 32, cy = y0 + 64 * (k / 6);
+            ui_item(g, g->tex_ui, &g->atl_ui, kind ? "passiveBG.png" : "weaponBG.png", cx, cy, 2, (uint32_t)wp->level >= grp.count ? 0xffff00 : 0xffffff);
+            ui_item(g, g->tex_items, &g->atl_items, VS_HAS(&r, VS_WEAPONS_F_FRAMENAME) ? vs_table_str(&g->weapons_table, r.frameName) : NULL, cx, cy, 2, 0xffffff);
+            for (uint32_t l = 0; l < grp.count; l++)
+                ui_item(g, g->tex_ui, &g->atl_ui, (uint32_t)wp->level <= l ? "weaponLevelEmpty.png" : "weaponLevelFull.png", cx - 8 + (l % 3) * 8, cy + 20 + 8 * (l / 3), 1, 0xffffff);
+        }
+    }
+    return h;
+}
+
+static void stats_panel(vs_game *g, float x, float y, float w) {
+    const vs_player *p = &g->player;
+    enum { HEALTH, PER_SEC, FLAT, PCT, MAGNET, GAP };
+    static const struct { int type, kind; } rows[] = {
+        { VS_WEAPONS_MAXHEALTH, HEALTH }, { VS_WEAPONS_REGEN, PER_SEC }, { VS_WEAPONS_ARMOR, FLAT }, { VS_WEAPONS_MOVESPEED, PCT }, { 0, GAP },
+        { VS_WEAPONS_MIGHT, PCT }, { VS_WEAPONS_AREA, PCT }, { VS_WEAPONS_SPEED, PCT }, { VS_WEAPONS_DURATION, PCT }, { VS_WEAPONS_AMOUNT, FLAT },
+        { VS_WEAPONS_COOLDOWN, PCT }, { 0, GAP }, { VS_WEAPONS_LUCK, PCT }, { VS_WEAPONS_GROWTH, PCT }, { VS_WEAPONS_GREED, PCT }, { VS_WEAPONS_MAGNET, MAGNET },
+    };
+    const int n = (int)(sizeof rows / sizeof rows[0]);
+    vs_ui_nine_slice_alpha(g, "frame1_c2.png", x, y, w, 32.0f + 16 * (n - 1), 12, 12, 0xffffff, 191);
+    for (int i = 0; i < n; i++) {
+        if (rows[i].kind == GAP) continue;
+        float v = 0;
+        switch (rows[i].type) {
+        case VS_WEAPONS_MAXHEALTH: v = p->maxHp; break;   case VS_WEAPONS_REGEN: v = p->regen; break;
+        case VS_WEAPONS_ARMOR: v = p->armor; break;       case VS_WEAPONS_MOVESPEED: v = p->moveSpeed; break;
+        case VS_WEAPONS_MIGHT: v = p->power; break;       case VS_WEAPONS_AREA: v = p->area; break;
+        case VS_WEAPONS_SPEED: v = p->speed; break;       case VS_WEAPONS_DURATION: v = p->duration; break;
+        case VS_WEAPONS_AMOUNT: v = p->amount; break;     case VS_WEAPONS_COOLDOWN: v = p->cooldown; break;
+        case VS_WEAPONS_LUCK: v = p->luck; break;         case VS_WEAPONS_GROWTH: v = p->growth; break;
+        case VS_WEAPONS_GREED: v = p->greed; break;       case VS_WEAPONS_MAGNET: v = g->magnet.radius; break;
+        }
+        char val[24];
+        switch (rows[i].kind) {   /* GetStatDisplayTextValue */
+        case HEALTH: case MAGNET: snprintf(val, sizeof val, "%.0f", v); break;
+        case PER_SEC: snprintf(val, sizeof val, "%.1f", v); if (!strcmp(val, "0.0")) strcpy(val, "-"); break;
+        case FLAT: snprintf(val, sizeof val, "%s%.0f", v >= 0 ? "+" : "", v); if (!strcmp(val, "+0")) strcpy(val, "-"); break;
+        default: snprintf(val, sizeof val, "%s%d%%", v >= 1 ? "+" : "", (int)floorf(100 * (v - 1) + 0.5f)); if (!strcmp(val, "+0%")) strcpy(val, "-"); break;
+        }
+        const char *name = "?", *frame = NULL;
+        int gi = vs_table_find_group_enum(&g->powerups_table, rows[i].type);
+        if (gi >= 0) {
+            vs_group grp; vs_table_group(&g->powerups_table, (uint32_t)gi, &grp);
+            vs_powerups_rec r; vs_table_record(&g->powerups_table, grp.first, &r);
+            if (VS_HAS(&r, VS_POWERUPS_F_NAME)) name = vs_table_str(&g->powerups_table, r.name);
+            if (VS_HAS(&r, VS_POWERUPS_F_FRAMENAME)) frame = vs_table_str(&g->powerups_table, r.frameName);
+        }
+        float ry = y + 16 + 16 * i;
+        ui_item(g, g->tex_items, &g->atl_items, frame, x + 14, ry, 1, 0xffffff);
+        vs_text_draw(x + 26, ry - 5, 1.4f, 0xffffff, name);
+        vs_text_draw(x + w - 12 - vs_text_width(1.4f, val), ry - 5, 1.4f, 0xffffff, val);
+    }
+}
+
 void vs_options_render(vs_game *g) {
     char buf[256];
     const float W = (float)g->logical_w, H = (float)g->logical_h;
     const float pw = 380, ph = 310, px = 0.5f * (W - pw), py = 0.5f * (H - ph) - 16;
     const float label_x = px + 24, ctrl_x = px + 210, row0 = py + 58, row_h = 36;
     if (g->paused) vs_ui_rect(g, 0, 0, W, H, 0x000000, 128);   /* the original dims the game by half */
+    if (g->paused) {
+        float wh = weapons_panel(g, 8, 24, 200);
+        stats_panel(g, 8, 24 + wh + 4, 200);
+    }
     vs_ui_nine_slice(g, "frame5_c4.png", px, py, pw, ph, 12, 12, 0xffffff);
     text_centered(g, 0.5f * W, py + 16, 2.5f, 0xffffff, vs_lang_get(&g->lang, "options_header", "Options"));
 

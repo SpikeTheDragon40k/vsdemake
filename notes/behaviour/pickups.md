@@ -78,3 +78,27 @@ lifetime coins, then saved), logged in run pickups, coin sound. Depth `9 + y −
 | NFT (Nduja Fritta) | temporary hidden weapon: flame cones (`weapons.md`) |
 
 All rows above were checked against the subclass `GetTaken` methods.
+
+## Drop odds from candles and braziers (LootManager, line 6056)
+
+Every destroyed light source drops one item drawn by weight from the
+pickups table: items with `unlocksAt` ≤ player level, weight `rarity`
+(× luck for `isRare` items). In 0.2.10: Coin 50, Floor Chicken 12 (rare),
+Coin Bag 10, NFT 1 (rare), Clover 0.5; Orologion 2 from level 4, big coin
+bag 1 from level 5, Rosary 1 from level 8, Vacuum 2 from level 12 (all
+rare). Measured in the engine over 100 000 draws: level 1 → coin 68 %, bag
+14 %, chicken 16 %, NFT 1.3 %, clover 0.7 %; level 12 → coin 63 %, bag 13 %,
+chicken 15 %, Orologion 2.5 %, Vacuum 2.6 %, Rosary 1.3 %, big bag 1.3 %.
+The table is recalculated on every level-up.
+
+## NFT → Nduja Fritta (pickup 1312, weapon 1136, bullet 1e8f43)
+
+- Taken: the hidden weapon NDUJA is added (not in the weapon list or slots,
+  not levelled, not a chest prize) for 10 000 ms × duration; another NFT
+  restarts the time. The pickup animates `Nft1–4` at 10 fps.
+- Weapon: interval 500, repeatInterval 40, amount 12 (+ player amount),
+  power 3, area 2, speed 3, duration 1000, hit VFX FIRE.
+- Bullet: 24 px above the player, velocity = facing direction × TrueSpeed +
+  100 × (sin index, cos index); a filled red/orange circle (additive) and
+  the hit circle grow to 16 × PArea while fading out in 400 ms; flame
+  particles; sound Fireloop (1, −100 × index cents, rate 2, 200 ms / 1).

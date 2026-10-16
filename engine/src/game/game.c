@@ -61,6 +61,7 @@ static const char *const SND_KEYS[VS_SND_COUNT] = {
     "Rosary", "Orologion", "Whip", "MagicMissile", "Shot", "Holywater",
     "Lightning", "LevelUp", "ClickIn", "ClickOut", "ThingFound",
     "Treasure1", "Treasure2", "Treasure3", "BGM_Intro", "BGM_GameOver",
+    "Fireloop",
 };
 
 void vs_sfx(vs_game *g, int snd, float volume, float detune, float rate, float delay_ms, int max_instances) {
@@ -535,7 +536,7 @@ static void render_hud(vs_game *g) {
     vs_text_draw((float)(g->logical_w - 150), 16, 1, 0xffffff, buf);
     float wy = 16;
     for (int i = 0; i < VS_MAX_WEAPONS; i++) {
-        if (!g->weapons[i].active) continue;
+        if (!g->weapons[i].active || g->weapons[i].hidden) continue;
         snprintf(buf, sizeof buf, "%s %d", vs_weapon_name(g, g->weapons[i].type), g->weapons[i].level);
         vs_text_draw(4, wy, 1, g->weapons[i].is_power_up ? 0xc0ffc0 : 0xc0c0ff, buf);
         wy += 9;
@@ -798,7 +799,9 @@ void vs_game_render(vs_game *g) {
         vs_pickup *pk = &g->pickups[i];
         if (!pk->active) continue;
         const char *fname = "CoinGold.png";
+        char nft[16];
         if (pk->type == VS_PICKUPS_GEM) fname = pk->value <= 2 ? "GemBlue.png" : pk->value <= 9 ? "GemGreen.png" : "GemRed.png";
+        else if (pk->type == VS_PICKUPS_NFT) { snprintf(nft, sizeof nft, "Nft%d.png", 1 + (int)(g->tick / 6) % 4); fname = nft; }   /* 10 fps */
         else {
             int gi = vs_table_find_group_enum(&g->pickups_table, pk->type);
             if (gi >= 0) { vs_group grp; vs_table_group(&g->pickups_table, (uint32_t)gi, &grp); vs_pickups_rec r; vs_table_record(&g->pickups_table, grp.first, &r); if (VS_HAS(&r, VS_PICKUPS_F_FRAMENAME)) fname = vs_table_str(&g->pickups_table, r.frameName); }
@@ -882,6 +885,17 @@ void vs_game_render(vs_game *g) {
         case VS_WEAPONS_SILF: case VS_WEAPONS_SILF3: fname = "HitWhite1.png"; depth = 1e6f; break;
         case VS_WEAPONS_SILF2: fname = "HitBlack1.png"; depth = 1e6f; break;
         case VS_WEAPONS_BONE: fname = "ProjectileBone2.png"; break;
+        case VS_WEAPONS_NDUJA: {
+            /* Nduja Fritta: a filled circle (red / orange, additive in the
+             * original) growing with the hit circle, and a flame flicker */
+            static const uint32_t fire[3] = { 0xff0000, 0xff6600, 0xff4400 };
+            vs_frame c;
+            if (vs_atlas_find(&g->atl_vfx, "circle.png", &c) == 0 && b->scale > 0.5f)
+                vs_render_stretched(g, g->tex_vfx, &c, b->x, b->y, 2 * b->scale, 2 * b->scale, 0, fire[b->state % 3], b->alpha, b->y - p->y);
+            if (vs_atlas_find(&g->atl_vfx, (g->tick + b->index) % 2 ? "Flame2.png" : "PfxYellow.png", &c) == 0)
+                vs_render_sprite(g, g->tex_vfx, &c, b->x, b->y, 0.5f, 0.5f, 1.0f, 0, 0, (float)((g->tick * 37 + b->index * 53) % 360), 0xffffff, b->alpha, b->y - p->y + 1);
+            continue;
+        }
         case VS_WEAPONS_DIAMOND: fname = "Diamond2.png"; tex = g->tex_items; atl = &g->atl_items; break;
         case VS_WEAPONS_HOLYWATER:
             if (b->state == 0) { fname = "HolyWater.png"; tex = g->tex_items; atl = &g->atl_items; depth = (float)g->logical_h; }
