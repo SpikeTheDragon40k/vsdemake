@@ -218,3 +218,20 @@ resume in a fresh session).
   coloured impact circle; the bullet itself stays invisible. Behaviour in
   `notes/behaviour/weapons.md`. New `vs_render_stretched` (separate width
   and height). Gameplay unchanged (rendering only).
+
+## 2026-10-16: pause and options
+
+- Start pauses a run: the original's pause screen (`notes/behaviour/options.md`)
+  with Sounds/Music sliders, Flashing VFX and Damage Numbers switches,
+  Quit (results screen; the run is recorded and achievements checked) and
+  Resume. Title menu: START / OPTIONS (same screen with Back).
+- The sound test moved from the title to the Options screen (row "Sound
+  test"; diagnostics shown while it is selected). The title keeps one line
+  of sound status.
+- Save: `flashing_vfx`, `damage_numbers`; one `save_defaults()` for every
+  fresh-save path. The 0/0 volume repair now only applies to saves written
+  before these keys existed, so muting both on purpose is kept.
+- Scripted input gains B/X/Y and S (Start).
+- Checks: pause → change → resume → quit flow, options from the title,
+  values in the save; gameplay hash unchanged without pausing; ASan/UBSan
+  clean; C++03 clean.

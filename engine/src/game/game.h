@@ -220,7 +220,7 @@ typedef struct {
     char frame[32];
 } vs_fx;
 
-enum { VS_SCREEN_TITLE = 0, VS_SCREEN_SELECT, VS_SCREEN_GAME, VS_SCREEN_GAMEOVER };
+enum { VS_SCREEN_TITLE = 0, VS_SCREEN_SELECT, VS_SCREEN_GAME, VS_SCREEN_GAMEOVER, VS_SCREEN_OPTIONS };
 
 /* ---- tilemap (notes/behaviour/stage-map.md) */
 typedef struct {
@@ -245,6 +245,8 @@ enum {
 typedef struct {
     double coins, lifetime_coins, lifetime_heal, lifetime_survived;
     float sound_volume, music_volume;   /* options, 0..1 (default 0.5) */
+    int flashing_vfx, damage_numbers;   /* options, 0/1 (default 1) */
+    int has_options;                    /* loaded file had the option keys (not saved) */
     int selected_character, selected_stage;
     uint8_t achieved[VS_ACHIEVEMENTS_COUNT];
     uint8_t weapon_unlocked[VS_WEAPONS_COUNT], weapon_seen[VS_WEAPONS_COUNT];
@@ -304,6 +306,13 @@ typedef struct {
     float recovered_hp;     /* HP actually recovered (Soul Eater's onHPRecoveryCallback) */
     int screen;             /* VS_SCREEN_* */
     int menu_sel, menu_stage, menu_char_list[16], menu_char_count;
+    int title_sel;          /* title menu: 0 start, 1 options */
+    /* pause / options screen (options.c) */
+    int paused;             /* run paused, options screen shown over it */
+    int opt_sel, opt_btn;   /* selected row; on the button row, which button */
+    float opt_hold_ms;      /* left/right held, for auto-repeat */
+    int opt_dirty;          /* options changed since the screen opened */
+    int quit_run;           /* the run ended from the pause screen (results, no game over) */
     int selected_character, selected_stage;
     uint64_t seed;
     uint32_t prev_buttons;
@@ -451,6 +460,14 @@ void vs_render_sprite(vs_game *g, int tex, const vs_frame *f, float x, float y, 
 void vs_render_stretched(vs_game *g, int tex, const vs_frame *f, float cx, float cy, float w, float h,
                          float angle, uint32_t tint, uint8_t alpha, float depth);
 void vs_render_end(vs_game *g);
+
+/* options.c: pause screen (in a run) and options screen (from the title) */
+void vs_options_open(vs_game *g);
+void vs_options_input(vs_game *g, const vs_pad *pad);
+void vs_options_render(vs_game *g);
+/* game.c UI helpers shared with options.c */
+void vs_ui_nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint);
+void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha);
 const char *vs_weapon_name(const vs_game *g, int type);
 
 #endif

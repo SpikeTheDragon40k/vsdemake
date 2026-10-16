@@ -262,6 +262,7 @@ int vs_save_write(vs_game *g) {
     put(&b, "%s\n", SAVE_MAGIC);
     put(&b, "coins=%.0f\nlifetime_coins=%.0f\nlifetime_heal=%.1f\nlifetime_survived=%.0f\n", sv->coins, sv->lifetime_coins, sv->lifetime_heal, sv->lifetime_survived);
     put(&b, "sound_volume=%.2f\nmusic_volume=%.2f\n", sv->sound_volume, sv->music_volume);
+    put(&b, "flashing_vfx=%d\ndamage_numbers=%d\n", sv->flashing_vfx, sv->damage_numbers);
     if (vs_pack_enum(g->pack, "characters", &ce) == 0 && (uint32_t)sv->selected_character < ce.count) put(&b, "selected_character=%s\n", vs_enum_value(&ce, (uint32_t)sv->selected_character));
     if (vs_pack_enum(g->pack, "stages", &se) == 0 && (uint32_t)sv->selected_stage < se.count) put(&b, "selected_stage=%s\n", vs_enum_value(&se, (uint32_t)sv->selected_stage));
     put_flags(&b, g->pack, "achievements", "achievement", sv->achieved, VS_ACHIEVEMENTS_COUNT);
@@ -291,6 +292,15 @@ static int find_value(const vs_pack *p, const char *enum_name, const char *value
 }
 
 /* Parses one save text; 0 when the magic and CRC line are valid. */
+/* A fresh save: every field that is not 0 by default is set here. */
+static void save_defaults(vs_save *sv) {
+    memset(sv, 0, sizeof *sv);
+    sv->selected_character = VS_CHARACTERS_ANTONIO;
+    sv->selected_stage = VS_STAGES_FOREST;
+    sv->sound_volume = sv->music_volume = 0.5f;
+    sv->flashing_vfx = sv->damage_numbers = 1;
+}
+
 static int parse(vs_game *g, char *text, size_t n) {
     vs_save *sv = &g->save;
     char *crc_line = NULL;
@@ -301,8 +311,7 @@ static int parse(vs_game *g, char *text, size_t n) {
     unsigned long want = strtoul(crc_line + 4, NULL, 16);
     if (crc32_of(text, (size_t)(crc_line - text)) != (uint32_t)want) return -1;
     *crc_line = 0;
-    memset(sv, 0, sizeof *sv);
-    sv->sound_volume = sv->music_volume = 0.5f;
+    save_defaults(sv);
     for (char *line = strtok(text + strlen(SAVE_MAGIC) + 1, "\n"); line; line = strtok(NULL, "\n")) {
         char *eq = strchr(line, '=');
         if (!eq) continue;
@@ -315,6 +324,8 @@ static int parse(vs_game *g, char *text, size_t n) {
         else if (!strcmp(k, "lifetime_survived")) sv->lifetime_survived = atof(v);
         else if (!strcmp(k, "sound_volume")) sv->sound_volume = (float)atof(v);
         else if (!strcmp(k, "music_volume")) sv->music_volume = (float)atof(v);
+        else if (!strcmp(k, "flashing_vfx")) { sv->flashing_vfx = atoi(v) != 0; sv->has_options = 1; }
+        else if (!strcmp(k, "damage_numbers")) sv->damage_numbers = atoi(v) != 0;
         else if (!strcmp(k, "selected_character")) { if ((i = find_value(g->pack, "characters", v)) >= 0) sv->selected_character = i; }
         else if (!strcmp(k, "selected_stage")) { if ((i = find_value(g->pack, "stages", v)) >= 0) sv->selected_stage = i; }
         else if (!strcmp(k, "achievement")) { if ((i = find_value(g->pack, "achievements", v)) >= 0 && i < VS_ACHIEVEMENTS_COUNT) sv->achieved[i] = 1; }
@@ -344,25 +355,17 @@ static int load_one(vs_game *g, const char *path) {
 
 /* Loads <path>, else <path>.bak; a missing or damaged save starts fresh. */
 int vs_save_load(vs_game *g, const char *path) {
-    memset(&g->save, 0, sizeof g->save);
-    g->save.selected_character = VS_CHARACTERS_ANTONIO;
-    g->save.selected_stage = VS_STAGES_FOREST;
-    g->save.sound_volume = g->save.music_volume = 0.5f;
+    save_defaults(&g->save);
     snprintf(g->save_path, sizeof g->save_path, "%s", path ? path : "");
     if (!path || !*path) return -1;
     char bak[300];
     snprintf(bak, sizeof bak, "%s.bak", path);
     int rc = load_one(g, path), from_backup = 0;
     if (rc != 0) { rc = load_one(g, bak); from_backup = rc == 0; }
-    if (rc != 0) {
-        memset(&g->save, 0, sizeof g->save);
-        g->save.selected_character = VS_CHARACTERS_ANTONIO;
-        g->save.selected_stage = VS_STAGES_FOREST;
-        g->save.sound_volume = g->save.music_volume = 0.5f;
-    }
-    /* Builds before this fix wrote new saves with both volumes at 0, and there
-     * is no options screen yet to change them: such saves get the defaults. */
-    if (g->save.sound_volume <= 0 && g->save.music_volume <= 0) g->save.sound_volume = g->save.music_volume = 0.5f;
+    if (rc != 0) save_defaults(&g->save);
+    /* Builds before the options screen wrote new saves with both volumes at
+     * 0 by mistake; those saves (no option keys yet) get the defaults. */
+    if (!g->save.has_options && g->save.sound_volume <= 0 && g->save.music_volume <= 0) g->save.sound_volume = g->save.music_volume = 0.5f;
     g->save.stage_unlocked[VS_STAGES_FOREST] = 1;
     restore_achievement_unlocks(g);
     /* A new save is written right away, so a folder that can't be written is

@@ -5,8 +5,8 @@
  *
  * --no-render skips drawing except the last frame (fast headless runs).
  * --input is a scripted pad for headless runs and replays: tokens like
- * "R120 D120 L120 U120" (direction letters U/D/L/R, '.' = idle, optional
- * tick count), looped when exhausted. */
+ * "R120 D120 L120 U120" (direction letters U/D/L/R, buttons A/B/X/Y and
+ * S = start, '.' = idle, optional tick count), looped when exhausted. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +36,10 @@ static uint32_t scripted_buttons(const char *script, size_t *pos, int *left) {
                 if (c == 'L') current |= VS_BTN_LEFT;
                 if (c == 'R') current |= VS_BTN_RIGHT;
                 if (c == 'A') current |= VS_BTN_A;
+                if (c == 'B') current |= VS_BTN_B;
+                if (c == 'X') current |= VS_BTN_X;
+                if (c == 'Y') current |= VS_BTN_Y;
+                if (c == 'S') current |= VS_BTN_START;
             }
             *left = script[*pos] >= '0' && script[*pos] <= '9' ? (int)strtol(script + *pos, NULL, 10) : 1;
             while (script[*pos] >= '0' && script[*pos] <= '9') (*pos)++;
