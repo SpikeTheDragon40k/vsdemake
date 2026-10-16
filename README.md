@@ -36,7 +36,8 @@ on Steam and supply the supported game files yourself.
   are not listed.
 - **Weapons:** Whip, Magic Wand, Knife, Axe, Cross, King Bible, Fire Wand,
   Garlic, Santa Water, Runetracer, Lightning Ring, Peachone, Ebony Wings,
-  Pentagram, Clock Lancet, Laurel and Bone: every weapon of this version.
+  Clock Lancet, Laurel and Bone: every weapon of this version except
+  Pentagram, which is left out on purpose (it is never offered).
 - **Evolutions:** Bloody Tear, Holy Wand, Thousand Edge, Death Spiral,
   Heaven Sword, Unholy Vespers, Hellfire, Soul Eater and Vandalier (the
   union of Peachone and Ebony Wings). They come from

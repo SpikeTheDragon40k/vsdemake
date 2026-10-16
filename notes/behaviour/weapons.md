@@ -235,6 +235,9 @@ offset by 2.5 px × scale).
 
 ## Pentagram (PENTAGRAM; weapon 5737, bullet 4045)
 
+**Not in the demake** (removed by choice on 2026-10-16; the behaviour below
+is kept for reference). It is never offered.
+
 - Interval 90 s (−10 s at levels 2, 4 and 6); fires 100 ms after it is
   obtained (MakeLevelOne) and, like every weapon, on each level-up. One
   bullet whatever the amount. `chance` 0.1, +0.15, +0.2, +0.2.
@@ -252,5 +255,5 @@ offset by 2.5 px × scale).
   `inner3` from 7) and `center`, filled white-yellow; it shatters into
   pieces that fly apart, turn ±90° and fade over 1 s after 150 ms.
 
-Demake: Pentagram's pieces are 4 × 4 tiles per layer instead of triangles,
-layers tinted rather than filled.
+(When it was implemented, the demake cut the picture into 4 × 4 tiles per
+layer instead of triangles, tinted rather than filled; see commit 0c966d2.)
