@@ -132,7 +132,7 @@ void vs_enemy_die(vs_game *g, vs_enemy *e) {
 
 void vs_enemy_get_damaged(vs_game *g, vs_enemy *e, float dmg, int hit_type, float kb) {
     if (e->is_dead) return;
-    if (dmg > 0) vs_fx_damage_number(g, e->x, e->y, dmg);
+    if (dmg > 0 && g->save.damage_numbers) vs_fx_damage_number(g, e->x, e->y, dmg);   /* option, line 4519 */
     e->hp -= dmg;
     vs_sfx(g, VS_SND_HIT, 0.5f, 500 * (vs_sfx_random(g) - 0.5f), 1, 150, 3);   /* every hit, the killing one too */
     if (e->hp <= 0) vs_enemy_die(g, e);

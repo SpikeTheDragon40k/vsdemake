@@ -158,6 +158,8 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
 
 /* InitGame (Core, line 6381): fresh run state; resources stay loaded. */
 int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
+    g->paused = 0;
+    g->quit_run = 0;
     memset(&g->player, 0, sizeof g->player);
     memset(g->enemies, 0, sizeof g->enemies);
     memset(g->weapons, 0, sizeof g->weapons);
@@ -203,14 +205,17 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
 }
 
 static void menu_update(vs_game *g, const vs_pad *pad) {
+    if (g->screen == VS_SCREEN_OPTIONS) { vs_options_input(g, pad); return; }   /* reads prev_buttons itself */
     uint32_t pressed = pad->buttons & ~g->prev_buttons;
     g->prev_buttons = pad->buttons;
     switch (g->screen) {
     case VS_SCREEN_TITLE:
-        if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if (pressed & VS_BTN_Y) vs_sfx(g, VS_SND_LEVELUP, 1.5f, 0, 1, 0, 0);   /* sound test */
-        if (pressed & VS_BTN_X) vs_audio_test_tone();                         /* tone, no decoder */
-        if (pressed & VS_BTN_B) g->audio_swap = vs_plat_audio_toggle_swap();  /* byte-order test */
+        if (pressed & (VS_BTN_UP | VS_BTN_DOWN)) { g->title_sel ^= 1; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & (VS_BTN_A | VS_BTN_START)) {
+            vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0);
+            if (g->title_sel == 1) { g->screen = VS_SCREEN_OPTIONS; vs_options_open(g); }
+            else { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; }
+        }
         break;
     case VS_SCREEN_SELECT: {
         int n = g->menu_char_count;
@@ -236,6 +241,7 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
 
 void vs_game_update(vs_game *g, const vs_pad *pad) {
     if (g->screen != VS_SCREEN_GAME) { menu_update(g, pad); return; }
+    if (g->paused) { vs_options_input(g, pad); return; }   /* the run is frozen */
     if (g->game_over) {
         if (g->gameover_ms == 0) {
             vs_save_run_end(g);                       /* lifetime counters, achievements, save */
@@ -251,6 +257,13 @@ void vs_game_update(vs_game *g, const vs_pad *pad) {
     if (g->levelup.pending) {
         vs_levelup_input(g, pad);
         g->prev_buttons = pad->buttons;
+        return;
+    }
+    /* Start pauses (original: pause button / gamepad button 9) */
+    if (pad->buttons & ~g->prev_buttons & VS_BTN_START) {
+        g->prev_buttons = pad->buttons;
+        g->paused = 1;
+        vs_options_open(g);
         return;
     }
     g->prev_buttons = pad->buttons;
@@ -312,16 +325,16 @@ static const char *character_name(vs_game *g, int type, char *buf, size_t n) {
 
 /* Draws `frame` from the UI atlas stretched over (x, y, w, h) as a nine-slice
  * with corners of `c` px (the original's NineSlice configs). */
-static void nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int c, uint32_t tint) {
+void vs_ui_nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint) {
     vs_frame f;
     if (vs_atlas_find(&g->atl_ui, frame, &f) != 0) return;
     /* whole pixels, or the stretched rows leave 1 px seams */
     float x1 = floorf(x + w + 0.5f), y1 = floorf(y + h + 0.5f);
     x = floorf(x + 0.5f); y = floorf(y + 0.5f); w = x1 - x; h = y1 - y;
-    int sx[3] = { f.x, f.x + c, f.x + f.w - c }, sw[3] = { c, f.w - 2 * c, c };
-    int sy[3] = { f.y, f.y + c, f.y + f.h - c }, sh[3] = { c, f.h - 2 * c, c };
-    float dx[3] = { x, x + c, x + w - c }, dw[3] = { (float)c, w - 2 * c, (float)c };
-    float dy[3] = { y, y + c, y + h - c }, dh[3] = { (float)c, h - 2 * c, (float)c };
+    int sx[3] = { f.x, f.x + cw, f.x + f.w - cw }, sw[3] = { cw, f.w - 2 * cw, cw };
+    int sy[3] = { f.y, f.y + ch, f.y + f.h - ch }, sh[3] = { ch, f.h - 2 * ch, ch };
+    float dx[3] = { x, x + cw, x + w - cw }, dw[3] = { (float)cw, w - 2 * cw, (float)cw };
+    float dy[3] = { y, y + ch, y + h - ch }, dh[3] = { (float)ch, h - 2 * ch, (float)ch };
     for (int j = 0; j < 3; j++) {
         for (int i = 0; i < 3; i++) {
             if (dw[i] <= 0 || dh[j] <= 0) continue;
@@ -333,6 +346,20 @@ static void nine_slice(vs_game *g, const char *frame, float x, float y, float w,
             vs_plat_draw(&s);
         }
     }
+}
+
+static void nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int c, uint32_t tint) {
+    vs_ui_nine_slice(g, frame, x, y, w, h, c, c, tint);
+}
+
+/* Solid rectangle in screen space (whiteDot stretched). */
+void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha) {
+    vs_frame white;
+    if (vs_atlas_find(&g->atl_characters, "whiteDot.png", &white) != 0) return;
+    vs_sprite s = {0};
+    s.tex = g->textures[g->tex_characters]; s.sx = (int16_t)white.x; s.sy = (int16_t)white.y; s.sw = 1; s.sh = 1;
+    s.dx = x; s.dy = y; s.scale_x = w; s.scale_y = h; s.tint = tint; s.alpha = alpha;
+    vs_plat_draw(&s);
 }
 
 /* Draws `text` word-wrapped to `max_w`; honours '\n'. Returns lines drawn. */
@@ -501,19 +528,20 @@ static void render_menu(vs_game *g) {
         vs_text_draw(g->logical_w - vs_text_width(1, buf) - 8, 6, 1, 0xffd040, buf);
     }
     if (g->screen == VS_SCREEN_TITLE) {
-        vs_text_draw(g->logical_w * 0.5f - 60, 260, 1.5f, 0xffffff, "PRESS START");
+        static const char *const fallback[2] = { "START", "OPTIONS" };
+        static const char *const keys[2] = { "menu_start", "options_header" };
+        for (int i = 0; i < 2; i++) {
+            char label[64];
+            snprintf(label, sizeof label, "%s%s", g->title_sel == i ? "> " : "", vs_lang_get(&g->lang, keys[i], fallback[i]));
+            for (char *c = label; *c; c++) if (*c >= 'a' && *c <= 'z') *c = (char)(*c - 32);
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1.5f, label)), 255.0f + 18 * i, 1.5f, g->title_sel == i ? 0xffff80 : 0xffffff, label);
+        }
         vs_text_draw(g->logical_w * 0.5f - 140, 398, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
         const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
         vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 411, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
-        if (g->audio_status[0]) {
-            /* live diagnostics: decoded seconds, peak of the latest mix, frames the device played */
-            snprintf(buf, sizeof buf, "%s | %.0f s decoded | level %d (max %d) | played %lu", g->audio_status, vs_audio_decoded_seconds(), vs_audio_last_peak(), vs_audio_max_peak(), (unsigned long)vs_plat_audio_played());
-            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 424, 1, strstr(g->audio_status, "NO ") ? 0xff4040 : 0x60a060, buf);
-            snprintf(buf, sizeof buf, "Sound test: Y = game sound, X = plain tone, B = byte order (now %s)", g->audio_swap ? "SWAPPED" : "normal");
-            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 434, 1, 0x808080, buf);
-            vs_audio_debug("LevelUp", buf, sizeof buf);
-            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, buf)), 444, 1, 0x808080, buf);
-        }
+        /* sound state in one line; the sound test is in Options */
+        if (g->audio_status[0])
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, g->audio_status)), 424, 1, strstr(g->audio_status, "NO ") ? 0xff4040 : 0x60a060, g->audio_status);
     } else if (g->screen == VS_SCREEN_SELECT) {
         vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
         for (int i = 0; i < g->menu_char_count; i++) {
@@ -527,8 +555,13 @@ static void render_menu(vs_game *g) {
         if (vs_stage_selectable(g, VS_STAGES_LIBRARY)) snprintf(buf, sizeof buf, "%s %s", g->menu_stage == 1 ? ">" : " ", vs_stage_name(g, VS_STAGES_LIBRARY));
         else snprintf(buf, sizeof buf, "  ??? (reach LV 20 in %s)", vs_stage_name(g, VS_STAGES_FOREST));
         vs_text_draw(420, 270, 1, g->menu_stage == 1 ? 0xffff80 : vs_stage_selectable(g, VS_STAGES_LIBRARY) ? 0xffffff : 0x808080, buf);
+    } else if (g->screen == VS_SCREEN_OPTIONS) {
+        vs_options_render(g);
     } else if (g->screen == VS_SCREEN_GAMEOVER) {
-        vs_text_draw(g->logical_w * 0.5f - 80, 120, 3, 0xff4040, "GAME OVER");
+        if (g->quit_run) {
+            const char *t = "RESULTS";
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(3, t)), 120, 3, 0xffffff, t);
+        } else vs_text_draw(g->logical_w * 0.5f - 80, 120, 3, 0xff4040, "GAME OVER");
         snprintf(buf, sizeof buf, "SURVIVED %02d:%02d   LEVEL %d   KILLS %u   GOLD %.0f   CHESTS %d", g->survived_seconds / 60, g->survived_seconds % 60, g->player.level, g->kills, g->coins, g->chests_opened);
         vs_text_draw(g->logical_w * 0.5f - 200, 170, 1.2f, 0xffffff, buf);
         /* new achievements of this run and what they unlocked (the original
@@ -638,7 +671,7 @@ void vs_game_render(vs_game *g) {
         if (!found) continue;
         float phase = fmodf((float)g->tick * VS_TICK_MS + e->wobble * 45.0f, 1000.0f);
         float angle = e->dying || e->time_stopped ? 0 : (phase < 500 ? -5 + 10 * phase / 500 : 5 - 10 * (phase - 500) / 500);
-        uint32_t tint = e->time_stopped ? 0x0000ff : (e->receiving_damage ? e->hit_tint : 0xffffff);
+        uint32_t tint = e->time_stopped ? 0x0000ff : (e->receiving_damage && g->save.flashing_vfx ? e->hit_tint : 0xffffff);
         vs_render_sprite(g, g->tex_enemies, &f, e->x, e->y, 0.5f, 1.0f, e->scale, e->dir_x > 0, 0, angle, tint, (uint8_t)(e->alpha * 255), e->y - p->y);
     }
 
@@ -702,7 +735,7 @@ void vs_game_render(vs_game *g) {
              * four colours grows to radius 8 × area over the 60 ms hit. */
             float len = b->y - b->ay;
             if (len > 1) vs_render_stretched(g, g->tex_vfx, &f, b->x, b->ay + 0.5f * len, len, (float)f.h, 90, 0xffffff, 255, 1e6f);
-            if (b->state == 1 && vs_atlas_find(&g->atl_vfx, "circle.png", &f) == 0) {
+            if (b->state == 1 && g->save.flashing_vfx && vs_atlas_find(&g->atl_vfx, "circle.png", &f) == 0) {
                 static const uint32_t colours[4] = { 0x00ffff, 0x0000ff, 0x0088ff, 0xffffff };
                 float t = (b->age_ms - b->f1) / 60.0f, d = 32.0f * b->scale * (t < 1 ? t : 1);   /* scale = area / 2 */
                 vs_render_stretched(g, g->tex_vfx, &f, b->x, b->y, d, d, 0, colours[b->index & 3], 38, b->y - p->y - 0.5f * g->logical_h);
@@ -729,6 +762,7 @@ void vs_game_render(vs_game *g) {
     if (g->debug_hitboxes) render_hitboxes(g, cam_x, cam_y);
     render_hud(g);
     if (g->levelup.pending) render_levelup(g);
+    if (g->paused) vs_options_render(g);
     vs_plat_end_frame();
 }
 

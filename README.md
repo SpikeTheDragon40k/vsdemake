@@ -53,6 +53,9 @@ on Steam and supply the supported game files yourself.
 - **Sound and music:** the original's sound effects and stage tracks,
   played with the original's volume, pitch and repeat rules (see
   [Sound and music](#sound-and-music)).
+- **Pause and options:** the original's pause screen (volumes, Flashing
+  VFX, Damage Numbers, Quit/Resume), also reachable from the title menu
+  (see [Pause and options](#pause-and-options)).
 - **Platforms:** PC (Linux, Windows, macOS via SDL2) and Xbox 360 (XDK).
   The PC build doubles as a test tool: headless runs, fixed seeds, state
   hashes, screenshots, frame and audio recording.
@@ -238,15 +241,30 @@ cmake --build engine/build
 | --- | --- | --- |
 | Move | Arrow keys / WASD | D-pad / left stick |
 | Confirm | Enter / Space | A |
-| Start | Esc | Start |
-| Back | Backspace | B |
-| Quit (PC) | Shift + Esc | |
+| Start / pause | Esc | Start |
+| Back / resume | Backspace | B |
+| Quit the program (PC) | Shift + Esc | |
 
-Controllers work through SDL2 on PC. A pause screen is not implemented yet.
+Controllers work through SDL2 on PC.
 
-The title screen also has a sound test: **Y** plays the level-up sound and
-**X** plays a plain beep. On Xbox 360, **B** swaps the byte order of the
-sound output, which is only a diagnostic.
+### Pause and options
+
+Press **Start** during a run to pause. The pause screen is the original's:
+
+- **Sounds** and **Music** volume sliders (left/right, held to repeat; 5 %
+  steps; the music changes as you slide).
+- **Flashing VFX**: the white flash on hit enemies and the Lightning Ring
+  impact flash.
+- **Damage Numbers**: the numbers over hit enemies.
+- **Sound test** (demake only): **A** plays a game sound, **X** a plain
+  beep, **Y** swaps the byte order of the sound output (diagnostic); while
+  this row is selected the sound status is shown under the panel.
+- **Quit** ends the run and shows its results; the run still counts for
+  gold and achievements, as in the original. **Resume** (or B / Start)
+  goes back to the run.
+
+The same screen, with **Back** instead of Quit/Resume, is the **Options**
+entry of the title menu. Changes are saved when the screen closes.
 
 ### Development options
 
@@ -266,7 +284,7 @@ sound output, which is only a diagnostic.
 | `--mute` | No sound |
 | `--record DIR` | Save every rendered frame as BMP in `DIR` (for videos); `--record-from N` starts at frame N |
 | `--headless` / `--no-render` | Run without a window, or without drawing |
-| `--frames N`, `--seed N`, `--input "R240 L240"` | Run length, random seed and scripted input for reproducible runs |
+| `--frames N`, `--seed N`, `--input "R240 L240"` | Run length, random seed and scripted input for reproducible runs (letters U/D/L/R, A/B/X/Y, S = Start, `.` = idle; number = ticks) |
 | `--screenshot FILE.bmp` | Save the last frame |
 | `--scale N` | Window size multiplier |
 
@@ -311,8 +329,6 @@ The implementation is incomplete. Known gaps include:
 
 - No shop yet: unlocked characters are playable without buying them, and
   gold only accumulates.
-- No options or pause screen; the volumes can only be changed in the save
-  file.
 - Weapons not implemented yet: Peachone, Ebony Wings, Vandalier,
   Pentagram, Clock Lancet, Laurel and Bone. They are never offered, and the
   characters who start with them are not listed.
@@ -332,13 +348,13 @@ text and can be deleted to start over.
 A new save starts like a fresh game of the original: Mad Forest, the four
 starting characters and the items that are unlocked from the beginning.
 The original's 40 achievements are checked after each run and unlock the
-rest; the game-over screen lists what a run unlocked. Runs are recorded when
-they end (game over), so quitting mid-run does not save that run.
+rest; the results screen lists what a run unlocked. A run is recorded when
+it ends: at game over, or with Quit on the pause screen. Closing the
+program mid-run does not record it.
 
-Advanced: the save holds `sound_volume` and `music_volume` (0 to 1,
-default 0.5). Editing the file by hand breaks its checksum, and the game
-then falls back to the backup or a new save, so wait for the options
-screen.
+The options (volumes, Flashing VFX, Damage Numbers) are stored in the save
+too. Don't edit the file by hand: that breaks its checksum, and the game
+then falls back to the backup or a new save.
 
 ## Sound and music
 
@@ -442,7 +458,7 @@ assets, SDK components, or console binaries.
 | Console fails to load the pack | Follow the path and first-boot checks in the Xbox 360 guides. |
 | Title says "NO SOUNDS IN THE PACK" | Rebuild `vsdata.vspack` with the current patcher (88 entries, 30 sounds). |
 | Title says "NO AUDIO OUTPUT" | The sound device failed to open; check the system's audio device (PC). |
-| Sound loaded but silent, title shows `vol 0.00/0.00` | Update the engine: an earlier build wrote new saves with the volume at 0. The current build repairs such saves when loading them. |
+| Sound loaded but silent | Check the Sounds and Music sliders in Options. An earlier build wrote new saves with both volumes at 0; the current build repairs those saves. The Sound test row shows the mixer state (`vol`, voices, play requests). |
 | Title says "SAVE FAILED" | The folder next to the pack (or `default.xex`) isn't writable; the reason is shown on screen. |
 | Xbox 360 link error `XLFQueue…` | Use the current `engine/xdk/vsdemake.vcxproj`, which links `xmcore.lib`. |
 

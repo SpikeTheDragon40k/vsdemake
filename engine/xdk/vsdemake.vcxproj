@@ -83,6 +83,7 @@
     <ClCompile Include="..\src\game\tilemap.c" />
     <ClCompile Include="..\src\game\fx.c" />
     <ClCompile Include="..\src\game\save.c" />
+    <ClCompile Include="..\src\game\options.c" />
     <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\platform\xdk\vs_platform_xdk.cpp" />
   </ItemGroup>
