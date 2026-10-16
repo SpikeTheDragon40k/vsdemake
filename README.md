@@ -56,6 +56,11 @@ on Steam and supply the supported game files yourself.
   Inlaid Library maps (Might, Luck, Max Health, Recovery, Greed,
   Cooldown) appear by chance (Luck helps); picking one up opens the
   "Weapon Found!" screen to take or leave it.
+- **Power Up shop:** spend gold on the original's 14 permanent bonuses
+  (Might, Armor, Max Health, Recovery, Cooldown, Area, Speed, Duration,
+  Amount, Move Speed, Magnet, Luck, Growth, Greed), with the original's
+  prices and the refund button; characters are bought at the character
+  select, as in the original.
 - **Saves and unlocks:** gold, lifetime totals, the original's 40
   achievements, unlocked items, characters and stages (see
   [Saves and unlocks](#saves-and-unlocks)).
@@ -338,8 +343,6 @@ Do not include it in a shared executable package.
 
 The implementation is incomplete. Known gaps include:
 
-- No shop yet: unlocked characters are playable without buying them, and
-  gold only accumulates.
 - Weapons not implemented yet: Pentagram, Clock Lancet, Laurel and Bone. They are never offered, and the
   characters who start with them are not listed.
 - Some enemy behaviours (exploding enemies and their sounds) are missing.
@@ -362,6 +365,12 @@ The original's 40 achievements are checked after each run and unlock the
 rest; the results screen lists what a run unlocked. A run is recorded when
 it ends: at game over, or with Quit on the pause screen. Closing the
 program mid-run does not record it.
+
+Gold is spent in **POWER UP** (title menu): each rank of a bonus costs
+more, and every rank bought makes all prices 10 % higher, as in the
+original. **Refund PowerUps** gives all of it back. Unlocked characters
+must be bought at the character select before you can play them
+(Antonio is free); their price is not refundable.
 
 The options (volumes, Flashing VFX, Damage Numbers) are stored in the save
 too. Don't edit the file by hand: that breaks its checksum, and the game

@@ -22,7 +22,7 @@ Key/value storage (Electron), each value JSON. Kept per player:
 - Lists: `UnlockedWeapons`, `UnlockedCharacters`, `UnlockedStages`,
   `UnlockedHypers`, `Achievements`, `CollectedWeapons` (items ever
   obtained, "seen"), `CollectedItems`, `BoughtCharacters`,
-  `BoughtPowerups` (shop, not in the demake yet).
+  `BoughtPowerups` (one entry per rank bought; see `shop.md`).
 - Options: sound/music volume, flashing VFX, damage numbers, language…
 
 On load (`apply`): the lists flip the table flags (weapon `isUnlocked`,
@@ -97,6 +97,8 @@ What each achievement unlocks is data (`achievements` table).
   FAILED" with the path).
 - Saved when a run ends (game over) and after achievements; gold is not
   saved on every pickup.
-- No shop yet: a visible (unlocked) character is playable without buying.
-  Characters whose starting weapon the demake lacks are not listed.
+- Shop (`shop.md`): `powerup.<id>=<ranks>` and `bought_character=<id>`
+  lines; characters must be bought before playing (Antonio is bought from
+  the start). Characters whose starting weapon the demake lacks are not
+  listed.
 - Hypers and Green Acres unlock and are saved but cannot be played yet.

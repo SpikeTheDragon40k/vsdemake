@@ -268,6 +268,8 @@ int vs_save_write(vs_game *g) {
     put_flags(&b, g->pack, "achievements", "achievement", sv->achieved, VS_ACHIEVEMENTS_COUNT);
     put_flags(&b, g->pack, "weapons", "unlocked_weapon", sv->weapon_unlocked, VS_WEAPONS_COUNT);
     put_flags(&b, g->pack, "characters", "unlocked_character", sv->char_unlocked, VS_CHARACTERS_COUNT);
+    put_flags(&b, g->pack, "characters", "bought_character", sv->char_bought, VS_CHARACTERS_COUNT);
+    put_counts(&b, g->pack, "weapons", "powerup", sv->powerup_level, VS_WEAPONS_COUNT);
     put_flags(&b, g->pack, "stages", "unlocked_stage", sv->stage_unlocked, VS_STAGES_COUNT);
     put_flags(&b, g->pack, "stages", "unlocked_hyper", sv->hyper_unlocked, VS_STAGES_COUNT);
     put_flags(&b, g->pack, "weapons", "seen_weapon", sv->weapon_seen, VS_WEAPONS_COUNT);
@@ -331,6 +333,8 @@ static int parse(vs_game *g, char *text, size_t n) {
         else if (!strcmp(k, "achievement")) { if ((i = find_value(g->pack, "achievements", v)) >= 0 && i < VS_ACHIEVEMENTS_COUNT) sv->achieved[i] = 1; }
         else if (!strcmp(k, "unlocked_weapon")) { if ((i = find_value(g->pack, "weapons", v)) >= 0 && i < VS_WEAPONS_COUNT) sv->weapon_unlocked[i] = 1; }
         else if (!strcmp(k, "unlocked_character")) { if ((i = find_value(g->pack, "characters", v)) >= 0 && i < VS_CHARACTERS_COUNT) sv->char_unlocked[i] = 1; }
+        else if (!strcmp(k, "bought_character")) { if ((i = find_value(g->pack, "characters", v)) >= 0 && i < VS_CHARACTERS_COUNT) sv->char_bought[i] = 1; }
+        else if (!strncmp(k, "powerup.", 8)) { if ((i = find_value(g->pack, "weapons", k + 8)) >= 0 && i < VS_WEAPONS_COUNT) sv->powerup_level[i] = (uint32_t)strtoul(v, NULL, 10); }
         else if (!strcmp(k, "unlocked_stage")) { if ((i = find_value(g->pack, "stages", v)) >= 0 && i < VS_STAGES_COUNT) sv->stage_unlocked[i] = 1; }
         else if (!strcmp(k, "unlocked_hyper")) { if ((i = find_value(g->pack, "stages", v)) >= 0 && i < VS_STAGES_COUNT) sv->hyper_unlocked[i] = 1; }
         else if (!strcmp(k, "seen_weapon")) { if ((i = find_value(g->pack, "weapons", v)) >= 0 && i < VS_WEAPONS_COUNT) sv->weapon_seen[i] = 1; }

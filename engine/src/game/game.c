@@ -117,6 +117,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (open_table(g, "destructibles", &g->destructibles_table, VS_DESTRUCTIBLES_FIELD_NAMES)) return -1;
     if (open_table(g, "achievements", &g->achievements_table, VS_ACHIEVEMENTS_FIELD_NAMES)) return -1;
     if (open_table(g, "stages", &g->stages_table, VS_STAGES_FIELD_NAMES)) return -1;
+    if (open_table(g, "powerups", &g->powerups_table, VS_POWERUPS_FIELD_NAMES)) return -1;
     vs_save_load(g, save_path);
 
     if (load_atlas(g, "characters", &g->atl_characters, &g->tex_characters) != 0) return -1;
@@ -194,6 +195,7 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     if (vs_stage_init(g, stage_enum) != 0) { vs_plat_log("stage init failed"); return -1; }
     vs_weapon_add(g, g->player.startingWeapon, 1);
     vs_loot_recalculate(g);
+    vs_powerups_apply(g);   /* bought PowerUp ranks (shop.c) */
     {
         vs_stage *s = &g->stage;
         vs_stages_rec *row0 = &s->rows[0].rec;
@@ -209,14 +211,17 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
 
 static void menu_update(vs_game *g, const vs_pad *pad) {
     if (g->screen == VS_SCREEN_OPTIONS) { vs_options_input(g, pad); return; }   /* reads prev_buttons itself */
+    if (g->screen == VS_SCREEN_POWERUP) { vs_shop_input(g, pad); return; }
     uint32_t pressed = pad->buttons & ~g->prev_buttons;
     g->prev_buttons = pad->buttons;
     switch (g->screen) {
     case VS_SCREEN_TITLE:
-        if (pressed & (VS_BTN_UP | VS_BTN_DOWN)) { g->title_sel ^= 1; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_UP) { g->title_sel = (g->title_sel + 2) % 3; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_DOWN) { g->title_sel = (g->title_sel + 1) % 3; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         if (pressed & (VS_BTN_A | VS_BTN_START)) {
             vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0);
-            if (g->title_sel == 1) { g->screen = VS_SCREEN_OPTIONS; vs_options_open(g); }
+            if (g->title_sel == 2) { g->screen = VS_SCREEN_OPTIONS; vs_options_open(g); }
+            else if (g->title_sel == 1) vs_shop_open(g);
             else { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; }
         }
         break;
@@ -226,9 +231,17 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
         if (pressed & VS_BTN_DOWN) { g->menu_sel = (g->menu_sel + 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         if ((pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) && vs_stage_selectable(g, VS_STAGES_LIBRARY)) { g->menu_stage ^= 1; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         if (pressed & VS_BTN_B) { g->screen = VS_SCREEN_TITLE; vs_sfx(g, VS_SND_CLICKOUT, -1, -400, 1, 0, 0); }
+        if (g->shop_msg_ms > 0) g->shop_msg_ms -= VS_TICK_MS;
         if (pressed & (VS_BTN_A | VS_BTN_START)) {
+            int c = g->menu_char_list[g->menu_sel];
+            if (!vs_char_bought(g, c)) {
+                /* the original: a character is bought first (ClickOut, -400 cents), started with the next press */
+                if (vs_char_buy(g, c)) vs_sfx(g, VS_SND_CLICKOUT, -1, -400, 1, 0, 0);
+                else { snprintf(g->shop_msg, sizeof g->shop_msg, "Not enough gold"); g->shop_msg_ms = 1500; }
+                break;
+            }
             vs_sfx(g, VS_SND_CLICKIN, -1, 200, 1, 0, 0);
-            g->selected_character = g->menu_char_list[g->menu_sel];
+            g->selected_character = c;
             g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
             g->seed = g->seed * 6364136223846793005ull + 1442695040888963407ull;
             if (vs_game_start_run(g, g->selected_character, g->selected_stage) != 0) g->screen = VS_SCREEN_TITLE;
@@ -545,14 +558,14 @@ static void render_menu(vs_game *g) {
             s.dx = 0.5f * (g->logical_w - g->title_w * sc); s.dy = 130.0f - 0.5f * g->title_h * sc; vs_plat_draw(&s);
         }
     }
-    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT) {
+    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT || g->screen == VS_SCREEN_POWERUP) {
         snprintf(buf, sizeof buf, "GOLD %.0f   ACHIEVEMENTS %d/%d", g->save.coins, vs_save_achievement_count(g), VS_ACHIEVEMENTS_COUNT);
         vs_text_draw(g->logical_w - vs_text_width(1, buf) - 8, 6, 1, 0xffd040, buf);
     }
     if (g->screen == VS_SCREEN_TITLE) {
-        static const char *const fallback[2] = { "START", "OPTIONS" };
-        static const char *const keys[2] = { "menu_start", "options_header" };
-        for (int i = 0; i < 2; i++) {
+        static const char *const fallback[3] = { "START", "POWER UP", "OPTIONS" };
+        static const char *const keys[3] = { "menu_start", "menu_power_up", "options_header" };
+        for (int i = 0; i < 3; i++) {
             char label[64];
             snprintf(label, sizeof label, "%s%s", g->title_sel == i ? "> " : "", vs_lang_get(&g->lang, keys[i], fallback[i]));
             for (char *c = label; *c; c++) if (*c >= 'a' && *c <= 'z') *c = (char)(*c - 32);
@@ -568,9 +581,13 @@ static void render_menu(vs_game *g) {
         vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
         for (int i = 0; i < g->menu_char_count; i++) {
             char nm[64];
-            snprintf(buf, sizeof buf, "%s %s", i == g->menu_sel ? ">" : " ", character_name(g, g->menu_char_list[i], nm, sizeof nm));
-            vs_text_draw(60, (float)(260 + 10 * i), 1, i == g->menu_sel ? 0xffff80 : 0xffffff, buf);
+            int c = g->menu_char_list[i], bought = vs_char_bought(g, c);
+            char price[32] = "";
+            if (!bought) snprintf(price, sizeof price, "  - buy: %.0f gold", vs_char_price(g, c));
+            snprintf(buf, sizeof buf, "%s %s%s", i == g->menu_sel ? ">" : " ", character_name(g, c, nm, sizeof nm), price);
+            vs_text_draw(60, (float)(260 + 10 * i), 1, i == g->menu_sel ? 0xffff80 : bought ? 0xffffff : 0xa0a0a0, buf);
         }
+        if (g->shop_msg_ms > 0) vs_text_draw(60, (float)(264 + 10 * g->menu_char_count), 1, 0xff8080, g->shop_msg);
         vs_text_draw(420, 240, 1.5f, 0xffffff, "STAGE (left/right)");
         snprintf(buf, sizeof buf, "%s %s", g->menu_stage == 0 ? ">" : " ", vs_stage_name(g, VS_STAGES_FOREST));
         vs_text_draw(420, 260, 1, g->menu_stage == 0 ? 0xffff80 : 0xffffff, buf);
@@ -579,6 +596,8 @@ static void render_menu(vs_game *g) {
         vs_text_draw(420, 270, 1, g->menu_stage == 1 ? 0xffff80 : vs_stage_selectable(g, VS_STAGES_LIBRARY) ? 0xffffff : 0x808080, buf);
     } else if (g->screen == VS_SCREEN_OPTIONS) {
         vs_options_render(g);
+    } else if (g->screen == VS_SCREEN_POWERUP) {
+        vs_shop_render(g);
     } else if (g->screen == VS_SCREEN_GAMEOVER) {
         if (g->quit_run) {
             const char *t = "RESULTS";
