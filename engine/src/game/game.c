@@ -616,6 +616,67 @@ static void render_hitboxes(vs_game *g, float cam_x, float cam_y) {
     outline(g, p->x + p->body_ox - p->body_r - cam_x, p->y + p->body_oy - p->body_r - cam_y, 2 * p->body_r, 2 * p->body_r, 0x00ffff);
 }
 
+/* Bird bolt trail: the original's Rope of a small gradient texture along the
+ * bolt's last 24 positions (one per frame). Drawn as 24 strips along the
+ * flight curve, each with its share of the texture's columns (head first);
+ * plain alpha instead of Peachone's additive blend. Fades in over 200 ms
+ * and out over 200 ms after the burst. */
+static void render_bird_bolt(vs_game *g, const vs_bullet *b, int pool_index) {
+    const vs_weapon *w = &g->weapons[b->weapon];
+    float area = vs_weapon_p_area(g, w), ray = vs_bird_ray_ms(b->type);
+    char name[32]; float trail_alpha = 0.4f;
+    if (b->type == VS_WEAPONS_SILF) snprintf(name, sizeof name, "Gradient3_%dpx.png", area >= 2 ? 8 : area >= 1.5f ? 6 : 4);
+    else if (b->type == VS_WEAPONS_SILF2) { snprintf(name, sizeof name, "Gradient4_%dpx.png", area >= 1.5f && area < 2 ? 6 : 4); trail_alpha = 1; }   /* the original never picks 8px here */
+    else snprintf(name, sizeof name, "Prism%d_8px.png", 1 + pool_index % 9);
+    vs_frame f;
+    if (vs_atlas_find(&g->atl_vfx, name, &f) != 0 || f.w <= 0) return;
+    float fade = b->age_ms < 200 ? b->age_ms / 200.0f : 1.0f;
+    if (b->age_ms > ray) fade = 1 - (b->age_ms - ray) / 200.0f;
+    if (fade <= 0) return;
+    uint8_t alpha = (uint8_t)(255 * trail_alpha * fade);
+    const float window = 24 * VS_TICK_MS;
+    const int n = 24;
+    float px = 0, py = 0;
+    for (int k = 0; k <= n; k++) {
+        float t = (b->age_ms - window * k / n) / ray, x, y;
+        vs_bird_curve(b, t, &x, &y);
+        if (k > 0) {
+            float dx = px - x, dy = py - y, len = sqrtf(dx * dx + dy * dy);
+            if (len > 0.01f) {
+                vs_frame col = f; col.x = f.x + (k - 1) * f.w / n; col.w = 1;
+                vs_render_stretched(g, g->tex_vfx, &col, 0.5f * (px + x), 0.5f * (py + y), len + 0.5f, (float)f.h,
+                                    atan2f(y - py, x - px) * 180.0f / 3.14159265f + 180.0f, 0xffffff, alpha, 1e6f - 1);
+            }
+        }
+        px = x; py = y;
+    }
+}
+
+/* The birds (on top, animated at 6 fps) and their target circles. */
+static void render_birds(vs_game *g) {
+    vs_frame dot;
+    int have_dot = vs_atlas_find(&g->atl_characters, "whiteDot.png", &dot) == 0;
+    for (int i = 0; i < VS_MAX_WEAPONS; i++) {
+        const vs_weapon *w = &g->weapons[i];
+        if (!w->active || (w->type != VS_WEAPONS_SILF && w->type != VS_WEAPONS_SILF2 && w->type != VS_WEAPONS_SILF3)) continue;
+        int first = w->type == VS_WEAPONS_SILF ? 1 : w->type == VS_WEAPONS_SILF2 ? 4 : 7;
+        char name[32]; vs_frame f;
+        snprintf(name, sizeof name, "ProjectileBird%d.png", first + (int)(w->stats_lifetime / (1000.0f / 6.0f)) % 2);
+        if (vs_atlas_find(&g->atl_vfx, name, &f) == 0)
+            vs_render_sprite(g, g->tex_vfx, &f, w->bird_x, w->bird_y, 0.5f, 0.5f, 1, w->bird_flip, 0, 0, 0xffffff, 255, 1e6f + 1);
+        if (!have_dot) continue;
+        /* 1 px outline (Peachone blue, Ebony pink, Vandalier white), alpha 0.5 firing, 0.1 resting */
+        uint32_t colour = w->type == VS_WEAPONS_SILF ? 0x8888ff : w->type == VS_WEAPONS_SILF2 ? 0xff88ff : 0xffffff;
+        uint8_t a = w->zone_block ? 26 : 128;
+        float r = vs_bird_zone_radius();
+        for (int z = 0; z < (w->type == VS_WEAPONS_SILF3 ? 2 : 1); z++)
+            for (int k = 0; k < 180; k++) {
+                float t = 2 * 3.14159265f * k / 180;
+                vs_render_stretched(g, g->tex_characters, &dot, w->zone_x[z] + cosf(t) * r, w->zone_y[z] + sinf(t) * r, 1.5f, 1.5f, 0, colour, a, -0.5f * g->logical_h);
+            }
+    }
+}
+
 void vs_game_render(vs_game *g) {
     if (g->screen != VS_SCREEN_GAME) { render_menu(g); return; }
     vs_player *p = &g->player;
@@ -709,6 +770,8 @@ void vs_game_render(vs_game *g) {
         case VS_WEAPONS_HOLYBOOK: fname = "HolyBook.png"; break;
         case VS_WEAPONS_VESPERS: fname = "Page2.png"; break;
         case VS_WEAPONS_LIGHTNING: fname = "Lightning3.png"; depth = 1e6f; break;
+        case VS_WEAPONS_SILF: case VS_WEAPONS_SILF3: fname = "HitWhite1.png"; depth = 1e6f; break;
+        case VS_WEAPONS_SILF2: fname = "HitBlack1.png"; depth = 1e6f; break;
         case VS_WEAPONS_DIAMOND: fname = "Diamond2.png"; tex = g->tex_items; atl = &g->atl_items; break;
         case VS_WEAPONS_HOLYWATER:
             if (b->state == 0) { fname = "HolyWater.png"; tex = g->tex_items; atl = &g->atl_items; depth = (float)g->logical_h; }
@@ -728,6 +791,14 @@ void vs_game_render(vs_game *g) {
             tint = 0x110011;
         }
         if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) { scale = b->body_r * 2 / 256.0f; tint = 0x4040ff; alpha = 60; }
+        if (b->type == VS_WEAPONS_SILF || b->type == VS_WEAPONS_SILF2 || b->type == VS_WEAPONS_SILF3) {
+            render_bird_bolt(g, b, (int)(b - g->bullets));
+            float ray = vs_bird_ray_ms(b->type), e = b->age_ms - ray;
+            if (e >= 0) {   /* burst: grows and fades in 120 ms; hidden without flashing VFX */
+                if (!g->save.flashing_vfx || e >= 120) continue;
+                alpha = (uint8_t)(255 * (1 - e / 120.0f));
+            }
+        }
         if (b->type == VS_WEAPONS_LIGHTNING) {
             /* The bullet itself is invisible. The bolt is a 17 px strip of
              * Lightning3.png along its path, from where it started (above the
@@ -757,6 +828,7 @@ void vs_game_render(vs_game *g) {
             vs_render_sprite(g, g->tex_characters, &f, p->x, p->y, 0.5f, 1.0f, 1.0f, p->facing_left, 0, 0, tint, 255, 0);
         }
     }
+    render_birds(g);
     vs_fx_render(g, cam_x, cam_y);
     vs_render_end(g);
     if (g->debug_hitboxes) render_hitboxes(g, cam_x, cam_y);

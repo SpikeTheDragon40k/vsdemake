@@ -235,3 +235,15 @@ resume in a fresh session).
 - Checks: pause → change → resume → quit flow, options from the title,
   values in the save; gameplay hash unchanged without pausing; ASan/UBSan
   clean; C++03 clean.
+
+## 2026-10-16: Peachone, Ebony Wings, Vandalier
+
+- The three bird weapons (`notes/behaviour/weapons.md`): bird following the
+  player, circling damage zone(s) with the lagging target circle, firing /
+  resting cycle, volleys of curved bolts landing on random points of the
+  zone, burst hit, trails (gradient / prism), sounds.
+- Vandalier evolves from a chest with Peachone 8 + Ebony Wings 8 (table
+  driven, removes both). Exdash (starts with Ebony Wings) is now listed once
+  unlocked; the birds join the level-up pool once unlocked.
+- Checks: video of Peachone + Ebony 8 and of Vandalier; gameplay hash of a
+  bird-less run unchanged; ASan/UBSan clean; C++03 clean.
