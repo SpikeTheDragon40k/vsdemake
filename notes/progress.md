@@ -348,3 +348,13 @@ resume in a fresh session).
 - Checks: 16,000 structural mutations through every reader and 600
   table-value mutations with the whole game running, all under ASan/UBSan:
   no errors left; hash f5097d0c unchanged; C++03 clean.
+
+## 2026-10-19: collection and achievements screens
+
+- Title menu: START, POWER UP, COLLECTION, ACHIEVEMENTS, OPTIONS.
+- Collection (`collection.md`): the weapons and pickups grid with question
+  marks for things not found yet and the description panel.
+- Achievements: the list with ticks, unlock icons, a scroll bar and the
+  panel saying what each one unlocks / unlocked.
+- Checks: screenshots (with and without `--unlock-all`), an ASan run
+  through both screens; C++03 clean.

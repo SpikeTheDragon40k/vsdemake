@@ -291,7 +291,8 @@ typedef struct {
     char frame[32];
 } vs_fx;
 
-enum { VS_SCREEN_TITLE = 0, VS_SCREEN_SELECT, VS_SCREEN_GAME, VS_SCREEN_GAMEOVER, VS_SCREEN_OPTIONS, VS_SCREEN_POWERUP };
+enum { VS_SCREEN_TITLE = 0, VS_SCREEN_SELECT, VS_SCREEN_GAME, VS_SCREEN_GAMEOVER, VS_SCREEN_OPTIONS, VS_SCREEN_POWERUP,
+       VS_SCREEN_COLLECTION, VS_SCREEN_ACHIEVEMENTS };
 
 /* ---- tilemap (notes/behaviour/stage-map.md) */
 typedef struct {
@@ -384,7 +385,9 @@ typedef struct {
     float recovered_hp;     /* HP actually recovered (Soul Eater's onHPRecoveryCallback) */
     int screen;             /* VS_SCREEN_* */
     int menu_sel, menu_stage, menu_char_list[16], menu_char_count;
-    int title_sel;          /* title menu: 0 start, 1 power up, 2 options */
+    int title_sel;          /* title menu: 0 start, 1 power up, 2 collection, 3 achievements, 4 options */
+    int coll_sel, ach_sel;  /* collection / achievements: selected entry */
+    float coll_scroll, ach_scroll;
     int shop_sel;           /* power-up screen: panel index, -1 = refund button */
     float shop_msg_ms; char shop_msg[64];   /* short notice ("not enough gold") */
     /* pause / options screen (options.c) */
@@ -575,6 +578,14 @@ float vs_powerup_markup(const vs_game *g);
 int vs_char_bought(const vs_game *g, int c);
 double vs_char_price(const vs_game *g, int c);
 int vs_char_buy(vs_game *g, int c);
+
+/* collection.c: collection and achievements screens */
+void vs_collection_open(vs_game *g);
+void vs_collection_input(vs_game *g, const vs_pad *pad);
+void vs_collection_render(vs_game *g);
+void vs_achievements_open(vs_game *g);
+void vs_achievements_input(vs_game *g, const vs_pad *pad);
+void vs_achievements_render(vs_game *g);
 
 /* options.c: pause screen (in a run) and options screen (from the title) */
 void vs_options_open(vs_game *g);

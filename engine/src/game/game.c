@@ -265,18 +265,24 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     return g->tex_bg < 0 ? -1 : 0;
 }
 
+#define TITLE_ITEMS 5   /* START, POWER UP, COLLECTION, ACHIEVEMENTS, OPTIONS */
+
 static void menu_update(vs_game *g, const vs_pad *pad) {
     if (g->screen == VS_SCREEN_OPTIONS) { vs_options_input(g, pad); return; }   /* reads prev_buttons itself */
     if (g->screen == VS_SCREEN_POWERUP) { vs_shop_input(g, pad); return; }
+    if (g->screen == VS_SCREEN_COLLECTION) { vs_collection_input(g, pad); return; }
+    if (g->screen == VS_SCREEN_ACHIEVEMENTS) { vs_achievements_input(g, pad); return; }
     uint32_t pressed = pad->buttons & ~g->prev_buttons;
     g->prev_buttons = pad->buttons;
     switch (g->screen) {
     case VS_SCREEN_TITLE:
-        if (pressed & VS_BTN_UP) { g->title_sel = (g->title_sel + 2) % 3; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if (pressed & VS_BTN_DOWN) { g->title_sel = (g->title_sel + 1) % 3; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_UP) { g->title_sel = (g->title_sel + TITLE_ITEMS - 1) % TITLE_ITEMS; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_DOWN) { g->title_sel = (g->title_sel + 1) % TITLE_ITEMS; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         if (pressed & (VS_BTN_A | VS_BTN_START)) {
             vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0);
-            if (g->title_sel == 2) { g->screen = VS_SCREEN_OPTIONS; vs_options_open(g); }
+            if (g->title_sel == 4) { g->screen = VS_SCREEN_OPTIONS; vs_options_open(g); }
+            else if (g->title_sel == 3) vs_achievements_open(g);
+            else if (g->title_sel == 2) vs_collection_open(g);
             else if (g->title_sel == 1) vs_shop_open(g);
             else { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; }
         }
@@ -621,9 +627,9 @@ static void render_menu(vs_game *g) {
         vs_text_draw(g->logical_w - vs_text_width(1, buf) - 8, 6, 1, 0xffd040, buf);
     }
     if (g->screen == VS_SCREEN_TITLE) {
-        static const char *const fallback[3] = { "START", "POWER UP", "OPTIONS" };
-        static const char *const keys[3] = { "menu_start", "menu_power_up", "options_header" };
-        for (int i = 0; i < 3; i++) {
+        static const char *const fallback[TITLE_ITEMS] = { "START", "POWER UP", "COLLECTION", "ACHIEVEMENTS", "OPTIONS" };
+        static const char *const keys[TITLE_ITEMS] = { "menu_start", "menu_power_up", "menu_collection", "menu_achievements", "options_header" };
+        for (int i = 0; i < TITLE_ITEMS; i++) {
             char label[64];
             snprintf(label, sizeof label, "%s%s", g->title_sel == i ? "> " : "", vs_lang_get(&g->lang, keys[i], fallback[i]));
             for (char *c = label; *c; c++) if (*c >= 'a' && *c <= 'z') *c = (char)(*c - 32);
@@ -656,6 +662,10 @@ static void render_menu(vs_game *g) {
         vs_options_render(g);
     } else if (g->screen == VS_SCREEN_POWERUP) {
         vs_shop_render(g);
+    } else if (g->screen == VS_SCREEN_COLLECTION) {
+        vs_collection_render(g);
+    } else if (g->screen == VS_SCREEN_ACHIEVEMENTS) {
+        vs_achievements_render(g);
     } else if (g->screen == VS_SCREEN_GAMEOVER) {
         if (g->quit_run) {
             const char *t = "RESULTS";
