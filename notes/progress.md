@@ -380,3 +380,23 @@ resume in a fresh session).
   Install section (PC and Xbox 360, and what to replace when updating),
   limitations; the Xbox guide's Updating section points to the notes.
 - No tag yet: the owner decides when to tag and publish.
+
+## 2026-10-19: Xbox 360 only; title art
+
+- Owner's decision: the game is played on Xbox 360 only, so as not to
+  compete with the original on PC (README, "Why Xbox 360 only"). The SDL2
+  backend became the PC test backend (`platform/test/`, target
+  `vsdemake-test`): headless always, `--frames N` required, no window,
+  keyboard, gamepad or sound device; `--input`, `--screenshot`,
+  `--record`, `--audio-dump` and the state hash work as before. `--scale`
+  is gone, `--headless` is accepted and ignored.
+- Title screen background: the owner's art (`engine/assets/title_bg.png`)
+  scaled to 810 × 456 and built into the executable as a JPEG
+  (`engine/tools/gen_title_bg.py` → `game/title_bg_data.h`), decoded at
+  start-up by stb_image v2.30 (`core/vs_image.c`, JPEG only, no SIMD).
+  The art has its own VSDEMAKE logo, so the engine's logo is not drawn
+  over it; dark panels keep the menu text readable. The font atlas and
+  the art are padded to power-of-two textures for the console.
+- The title hint now names the controller buttons.
+- Checks: title screenshot; hash f5097d0c unchanged; ASan/UBSan clean;
+  C++03 clean (stb_image included).

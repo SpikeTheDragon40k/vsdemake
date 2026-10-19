@@ -2,10 +2,12 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/vs_audio.h"
 #include "core/vs_enums.h"
+#include "core/vs_image.h"
 #include "core/vs_text.h"
 #include "core/vs_version.h"
 
@@ -21,6 +23,35 @@ static float table_constant(const vs_pack *pack, const char *name, float dflt) {
     /* speeds and multipliers: a NaN, zero or absurd value would break the
      * simulation, so the built-in value is used instead */
     return r.value > 1e-6f && r.value < 1e7f ? r.value : dflt;
+}
+
+/* The title screen's background art, built into the executable
+ * (engine/assets/title_bg.png → title_bg_data.h). Padded to 1024 × 512
+ * like the pack's textures. Returns the texture index or -1. */
+#include "game/title_bg_data.h"
+static int load_title_bg(vs_game *g) {
+    int w, h;
+    if (g->texture_count >= VS_MAX_TEXTURES) return -1;
+    uint8_t *rgba = vs_image_decode(VS_TITLE_BG_JPG, sizeof VS_TITLE_BG_JPG, &w, &h);
+    if (!rgba) return -1;
+    const int tw = 1024, th = 512;
+    uint8_t *argb = w <= tw && h <= th ? (uint8_t *)calloc((size_t)tw * th, 4) : NULL;
+    if (argb) {
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                const uint8_t *s = rgba + ((size_t)y * w + x) * 4;
+                uint8_t *d = argb + ((size_t)y * tw + x) * 4;
+                d[0] = 255; d[1] = s[0]; d[2] = s[1]; d[3] = s[2];   /* big-endian ARGB */
+            }
+    }
+    vs_image_free(rgba);
+    vs_texture *t = argb ? vs_plat_texture_create((uint32_t)tw, (uint32_t)th, argb) : NULL;
+    free(argb);
+    if (!t) return -1;
+    g->title_bg_w = w; g->title_bg_h = h;
+    g->textures[g->texture_count] = t;
+    g->texture_names[g->texture_count] = "title_bg";
+    return g->texture_count++;
 }
 
 static int load_texture(vs_game *g, const char *name) {
@@ -192,6 +223,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
             g->title_w = (int)ti.used_w; g->title_h = (int)ti.used_h;
         }
     }
+    g->tex_title_bg = load_title_bg(g);
     {
         int fi = vs_pack_find(pack, "FNT", "damNum-export");
         if (fi < 0 || vs_pack_font(pack, fi, &g->damage_font) != 0) return -1;
@@ -611,7 +643,21 @@ static void render_hud(vs_game *g) {
 static void render_menu(vs_game *g) {
     char buf[256];
     vs_plat_begin_frame(0x000000);
-    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT) {
+    int title_art = g->screen == VS_SCREEN_TITLE && g->tex_title_bg >= 0;
+    if (title_art) {
+        /* the background art (it carries its own VSDEMAKE logo), with dark
+         * panels behind the text so it stays readable */
+        vs_sprite s = {0};
+        s.tex = g->textures[g->tex_title_bg]; s.sw = (int16_t)g->title_bg_w; s.sh = (int16_t)g->title_bg_h;
+        s.scale_x = (float)g->logical_w / g->title_bg_w; s.scale_y = (float)g->logical_h / g->title_bg_h;
+        s.alpha = 255; s.tint = 0xffffff;
+        vs_plat_draw(&s);
+        vs_ui_rect(g, 0.5f * g->logical_w - 120, 244, 240, 112, 0x000000, 170);
+        vs_ui_rect(g, 0.5f * g->logical_w - 230, 391, 460, 46, 0x000000, 170);
+        vs_ui_rect(g, (float)g->logical_w - 230, 0, 230, 18, 0x000000, 170);
+        vs_ui_rect(g, (float)g->logical_w - 90, (float)g->logical_h - 18, 90, 18, 0x000000, 170);
+    }
+    if ((g->screen == VS_SCREEN_TITLE && !title_art) || g->screen == VS_SCREEN_SELECT) {
         if (g->tex_title >= 0) {
             vs_sprite s = {0};
             /* widest fit in 3/4 of the screen and 200 px of height, at most 2x */
@@ -637,7 +683,7 @@ static void render_menu(vs_game *g) {
             vs_text_draw(0.5f * (g->logical_w - vs_text_width(1.5f, label)), 255.0f + 18 * i, 1.5f, g->title_sel == i ? 0xffff80 : 0xffffff, label);
         }
         {
-            const char *hint = "unofficial demake - arrows/WASD move, enter/A select, esc/B back";
+            const char *hint = "unofficial demake - stick/d-pad move, A select, B back";
             vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, hint)), 398, 1, 0x808080, hint);
             const char *ver = "v" VS_VERSION;
             vs_text_draw(g->logical_w - vs_text_width(1, ver) - 8, (float)g->logical_h - 14, 1, 0x808080, ver);

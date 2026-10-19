@@ -1,10 +1,14 @@
 /* Entry point: fixed 60 Hz simulation, render every frame.
  *
- *   vsdemake-sdl2 <vsdata.vspack> [--scale N] [--headless --frames N --screenshot out.bmp] [--auto-pick]
- *                                 [--input "RRRRDDLL"] [--seed N]
+ * On Xbox 360 this is the game. On PC it is only the test tool (the game is
+ * not playable on PC; README, "Why Xbox 360 only"): every run is headless,
+ * one tick per frame, for a fixed number of frames:
  *
- * --no-render skips drawing except the last frame (fast headless runs).
- * --input is a scripted pad for headless runs and replays: tokens like
+ *   vsdemake-test <vsdata.vspack> --frames N [--screenshot out.bmp] [--auto-pick]
+ *                 [--input "RRRRDDLL"] [--seed N] ...
+ *
+ * --no-render skips drawing except the last frame (fast runs).
+ * --input is a scripted pad for test runs and replays: tokens like
  * "R120 D120 L120 U120" (direction letters U/D/L/R, buttons A/B/X/Y and
  * S = start, '.' = idle, optional tick count), looped when exhausted. */
 #include <math.h>
@@ -90,12 +94,11 @@ static int vs_main(int argc, char **argv) {
     const char *map_item = NULL, *drop = NULL, *spawn = NULL;
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL, *record_dir = NULL, *save_arg = NULL, *audio_dump_path = NULL;
     int mute = 0;
-    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, unlock_all = 0, show_gameover = 0, show_chest = 0, start_level = 0, give_count = 0, chest = 0, show_levelup = 0;
+    int headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, unlock_all = 0, show_gameover = 0, show_chest = 0, start_level = 0, give_count = 0, chest = 0, show_levelup = 0;
     const char *give[16];
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) scale = atoi(argv[++i]);
-        else if (strcmp(argv[i], "--headless") == 0) headless = 1;
+        if (strcmp(argv[i], "--headless") == 0) headless = 1;   /* always on PC; kept for old scripts */
         else if (strcmp(argv[i], "--auto-pick") == 0) auto_pick = 1;
         else if (strcmp(argv[i], "--no-render") == 0) no_render = 1;
         else if (strcmp(argv[i], "--hitboxes") == 0) hitboxes = 1;
@@ -124,13 +127,17 @@ static int vs_main(int argc, char **argv) {
         else if (argv[i][0] != '-') pack_path = argv[i];
         else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
     }
-#if defined(VS_XENON) || defined(VS_XDK)
-    scale = 1;
-#else
-    if (!pack_path) { fprintf(stderr, "usage: vsdemake-sdl2 <vsdata.vspack> [options]\n"); return 2; }
+#if !defined(VS_XENON) && !defined(VS_XDK)
+    if (!pack_path || frames < 0) {
+        fprintf(stderr, "usage: vsdemake-test <vsdata.vspack> --frames N [options]\n"
+                        "This is the PC test tool: it runs headless (no window, input or sound output).\n"
+                        "vsdemake is played on Xbox 360 (see the README).\n");
+        return 2;
+    }
+    headless = 1;
 #endif
 
-    vs_plat_config cfg = { LOGICAL_W, LOGICAL_H, scale, headless, "vsdemake" };
+    vs_plat_config cfg = { LOGICAL_W, LOGICAL_H, 1, headless, "vsdemake" };
     if (vs_plat_init(&cfg) != 0) return 1;
 #if defined(VS_XENON) || defined(VS_XDK)
     /* look for the pack after the platform is up, so a miss can be shown */

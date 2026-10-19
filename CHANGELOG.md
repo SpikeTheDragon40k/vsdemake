@@ -8,7 +8,11 @@ changes.
 ## 1.0.0-rc1 (release candidate, not tagged yet)
 
 The first complete build of Vampire Survivors 0.2.10 (Steam build,
-manifest 8292959317163221061), on PC and Xbox 360.
+manifest 8292959317163221061), on Xbox 360.
+
+**Xbox 360 only:** the game is no longer playable on PC. The PC build is
+now `vsdemake-test`, a headless test tool for development (no window,
+controls or sound output); see "Why Xbox 360 only" in the README.
 
 **Data pack:** a pack built by the current patcher (88 entries, 30 of them
 sounds) works as is. Packs from before the sound work (no `SND` entries)
@@ -45,8 +49,8 @@ select, as in the original.
 - **Sound and music:** the original's sound effects and stage tracks with
   their volume, pitch and repeat rules.
 - **Look:** additive blending where the original uses it (glows, trails,
-  explosions, the chest scene) and a Courier-style font like the original's
-  menus.
+  explosions, the chest scene), a Courier-style font like the original's
+  menus, and the demake's own title screen art.
 
 ### Robustness
 

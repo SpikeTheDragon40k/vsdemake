@@ -14,7 +14,10 @@
 static vs_texture *g_tex;
 
 int vs_text_init(void) {
-    uint8_t *px = (uint8_t *)malloc((size_t)VS_FONT_ATLAS_W * VS_FONT_ATLAS_H * 4);
+    /* padded to a power-of-two height, like the pack's textures */
+    uint32_t th = 1;
+    while (th < VS_FONT_ATLAS_H) th <<= 1;
+    uint8_t *px = (uint8_t *)calloc((size_t)VS_FONT_ATLAS_W * th, 4);
     if (!px) return -1;
     size_t n = (size_t)VS_FONT_ATLAS_W * VS_FONT_ATLAS_H, o = 0;
     for (size_t i = 0; i < sizeof VS_FONT_RLE && o < n; i++) {
@@ -27,8 +30,7 @@ int vs_text_init(void) {
             o++;
         }
     }
-    for (; o < n; o++) memset(px + o * 4, 0, 4);
-    g_tex = vs_plat_texture_create(VS_FONT_ATLAS_W, VS_FONT_ATLAS_H, px);
+    g_tex = vs_plat_texture_create(VS_FONT_ATLAS_W, th, px);
     free(px);
     return g_tex ? 0 : -1;
 }

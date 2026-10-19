@@ -410,6 +410,7 @@ typedef struct {
     int tex_characters, tex_enemies, tex_bg, tex_items, tex_vfx;
     vs_atlas atl_characters, atl_enemies, atl_items, atl_vfx, atl_ui;
     int tex_ui, tex_damage, tex_title, title_w, title_h;
+    int tex_title_bg, title_bg_w, title_bg_h;   /* title screen art (-1: none) */
     vs_lang lang;           /* English UI strings (empty for packs without LNG) */
     int snd[VS_SND_COUNT];  /* sound ids (vs_audio_find), -1 when missing */
     vs_rng audio_rng;       /* random pitch for sounds; separate so audio never changes gameplay */

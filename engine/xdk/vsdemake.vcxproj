@@ -71,6 +71,7 @@
     <ClCompile Include="..\src\core\vs_text.c" />
     <ClCompile Include="..\src\core\vs_audio.c" />
     <ClCompile Include="..\src\core\vs_vorbis.c" />
+    <ClCompile Include="..\src\core\vs_image.c" />
     <ClCompile Include="..\src\game\game.c" />
     <ClCompile Include="..\src\game\timer.c" />
     <ClCompile Include="..\src\game\player.c" />

@@ -95,7 +95,7 @@ project. Create the project from the wizard instead:
 3. *Add → Existing Item*: every `.c` file in `engine\src\core\` and
    `engine\src\game\`, plus `engine\src\main.c` and
    `engine\src\platform\xdk\vs_platform_xdk.cpp`.
-   **Do not add** anything from `platform\sdl2` or `platform\xenon`.
+   **Do not add** anything from `platform\test` or `platform\xenon`.
 4. Project properties, *All Configurations*:
    - C/C++ → General → Additional Include Directories: the **full path**
      of the folder that contains `core\` and `game\`, for example

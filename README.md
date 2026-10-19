@@ -2,9 +2,9 @@
 ![vsdemake](banner.png)
 
 
-An unofficial Xbox 360 homebrew demake of Vampire Survivors, with a C99
-gameplay engine, an SDL2 backend for PC development, and an Xbox 360 XDK
-backend targeting `default.xex`.
+An unofficial Xbox 360 homebrew demake of Vampire Survivors: a C99
+gameplay engine built as `default.xex` with the Xbox 360 XDK. It is played
+on Xbox 360 only (see [Why Xbox 360 only](#why-xbox-360-only)).
 
 The project separates the engine from the original game's content:
 
@@ -17,8 +17,8 @@ The project does not distribute the original Vampire Survivors source
 code, game assets, or generated data packs. You must own Vampire Survivors
 on Steam and supply the supported game files yourself.
 
-> **Status: 1.0.0 release candidate.** The game is playable on PC (SDL2)
-> and on Xbox 360 hardware (XDK build) with the content of 0.2.10: both
+> **Status: 1.0.0 release candidate.** The game is playable on Xbox 360
+> hardware (XDK build) with the content of 0.2.10: both
 > stages, the 13 characters, the weapons and evolutions, the shop, the
 > treasure scene, the collection and achievements, saves, and sound and
 > music. Console performance in long sessions is still being checked.
@@ -85,9 +85,10 @@ on Steam and supply the supported game files yourself.
 - **Look:** additive blending where the original uses it (glows, trails,
   explosions, the chest scene) and a Courier-style font like the original's
   menus.
-- **Platforms:** PC (Linux, Windows, macOS via SDL2) and Xbox 360 (XDK).
-  The PC build doubles as a test tool: headless runs, fixed seeds, state
-  hashes, screenshots, frame and audio recording.
+- **Title screen:** the demake's own background art.
+- **Platform:** Xbox 360 (XDK). The engine also builds on PC as a
+  headless test tool for development only (no window, controls or sound
+  output); the game cannot be played on PC.
 
 ## How it works
 
@@ -101,7 +102,7 @@ Your supported Steam depot files
         vsdata.vspack
               |
               v
-    vsdemake engine on PC / Xbox 360
+    vsdemake on Xbox 360 (default.xex)
 ```
 
 The patcher reads the game files without executing the original game.
@@ -109,10 +110,11 @@ It converts textures, atlases, maps, fonts, language strings and gameplay
 tables, and copies the game's OGG Vorbis sounds unchanged, into a single
 binary pack. The engine decodes the sounds itself at run time.
 
-The title-screen lettering is also generated locally: the patcher
-assembles the “VSDEMAKE” title from the user's original title image.
-The resulting texture is stored in the generated pack, not distributed
-as a project asset.
+The title screen's background art is part of this repository
+(`engine/assets/title_bg.png`, built into `default.xex`). The “VSDEMAKE”
+lettering on the character select is generated locally: the patcher
+assembles it from the user's original title image, and the texture is
+stored in the generated pack, not distributed as a project asset.
 
 Patching does not upload game files or download additional content.
 Installing the patcher's dependencies with `npm install` may require
@@ -136,6 +138,21 @@ Other manifests are not supported. The patcher checks hashes against the
 known build. The `--allow-unknown` override is intended for development
 and does not make another build supported.
 
+## Why Xbox 360 only
+
+Vampire Survivors is sold and actively developed on PC (and on other
+platforms) by poncle. vsdemake does not want to compete with it or be an
+alternative way to play it there: on PC, the right way to play Vampire
+Survivors is to buy and play the original, which is far bigger and better
+than this early version.
+
+The demake exists for a different reason: to bring an early build of the
+game, as a homebrew technical exercise, to a console the original never
+shipped on. So the project only builds a playable `default.xex` for the
+Xbox 360. The engine still compiles on PC, but only as a headless test
+tool for development (automated runs, screenshots and regression
+checks): it has no window, no controls and no sound output.
+
 ## Install
 
 There is nothing to download from this project but its source: the game
@@ -146,15 +163,13 @@ with your own XDK. In short:
    ([Step 1](#step-1-download-the-supported-build-from-steam)).
 2. **Build the data pack:** run the patcher on them to make
    `vsdata.vspack` ([Steps 2–3](#step-2-get-the-patcher)).
-3. **Play on PC:** build the SDL2 engine and run it with the pack
-   ([Step 4](#step-4-play-on-pc)).
-4. **Or play on Xbox 360:** build `default.xex` with the XDK, copy
+3. **Play on Xbox 360:** build `default.xex` with the XDK, copy
    `default.xex` and `vsdata.vspack` into one folder on the console's HDD
    or a USB stick, and launch `default.xex` from Aurora, XeXMenu or
-   FreeStyle Dash ([Step 5](#step-5-play-on-xbox-360),
+   FreeStyle Dash ([Step 4](#step-4-play-on-xbox-360),
    [docs/XBOX360_GUIDE.md](docs/XBOX360_GUIDE.md)).
 
-**Updating:** rebuild and replace `default.xex` (or the PC executable).
+**Updating:** rebuild and replace `default.xex`.
 Rebuild `vsdata.vspack` only when [CHANGELOG.md](CHANGELOG.md) says so,
 or when the game tells you at start-up ("Game init failed", "vsdata.vspack
 is damaged", or "NO SOUNDS IN THE PACK" on the title). Keep `vsdemake.sav`:
@@ -170,12 +185,6 @@ the title screen.
 - Node.js 20 or newer.
 - The supported depot files listed above.
 
-### For playing on PC
-
-- A C compiler.
-- CMake 3.16 or newer.
-- SDL2 development files (`libsdl2-dev` on Debian/Ubuntu).
-
 ### For building and playing on Xbox 360
 
 - An Xbox 360 capable of running unsigned executables.
@@ -185,6 +194,12 @@ the title screen.
 
 This project does not provide the XDK, instructions for obtaining
 unauthorized SDK copies, or console-modification instructions.
+
+### For development only (optional)
+
+- A C compiler, CMake 3.16 or newer and the SDL2 development files
+  (`libsdl2-dev` on Debian/Ubuntu), for the headless test tool
+  ([Engine test tool](#engine-test-tool)).
 
 The current console workflow targets the XDK backend. A libxenon backend
 also exists, but is not the verified console path described here.
@@ -277,29 +292,31 @@ These commands produce extracted data or de-obfuscated game source.
 Their output must remain outside version control and must not be
 distributed with the project.
 
-## Step 4: Play on PC
+## Step 4: Play on Xbox 360
 
-From the repository root:
+See:
 
-```bash
-cmake -S engine -B engine/build
-cmake --build engine/build
+- `docs/XBOX360_GUIDE.md` for the build and installation workflow.
+- `docs/FIRST_XEX_TEST.md` for first-boot checks and troubleshooting.
 
-./engine/build/vsdemake-sdl2 /path/to/vsdata.vspack
-./engine/build/vsdemake-sdl2 /path/to/vsdata.vspack --scale 3
-```
+The current workflow builds `default.xex` using the Xbox 360 XDK and
+launches it through a compatible homebrew dashboard or launcher.
+
+Gameplay and saves are confirmed on hardware; sound output through
+XAudio2 is new and being tested. This is not a guarantee of compatibility,
+performance, or stability.
+
+Transfer your locally generated `vsdata.vspack` according to the guide.
+Do not include it in a shared executable package.
 
 ### Controls
 
-| Action | Keyboard | Controller (PC and Xbox 360) |
-| --- | --- | --- |
-| Move | Arrow keys / WASD | D-pad / left stick |
-| Confirm | Enter / Space | A |
-| Start / pause | Esc | Start |
-| Back / resume | Backspace | B |
-| Quit the program (PC) | Shift + Esc | |
-
-Controllers work through SDL2 on PC.
+| Action | Controller |
+| --- | --- |
+| Move | D-pad / left stick |
+| Confirm | A |
+| Start / pause | Start |
+| Back / resume | B |
 
 ### Pause and options
 
@@ -321,67 +338,6 @@ Press **Start** during a run to pause. The pause screen is the original's:
 
 The same screen, with **Back** instead of Quit/Resume, is the **Options**
 entry of the title menu. Changes are saved when the screen closes.
-
-### Development options
-
-| Option | Purpose |
-| --- | --- |
-| `--char N` | Start with character N, e.g. 1 Antonio, 2 Imelda |
-| `--hitboxes` | Draw collision overlays |
-| `--menu` | Stay on the title screen in headless mode |
-| `--give NAME[:LEVEL]` | Add an item at startup; repeatable |
-| `--chest [LEVEL]` | Open a treasure chest (level 1–3) immediately |
-| `--show-chest` | In headless runs, still play the chest and item-found screens (pressing their buttons by itself) |
-| `--map-item NAME` | Put a map bonus item (e.g. `POWER`, `LUCK`) next to the player |
-| `--drop NAME` | Put a pickup (e.g. `NFT`, `ROAST`, `VACUUM`) next to the player |
-| `--spawn NAME` | Put 6 enemies (e.g. `SHADERED`) in a ring around the player |
-| `--unlock-all` | Make every implemented item, character and stage available, ignoring the save |
-| `--save PATH` | Use this save file (headless runs do not save without it) |
-| `--level N` | Start the run at player level N |
-| `--show-levelup` | Open and hold the level-up screen; logs the offered choices |
-| `--show-gameover` | In headless runs, still show the game-over screen |
-| `--audio-dump FILE.wav` | Write the mixed sound of the run to a WAV file (works headless) |
-| `--mute` | No sound |
-| `--record DIR` | Save every rendered frame as BMP in `DIR` (for videos); `--record-from N` starts at frame N |
-| `--headless` / `--no-render` | Run without a window, or without drawing |
-| `--frames N`, `--seed N`, `--input "R240 L240"` | Run length, random seed and scripted input for reproducible runs (letters U/D/L/R, A/B/X/Y, S = Start, `.` = idle; number = ticks) |
-| `--screenshot FILE.bmp` | Save the last frame |
-| `--scale N` | Window size multiplier |
-
-Example headless regression run:
-
-```bash
-./engine/build/vsdemake-sdl2 /path/to/vsdata.vspack \
-  --headless --no-render --frames 18000 \
-  --seed 3 --input "R240 L240" --screenshot last.bmp
-```
-
-The engine prints a state hash for regression comparisons. Sound never
-changes the gameplay: the hash is the same with and without audio.
-
-Example of a recorded run with its sound:
-
-```bash
-./engine/build/vsdemake-sdl2 /path/to/vsdata.vspack \
-  --headless --frames 600 --seed 3 --record frames/ --audio-dump run.wav
-```
-
-## Step 5: Play on Xbox 360
-
-See:
-
-- `docs/XBOX360_GUIDE.md` for the build and installation workflow.
-- `docs/FIRST_XEX_TEST.md` for first-boot checks and troubleshooting.
-
-The current workflow builds `default.xex` using the Xbox 360 XDK and
-launches it through a compatible homebrew dashboard or launcher.
-
-Gameplay and saves are confirmed on hardware; sound output through
-XAudio2 is new and being tested. This is not a guarantee of compatibility,
-performance, or stability.
-
-Transfer your locally generated `vsdata.vspack` according to the guide.
-Do not include it in a shared executable package.
 
 ## Current limitations
 
@@ -419,7 +375,7 @@ then falls back to the backup or a new save.
 
 ## Sound and music
 
-- The game's own sounds, decoded on the console or PC by stb_vorbis and
+- The game's own sounds, decoded on the console by stb_vorbis and
   mixed by the engine: 44.1 kHz stereo, 32 voices, with the volume, pitch
   and "no more than N copies at once" rules of the original.
 - Weapons, hits, pickups, chests, level-up and menu clicks have their
@@ -427,7 +383,7 @@ then falls back to the backup or a new save.
   screen, and the game-over jingle plays at the end. The start-up jingle
   plays on the title screen; the menus have no looping music, as in the
   original.
-- Output: SDL2 audio on PC, XAudio2 on Xbox 360. `--mute` turns it off.
+- Output: XAudio2 on Xbox 360.
 - The title screen shows the sound status: how many sounds were loaded,
   whether the output works, and live levels.
 
@@ -463,10 +419,62 @@ From the repository root, generate it with:
 node patcher/bin/vspatch.js build vs-1.0 --out work/vsdata.vspack
 ```
 
+### Engine test tool
+
+On PC the engine builds as `vsdemake-test`, a headless tool for
+development: every run has a fixed length (`--frames N`, required), one
+game tick per frame, no window, no controls (runs are driven by `--input`
+scripts) and no sound output (`--audio-dump` records the mix to a file).
+It cannot be used to play.
+
+
+
+| Option | Purpose |
+| --- | --- |
+| `--char N` | Start with character N, e.g. 1 Antonio, 2 Imelda |
+| `--hitboxes` | Draw collision overlays |
+| `--menu` | Stay on the title screen (otherwise runs start a game and take the first level-up choice) |
+| `--give NAME[:LEVEL]` | Add an item at startup; repeatable |
+| `--chest [LEVEL]` | Open a treasure chest (level 1–3) immediately |
+| `--show-chest` | Still play the chest and item-found screens (pressing their buttons by itself) |
+| `--map-item NAME` | Put a map bonus item (e.g. `POWER`, `LUCK`) next to the player |
+| `--drop NAME` | Put a pickup (e.g. `NFT`, `ROAST`, `VACUUM`) next to the player |
+| `--spawn NAME` | Put 6 enemies (e.g. `SHADERED`) in a ring around the player |
+| `--unlock-all` | Make every implemented item, character and stage available, ignoring the save |
+| `--save PATH` | Use this save file (runs do not save without it) |
+| `--level N` | Start the run at player level N |
+| `--show-levelup` | Open and hold the level-up screen; logs the offered choices |
+| `--show-gameover` | Still show the game-over screen |
+| `--audio-dump FILE.wav` | Write the mixed sound of the run to a WAV file |
+| `--mute` | No sound |
+| `--record DIR` | Save every rendered frame as BMP in `DIR` (for videos); `--record-from N` starts at frame N |
+| `--no-render` | Don't draw, except the last frame (fast runs) |
+| `--frames N`, `--seed N`, `--input "R240 L240"` | Run length, random seed and scripted input for reproducible runs (letters U/D/L/R, A/B/X/Y, S = Start, `.` = idle; number = ticks) |
+| `--screenshot FILE.bmp` | Save the last frame |
+
+Example regression run:
+
+```bash
+./engine/build/vsdemake-test /path/to/vsdata.vspack \
+  --no-render --frames 18000 \
+  --seed 3 --input "R240 L240" --screenshot last.bmp
+```
+
+The engine prints a state hash for regression comparisons. Sound never
+changes the gameplay: the hash is the same with and without audio.
+
+Example of a recorded run with its sound:
+
+```bash
+./engine/build/vsdemake-test /path/to/vsdata.vspack \
+  --frames 600 --seed 3 --record frames/ --audio-dump run.wav
+```
+
 ### Repository layout
 
 - `patcher/`: verification, static extraction, asset conversion, and packing.
-- `engine/`: gameplay engine and platform backends.
+- `engine/`: gameplay engine, the Xbox 360 backends (XDK, libxenon
+  fallback), the PC test backend, and the title art (`engine/assets/`).
 - `schema/`: data schemas.
 - `notes/`: depot report, behaviour descriptions (`notes/behaviour/`,
   including audio, saves and evolutions), pack format, and progress.
@@ -518,7 +526,7 @@ assets, SDK components, or console binaries.
 | Sprites are offset from their hitboxes | Update the engine and rebuild the pack; an earlier atlas-trimming bug affected sprite placement. |
 | Console fails to load the pack | Follow the path and first-boot checks in the Xbox 360 guides. |
 | Title says "NO SOUNDS IN THE PACK" | Rebuild `vsdata.vspack` with the current patcher (88 entries, 30 sounds). |
-| Title says "NO AUDIO OUTPUT" | The sound device failed to open; check the system's audio device (PC). |
+| Title says "NO AUDIO OUTPUT" | XAudio2 failed to start; see the console guide's first-boot checks. |
 | Sound loaded but silent | Check the Sounds and Music sliders in Options. An earlier build wrote new saves with both volumes at 0; the current build repairs those saves. The Sound test row shows the mixer state (`vol`, voices, play requests). |
 | Title says "SAVE FAILED" | The folder next to the pack (or `default.xex`) isn't writable; the reason is shown on screen. |
 | Xbox 360 link error `XLFQueue…` | Use the current `engine/xdk/vsdemake.vcxproj`, which links `xmcore.lib`. |
@@ -536,6 +544,10 @@ The project does not distribute the original game's source code or
 assets. Game-derived content, including the generated title lettering,
 is produced locally from files supplied by the user.
 
+The title screen's background art (`engine/assets/title_bg.png`) is not
+from the game. Characters it depicts belong to their respective rights
+holders; it is used here for a non-commercial fan project.
+
 Requiring a purchased copy and keeping conversion local do not, by
 themselves, establish permission from the rights holders. Use of the
 game files, SDK, and resulting outputs remains subject to applicable
@@ -547,8 +559,9 @@ Vampire Survivors content or proprietary SDK components.
 
 The project's own code is released under the MIT License (`LICENSE`).
 
-Third-party code: `engine/src/third_party/stb_vorbis.c` (Sean Barrett,
-public domain or MIT, at your choice) decodes the game's OGG Vorbis sounds;
+Third-party code: `engine/src/third_party/stb_vorbis.c` and
+`stb_image.h` (Sean Barrett, public domain or MIT, at your choice) decode
+the game's OGG Vorbis sounds and the title art;
 the libxenon fallback embeds shader data from the libxenon examples (BSD).
 
 Third-party font: the UI text is a bitmap version of Liberation Mono

@@ -11,7 +11,7 @@ include $(DEVKITXENON)/rules
 
 TARGET := vsdemake
 SRC := ../src
-CORE := $(SRC)/core/vs_pack.c $(SRC)/core/vs_rng.c $(SRC)/core/vs_text.c $(SRC)/core/vs_audio.c $(SRC)/core/vs_vorbis.c \
+CORE := $(SRC)/core/vs_pack.c $(SRC)/core/vs_rng.c $(SRC)/core/vs_text.c $(SRC)/core/vs_audio.c $(SRC)/core/vs_vorbis.c $(SRC)/core/vs_image.c \
         $(SRC)/game/game.c $(SRC)/game/timer.c $(SRC)/game/player.c $(SRC)/game/enemy.c \
         $(SRC)/game/stage.c $(SRC)/game/render.c $(SRC)/game/weapon.c $(SRC)/game/pickup.c \
         $(SRC)/game/levelup.c $(SRC)/game/tilemap.c $(SRC)/game/fx.c $(SRC)/game/save.c $(SRC)/game/options.c $(SRC)/game/treasure.c $(SRC)/game/shop.c $(SRC)/game/collection.c $(SRC)/main.c
