@@ -182,8 +182,11 @@ static void push_quad(IDirect3DTexture9 *tex, int blend, const float px[4], cons
     g_batches[g_batch_count - 1].count += VERTS_PER_QUAD;
 }
 
+/* NaN or huge coordinates come only from damaged data; skip them. */
+static int sane(float v) { return v > -1e6f && v < 1e6f; }
+
 extern "C" void vs_plat_draw(const vs_sprite *s) {
-    if (!s->tex || s->alpha == 0) return;
+    if (!s->tex || s->alpha == 0 || !sane(s->dx) || !sane(s->dy) || !sane(s->scale_x) || !sane(s->scale_y) || !sane(s->angle_deg)) return;
     float w = s->sw * s->scale_x, h = s->sh * s->scale_y;
     float cx = s->dx + w * 0.5f, cy = s->dy + h * 0.5f;
     float px[4] = { s->dx, s->dx + w, s->dx + w, s->dx }, py[4] = { s->dy, s->dy, s->dy + h, s->dy + h };

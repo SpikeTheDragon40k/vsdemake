@@ -331,3 +331,20 @@ resume in a fresh session).
 - Dev option `--spawn NAME` (6 enemies around the player).
 - Checks: recordings of the explosions, a level-1 and a level-3 chest and
   the time stop; hash f5097d0c unchanged; ASan/UBSan clean; C++03 clean.
+
+## 2026-10-19: pack hardening
+
+- `vs_pack_init` validates every entry (`pack-format.md`, "Validation at
+  load"): all offsets, counts and strings a reader may follow stay inside
+  the entry; 64-bit arithmetic so nothing wraps on the console; a damaged
+  entry is named on the error screen.
+- Tables: group keys and enum fields must fit the compiled enums (they
+  index fixed arrays, e.g. the level-up store's exclusion list); constants
+  out of range fall back to the built-in values.
+- Sounds: the size check could wrap (`16 + n`), now `n <= size - 16`; odd
+  formats and over-long short sounds are refused.
+- Backends skip sprites with NaN or huge coordinates (SDL's software
+  renderer crashed on them).
+- Checks: 16,000 structural mutations through every reader and 600
+  table-value mutations with the whole game running, all under ASan/UBSan:
+  no errors left; hash f5097d0c unchanged; C++03 clean.

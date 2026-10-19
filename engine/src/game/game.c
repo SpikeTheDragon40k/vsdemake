@@ -17,7 +17,9 @@ static float table_constant(const vs_pack *pack, const char *name, float dflt) {
     vs_table_group(&t, (uint32_t)gi, &grp);
     vs_constants_rec r;
     vs_table_record(&t, grp.first, &r);
-    return r.value;
+    /* speeds and multipliers: a NaN, zero or absurd value would break the
+     * simulation, so the built-in value is used instead */
+    return r.value > 1e-6f && r.value < 1e7f ? r.value : dflt;
 }
 
 static int load_texture(vs_game *g, const char *name) {
@@ -39,10 +41,55 @@ static int load_atlas(vs_game *g, const char *name, vs_atlas *out, int *tex) {
     return *tex < 0 ? -1 : 0;
 }
 
-static int open_table(vs_game *g, const char *name, vs_table *t, const char *fields) {
+/* Enum ids from the tables index arrays sized by the compiled enums, so a
+ * table whose group keys or enum fields (single or list) fall outside them
+ * is refused (vs_pack_init has already checked every offset). */
+typedef struct { int field, count; } enum_field;
+
+static int ids_in_range(const vs_table *t, int key_count, const enum_field *ef, int nef) {
+    for (uint32_t i = 0; i < t->group_count; i++) {
+        int32_t k = vs_bei32(t->groups + 16 * i + 4);
+        if (k < -1 || k >= key_count) return 0;
+    }
+    for (int j = 0; j < nef; j++) {
+        uint32_t f = (uint32_t)ef[j].field;
+        if (f >= t->field_count) return 0;
+        uint32_t type = vs_be32(t->fields + 36 * f + 32);
+        for (uint32_t r = 0; r < t->record_count; r++) {
+            const uint8_t *rec = t->records + (uint64_t)r * t->record_size;
+            uint32_t v = vs_be32(rec + 8 + 4 * f);
+            if (type == 5) { if ((int32_t)v < -1 || (int32_t)v >= ef[j].count) return 0; }
+            else if (type == 6) {
+                if (!((vs_be64(rec) >> f) & 1) && v == 0) continue;
+                const uint8_t *items; uint32_t n = vs_table_list(t, v, &items);
+                for (uint32_t q = 0; q < n; q++) if (vs_list_i32(items, q) < -1 || vs_list_i32(items, q) >= ef[j].count) return 0;
+            } else return 0;
+        }
+    }
+    return 1;
+}
+
+static int open_table_ids(vs_game *g, const char *name, vs_table *t, const char *fields, int key_count, const enum_field *ef, int nef) {
     if (vs_pack_table(g->pack, name, t) != 0 || vs_table_check_fields(t, fields) != 0) { vs_plat_log("table %s missing or layout mismatch", name); return -1; }
+    if (!ids_in_range(t, key_count, ef, nef)) { vs_plat_log("table %s has ids outside the game's enums", name); return -1; }
     return 0;
 }
+#define open_table(g, name, t, fields, key_count, ef) open_table_ids(g, name, t, fields, key_count, ef, (int)(sizeof ef / sizeof ef[0]))
+
+static const enum_field CHARACTER_IDS[] = { { VS_CHARACTERS_F_STARTINGWEAPON, VS_WEAPONS_COUNT }, { VS_CHARACTERS_F_SHOWCASE, VS_WEAPONS_COUNT } };
+static const enum_field ENEMY_IDS[] = { { VS_ENEMIES_F_SKILLS, 64 } };
+static const enum_field WEAPON_IDS[] = { { VS_WEAPONS_F_BULLETTYPE, VS_WEAPONS_COUNT }, { VS_WEAPONS_F_ADDEVOLVEDWEAPON, VS_WEAPONS_COUNT },
+                                         { VS_WEAPONS_F_EVOLVESFROM, VS_WEAPONS_COUNT }, { VS_WEAPONS_F_REQUIRES, VS_WEAPONS_COUNT }, { VS_WEAPONS_F_HITVFX, VS_HITVFX_COUNT } };
+static const enum_field POWERUP_IDS[] = { { VS_POWERUPS_F_BULLETTYPE, VS_WEAPONS_COUNT } };
+static const enum_field DESTRUCTIBLE_IDS[] = { { VS_DESTRUCTIBLES_F_DESTRUCTIBLETYPE, VS_DESTRUCTIBLES_COUNT } };
+static const enum_field ACHIEVEMENT_IDS[] = { { VS_ACHIEVEMENTS_F_WEAPONTOUNLOCK, VS_WEAPONS_COUNT }, { VS_ACHIEVEMENTS_F_STAGETOUNLOCK, VS_STAGES_COUNT },
+                                              { VS_ACHIEVEMENTS_F_CHARACTERTOUNLOCK, VS_CHARACTERS_COUNT }, { VS_ACHIEVEMENTS_F_HYPERTOUNLOCK, VS_STAGES_COUNT },
+                                              { VS_ACHIEVEMENTS_F_WEAPONICON, VS_WEAPONS_COUNT } };
+static const enum_field STAGE_IDS[] = { { VS_STAGES_F_BGM, VS_BGM_COUNT }, { VS_STAGES_F_LEGACYBGM, VS_BGM_COUNT }, { VS_STAGES_F_DESTRUCTIBLETYPE, VS_DESTRUCTIBLES_COUNT },
+                                        { VS_STAGES_F_SPAWNTYPE, VS_SPAWN_COUNT }, { VS_STAGES_F_ENEMIES, VS_ENEMIES_COUNT }, { VS_STAGES_F_BOSSES, VS_ENEMIES_COUNT } };
+static const enum_field EVENT_IDS[] = { { VS_STAGES_EVENTS_F_EVENTTYPE, VS_EVENTS_COUNT }, { VS_STAGES_EVENTS_F_MOREY, VS_ENEMIES_COUNT } };
+static const enum_field TREASURE_IDS[] = { { VS_STAGES_TREASURE_F_PRIZETYPES, VS_PRIZES_COUNT }, { VS_STAGES_TREASURE_F_FIXEDPRIZES, VS_WEAPONS_COUNT } };
+static const enum_field NO_IDS[1] = { { -1, 0 } };
 
 static void build_character_list(vs_game *g) {
     g->menu_char_count = 0;
@@ -110,15 +157,20 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     g->base_enemy_speed = table_constant(pack, "_baseEnemySpeed", 0.231f);
     g->base_projectile_speed = table_constant(pack, "_baseProjectileSpeed", 165.0f);
 
-    if (open_table(g, "characters", &g->characters_table, VS_CHARACTERS_FIELD_NAMES)) return -1;
-    if (open_table(g, "enemies", &g->enemies_table, VS_ENEMIES_FIELD_NAMES)) return -1;
-    if (open_table(g, "hitvfx", &g->hitvfx_table, VS_HITVFX_FIELD_NAMES)) return -1;
-    if (open_table(g, "weapons", &g->weapons_table, VS_WEAPONS_FIELD_NAMES)) return -1;
-    if (open_table(g, "pickups", &g->pickups_table, VS_PICKUPS_FIELD_NAMES)) return -1;
-    if (open_table(g, "destructibles", &g->destructibles_table, VS_DESTRUCTIBLES_FIELD_NAMES)) return -1;
-    if (open_table(g, "achievements", &g->achievements_table, VS_ACHIEVEMENTS_FIELD_NAMES)) return -1;
-    if (open_table(g, "stages", &g->stages_table, VS_STAGES_FIELD_NAMES)) return -1;
-    if (open_table(g, "powerups", &g->powerups_table, VS_POWERUPS_FIELD_NAMES)) return -1;
+    if (open_table(g, "characters", &g->characters_table, VS_CHARACTERS_FIELD_NAMES, VS_CHARACTERS_COUNT, CHARACTER_IDS)) return -1;
+    if (open_table(g, "enemies", &g->enemies_table, VS_ENEMIES_FIELD_NAMES, VS_ENEMIES_COUNT, ENEMY_IDS)) return -1;
+    if (open_table_ids(g, "hitvfx", &g->hitvfx_table, VS_HITVFX_FIELD_NAMES, VS_HITVFX_COUNT, NO_IDS, 0)) return -1;
+    if (open_table(g, "weapons", &g->weapons_table, VS_WEAPONS_FIELD_NAMES, VS_WEAPONS_COUNT, WEAPON_IDS)) return -1;
+    if (open_table_ids(g, "pickups", &g->pickups_table, VS_PICKUPS_FIELD_NAMES, VS_PICKUPS_COUNT, NO_IDS, 0)) return -1;
+    if (open_table(g, "destructibles", &g->destructibles_table, VS_DESTRUCTIBLES_FIELD_NAMES, VS_DESTRUCTIBLES_COUNT, DESTRUCTIBLE_IDS)) return -1;
+    if (open_table(g, "achievements", &g->achievements_table, VS_ACHIEVEMENTS_FIELD_NAMES, VS_ACHIEVEMENTS_COUNT, ACHIEVEMENT_IDS)) return -1;
+    if (open_table(g, "stages", &g->stages_table, VS_STAGES_FIELD_NAMES, VS_STAGES_COUNT, STAGE_IDS)) return -1;
+    if (open_table(g, "powerups", &g->powerups_table, VS_POWERUPS_FIELD_NAMES, VS_WEAPONS_COUNT, POWERUP_IDS)) return -1;
+    {   /* the stage sub-tables, opened again by vs_stage_init */
+        vs_table sub;
+        if (open_table(g, "stages.events", &sub, VS_STAGES_EVENTS_FIELD_NAMES, VS_STAGES_COUNT, EVENT_IDS)) return -1;
+        if (open_table(g, "stages.treasure", &sub, VS_STAGES_TREASURE_FIELD_NAMES, VS_STAGES_COUNT, TREASURE_IDS)) return -1;
+    }
     vs_save_load(g, save_path);
 
     if (load_atlas(g, "characters", &g->atl_characters, &g->tex_characters) != 0) return -1;

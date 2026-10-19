@@ -81,8 +81,11 @@ void vs_plat_begin_frame(uint32_t rgb) {
     SDL_RenderClear(g_ren);
 }
 
+/* NaN or huge coordinates (from damaged data) crash SDL's software renderer. */
+static int sane(float v) { return v > -1e6f && v < 1e6f; }
+
 void vs_plat_draw(const vs_sprite *s) {
-    if (!s->tex) return;
+    if (!s->tex || !sane(s->dx) || !sane(s->dy) || !sane(s->scale_x) || !sane(s->scale_y) || !sane(s->angle_deg)) return;
     SDL_Rect src = { s->sx, s->sy, s->sw, s->sh };
     SDL_FRect dst = { s->dx, s->dy, s->sw * s->scale_x, s->sh * s->scale_y };
     SDL_SetTextureColorMod(s->tex->t, (s->tint >> 16) & 255, (s->tint >> 8) & 255, s->tint & 255);

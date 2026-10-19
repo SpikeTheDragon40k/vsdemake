@@ -149,10 +149,10 @@ static int vs_main(int argc, char **argv) {
     vs_pack pack;
     int rc = vs_pack_init(&pack, data, size);
     if (rc != 0) {
-        fprintf(stderr, "%s is not a valid pack (error %d)\n", pack_path, rc);
+        fprintf(stderr, "%s is not a valid pack (error %d) %s\n", pack_path, rc, vs_pack_error());
 #if defined(VS_XENON) || defined(VS_XDK)
-        char msg[160];
-        snprintf(msg, sizeof msg, "vsdata.vspack is damaged or from another\nversion (error %d). Rebuild it with vspatch\nand copy it again.", rc);
+        char msg[256];
+        snprintf(msg, sizeof msg, "vsdata.vspack is damaged or from another\nversion (error %d). Rebuild it with vspatch\nand copy it again.\n\n%s", rc, vs_pack_error());
         return fatal_screen(msg);
 #endif
         return 1;
