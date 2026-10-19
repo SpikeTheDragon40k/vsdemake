@@ -87,6 +87,7 @@ void vs_plat_draw(const vs_sprite *s) {
     SDL_FRect dst = { s->dx, s->dy, s->sw * s->scale_x, s->sh * s->scale_y };
     SDL_SetTextureColorMod(s->tex->t, (s->tint >> 16) & 255, (s->tint >> 8) & 255, s->tint & 255);
     SDL_SetTextureAlphaMod(s->tex->t, s->alpha);
+    SDL_SetTextureBlendMode(s->tex->t, s->blend == VS_BLEND_ADD ? SDL_BLENDMODE_ADD : SDL_BLENDMODE_BLEND);
     int flip = (s->flip & VS_FLIP_X ? SDL_FLIP_HORIZONTAL : 0) | (s->flip & VS_FLIP_Y ? SDL_FLIP_VERTICAL : 0);
     SDL_RenderCopyExF(g_ren, s->tex->t, &src, &dst, s->angle_deg, NULL, (SDL_RendererFlip)flip);
 }
@@ -95,6 +96,7 @@ void vs_plat_draw_tiled(vs_texture *tex, float ox, float oy, uint32_t tint) {
     if (!tex) return;
     SDL_SetTextureColorMod(tex->t, (tint >> 16) & 255, (tint >> 8) & 255, tint & 255);
     SDL_SetTextureAlphaMod(tex->t, 255);
+    SDL_SetTextureBlendMode(tex->t, SDL_BLENDMODE_BLEND);
     /* Phaser tilePosition scrolls the texture under a fixed quad: a tile
      * offset of +o shows the texture shifted by -o. */
     float sx = -(float)fmod(ox, (double)tex->w), sy = -(float)fmod(oy, (double)tex->h);

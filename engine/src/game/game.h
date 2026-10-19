@@ -25,6 +25,9 @@
 #define VS_MAX_GEMS 400
 #define VS_MAX_FX 1200
 #define VS_BULLET_HITS 64
+#define VS_MAX_EXPLOSIONS 128
+#define VS_MAX_SMOKE 768
+#define VS_TREASURE_FW 1024
 
 /* ---- timers (ms, Phaser-like: elapsed accumulates, loops keep the remainder) */
 typedef struct {
@@ -74,6 +77,7 @@ typedef struct {
     int hp_x_level, fixed_direction, medusa, self_destruct, pass_through_walls;
     float medusa_elapsed;
     int sd_triggered;
+    float sd_phase_ms; int sd_cycle; /* alert ring: phase in the current pulse, pulses so far (each 1.1× faster) */
     float more_x, more_y;
     int cullable, teleport_on_cull, time_stopped, receiving_damage;
     float freeze_ms;        /* Clock Lancet freeze left (time_stopped while > 0) */
@@ -148,6 +152,26 @@ typedef struct {
     int visible;
 } vs_bullet;
 
+/* ---- particles (decoration only: they never change the game)
+ * Phaser-style: straight flight plus an optional gravity well at (wx, wy)
+ * of strength wpow and minimum squared distance weps2; scale s0 → s1 and
+ * alpha a0 → a1 over the life (notes/behaviour/enemies.md, treasure.md). */
+typedef struct {
+    float x, y, vx, vy, age, life, rot, s0, s1, a0, a1;
+    float wx, wy, wpow, weps2;
+    float z;                /* world y the effect belongs to (depth) */
+    int frame, add;         /* frame index (per user), additive */
+} vs_pfx;
+int vs_pfx_step(vs_pfx *p, float dt_ms);   /* 0 once the particle is gone */
+
+/* Explosion of a self-destructing enemy (MakeExplosion, line 6654): hurts
+ * the player once if inside `radius` while it lasts (120 ms). */
+typedef struct {
+    int active, has_hit;
+    float x, y, damage, radius, age_ms;
+    int emitted;            /* particles so far (the emitters' stepped angles) */
+} vs_explosion;
+
 /* ---- treasure and item-found screens (treasure.c, notes/behaviour/treasure.md) */
 #define VS_TREASURE_COINS 256
 #define VS_TREASURE_RIBBONS 8
@@ -171,6 +195,9 @@ typedef struct {
     int ribbon_n; float ribbon_pts[VS_TREASURE_RIBBONS][10][2];
     float ribbon_hist[VS_TREASURE_RIBBONS][VS_TREASURE_TRAIL][2]; int ribbon_hist_n[VS_TREASURE_RIBBONS];
     int reel_icons[5][12]; int reel_icon_n[5];
+    /* level 3 fireworks (5 bursts) and the rising bubbles behind the panel */
+    vs_pfx fw[VS_TREASURE_FW]; int fw_next; int fw_frame[5]; float fw_x[5], fw_y[5]; int fw_emitted[5];
+    float bubble[15][3]; float bubble_count;
 } vs_treasure_ui;
 typedef struct {
     int active, type, sel;          /* sel: 0 take, 1 leave */
@@ -282,7 +309,7 @@ enum {
     VS_SND_ROSARY, VS_SND_OROLOGION, VS_SND_WHIP, VS_SND_MAGICMISSILE, VS_SND_SHOT, VS_SND_HOLYWATER,
     VS_SND_LIGHTNING, VS_SND_LEVELUP, VS_SND_CLICKIN, VS_SND_CLICKOUT, VS_SND_THINGFOUND,
     VS_SND_TREASURE1, VS_SND_TREASURE2, VS_SND_TREASURE3, VS_SND_BGM_INTRO, VS_SND_BGM_GAMEOVER,
-    VS_SND_FIRELOOP,
+    VS_SND_FIRELOOP, VS_SND_EXPLOSION, VS_SND_ALERT,
     VS_SND_COUNT
 };
 
@@ -329,6 +356,9 @@ typedef struct {
     vs_stage stage;
     vs_tilemap tilemap;
     vs_fx fx[VS_MAX_FX];
+    vs_explosion explosions[VS_MAX_EXPLOSIONS];
+    vs_pfx smoke[VS_MAX_SMOKE]; int smoke_next;
+    float timestop_fx_ms;   /* Orologion flash clock (< 0: none) */
     vs_timer timers[VS_MAX_TIMERS];
     int time_stopped;
     int game_over;
@@ -512,6 +542,10 @@ void vs_fx_damage_number(vs_game *g, float x, float y, float dmg);
 void vs_fx_hit(vs_game *g, float x, float y, int hit_type);
 void vs_fx_update(vs_game *g);
 void vs_fx_render(vs_game *g, float cam_x, float cam_y);
+void vs_explosion_make(vs_game *g, float x, float y, float damage, float radius);
+void vs_explosions_update(vs_game *g);
+void vs_render_explosions(vs_game *g);
+void vs_render_timestop_flash(vs_game *g);
 /* run start/restart */
 int vs_game_start_run(vs_game *g, int character_enum, int stage_enum);
 
@@ -528,6 +562,9 @@ void vs_render_sprite(vs_game *g, int tex, const vs_frame *f, float x, float y, 
 void vs_render_stretched(vs_game *g, int tex, const vs_frame *f, float cx, float cy, float w, float h,
                          float angle, uint32_t tint, uint8_t alpha, float depth);
 void vs_render_end(vs_game *g);
+/* Blend mode (VS_BLEND_*) of the sprites queued from now on; reset by vs_render_begin. */
+void vs_render_blend(int mode);
+int vs_render_current_blend(void);
 
 /* shop.c: PowerUp selection and character purchase */
 void vs_shop_open(vs_game *g);
@@ -547,6 +584,7 @@ void vs_options_render(vs_game *g);
 void vs_ui_nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint);
 void vs_ui_nine_slice_alpha(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint, uint8_t alpha);
 void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha);
+void vs_ui_rect_blend(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha, int blend);
 const char *vs_weapon_name(const vs_game *g, int type);
 
 #endif

@@ -61,7 +61,7 @@ static const char *const SND_KEYS[VS_SND_COUNT] = {
     "Rosary", "Orologion", "Whip", "MagicMissile", "Shot", "Holywater",
     "Lightning", "LevelUp", "ClickIn", "ClickOut", "ThingFound",
     "Treasure1", "Treasure2", "Treasure3", "BGM_Intro", "BGM_GameOver",
-    "Fireloop",
+    "Fireloop", "Explosion", "Alert",
 };
 
 void vs_sfx(vs_game *g, int snd, float volume, float detune, float rate, float delay_ms, int max_instances) {
@@ -175,6 +175,9 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     memset(&g->stage, 0, sizeof g->stage);
     memset(&g->tilemap, 0, sizeof g->tilemap);
     memset(g->fx, 0, sizeof g->fx);
+    memset(g->explosions, 0, sizeof g->explosions);
+    memset(g->smoke, 0, sizeof g->smoke);
+    g->timestop_fx_ms = -1;
     memset(g->timers, 0, sizeof g->timers);
     g->enemy_count = 0; g->cull_index = 0; g->next_uid = 1; g->time_stopped = 0; g->game_over = 0;
     g->kills = 0; g->coins = 0; g->chests_opened = 0; g->tick = 0; g->update_tick = 0; g->survived_seconds = 0;
@@ -308,6 +311,7 @@ void vs_game_update(vs_game *g, const vs_pad *pad) {
     vs_bullets_update(g);
     vs_weapons_update(g);
     vs_enemies_update(g);
+    vs_explosions_update(g);
     vs_pickups_physics(g);
     vs_destructibles_update(g);
     vs_fx_update(g);
@@ -365,7 +369,7 @@ void vs_ui_nine_slice_alpha(vs_game *g, const char *frame, float x, float y, flo
             s.tex = g->textures[g->tex_ui];
             s.sx = (int16_t)sx[i]; s.sy = (int16_t)sy[j]; s.sw = (int16_t)sw[i]; s.sh = (int16_t)sh[j];
             s.dx = dx[i]; s.dy = dy[j]; s.scale_x = dw[i] / sw[i]; s.scale_y = dh[j] / sh[j];
-            s.tint = tint; s.alpha = alpha;
+            s.tint = tint; s.alpha = alpha; s.blend = (uint8_t)vs_render_current_blend();
             vs_plat_draw(&s);
         }
     }
@@ -376,14 +380,15 @@ static void nine_slice(vs_game *g, const char *frame, float x, float y, float w,
 }
 
 /* Solid rectangle in screen space (whiteDot stretched). */
-void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha) {
+void vs_ui_rect_blend(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha, int blend) {
     vs_frame white;
     if (vs_atlas_find(&g->atl_characters, "whiteDot.png", &white) != 0) return;
     vs_sprite s = {0};
     s.tex = g->textures[g->tex_characters]; s.sx = (int16_t)white.x; s.sy = (int16_t)white.y; s.sw = 1; s.sh = 1;
-    s.dx = x; s.dy = y; s.scale_x = w; s.scale_y = h; s.tint = tint; s.alpha = alpha;
+    s.dx = x; s.dy = y; s.scale_x = w; s.scale_y = h; s.tint = tint; s.alpha = alpha; s.blend = (uint8_t)blend;
     vs_plat_draw(&s);
 }
+void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha) { vs_ui_rect_blend(g, x, y, w, h, tint, alpha, VS_BLEND_ALPHA); }
 
 /* Draws `text` word-wrapped to `max_w`; honours '\n'. Returns lines drawn. */
 static int text_wrapped(float x, float y, float scale, uint32_t tint, const char *text, float max_w, float line_h, int max_lines) {
@@ -661,8 +666,7 @@ static void render_hitboxes(vs_game *g, float cam_x, float cam_y) {
 /* Map bonus item (WEAPON pickup, line 1274): the item's icon floating 8 px
  * up and down (1 s, Sine), a shadow spot that breathes with it, a glow
  * whose colour cycles and fades in and out every 500 ms, and a puff of 10
- * sparkles every 200 ms (falling, 100–400 ms). Additive glow drawn with
- * plain alpha. */
+ * sparkles every 200 ms (falling, 100–400 ms). The glow is additive. */
 static float hash01(uint32_t v) { v ^= v >> 16; v *= 0x7feb352du; v ^= v >> 15; v *= 0x846ca68bu; v ^= v >> 16; return (v & 0xffffff) / 16777216.0f; }
 static void render_map_item(vs_game *g, const vs_pickup *pk, int index) {
     const float t = pk->anim_ms, dy = g->player.y;
@@ -675,7 +679,9 @@ static void render_map_item(vs_game *g, const vs_pickup *pk, int index) {
         float c = 0.1f * t / VS_TICK_MS;
         uint32_t r = (uint32_t)(255 * fabsf(sinf(c))), gg = (uint32_t)(255 * fabsf(cosf(0.5f * c))), b = (uint32_t)(200 + 55 * fabsf(cosf(c)));
         float a = 0.5f * (0.5f + 0.5f * cosf(3.14159265f * t / 500.0f));
+        vs_render_blend(VS_BLEND_ADD);
         vs_render_sprite(g, g->tex_vfx, &f, pk->x, y, 0.5f, 0.5f, 1, 0, 0, 0, (r << 16) | (gg << 8) | b, (uint8_t)(255 * a), pk->y - dy);
+        vs_render_blend(VS_BLEND_ALPHA);
     }
     vs_weapons_rec rec;
     if (vs_weapon_record(g, pk->weapon_type, 0, &rec) == 0 && VS_HAS(&rec, VS_WEAPONS_F_FRAMENAME) &&
@@ -699,7 +705,7 @@ static void render_map_item(vs_game *g, const vs_pickup *pk, int index) {
 /* Bird bolt trail: the original's Rope of a small gradient texture along the
  * bolt's last 24 positions (one per frame). Drawn as 24 strips along the
  * flight curve, each with its share of the texture's columns (head first);
- * plain alpha instead of Peachone's additive blend. Fades in over 200 ms
+ * additive for Peachone, plain alpha for the others. Fades in over 200 ms
  * and out over 200 ms after the burst. */
 static void render_bird_bolt(vs_game *g, const vs_bullet *b, int pool_index) {
     const vs_weapon *w = &g->weapons[b->weapon];
@@ -717,6 +723,7 @@ static void render_bird_bolt(vs_game *g, const vs_bullet *b, int pool_index) {
     const float window = 24 * VS_TICK_MS;
     const int n = 24;
     float px = 0, py = 0;
+    if (b->type == VS_WEAPONS_SILF) vs_render_blend(VS_BLEND_ADD);
     for (int k = 0; k <= n; k++) {
         float t = (b->age_ms - window * k / n) / ray, x, y;
         vs_bird_curve(b, t, &x, &y);
@@ -730,6 +737,7 @@ static void render_bird_bolt(vs_game *g, const vs_bullet *b, int pool_index) {
         }
         px = x; py = y;
     }
+    vs_render_blend(VS_BLEND_ALPHA);
 }
 
 
@@ -846,14 +854,24 @@ void vs_game_render(vs_game *g) {
         float angle = e->dying || e->time_stopped ? 0 : (phase < 500 ? -5 + 10 * phase / 500 : 5 - 10 * (phase - 500) / 500);
         uint32_t tint = e->time_stopped ? 0x0000ff : (e->receiving_damage && g->save.flashing_vfx ? e->hit_tint : 0xffffff);
         vs_render_sprite(g, g->tex_enemies, &f, e->x, e->y, 0.5f, 1.0f, e->scale, e->dir_x > 0, 0, angle, tint, (uint8_t)(e->alpha * 255), e->y - p->y);
+        if (e->self_destruct && e->sd_triggered && !e->dying && vs_atlas_find(&g->atl_vfx, "sPFX_ring_64.png", &f) == 0) {
+            /* alert: additive red ring, alpha 1 → 0 and scale 1 → 0.9, back and forth */
+            float len = 400.0f / powf(1.1f, (float)e->sd_cycle), ph = e->sd_phase_ms / len, u = ph < 0.5f ? 2 * ph : 2 - 2 * ph;
+            vs_render_blend(VS_BLEND_ADD);
+            vs_render_sprite(g, g->tex_vfx, &f, e->x, e->y, 0.5f, 0.75f, 1 - 0.1f * u, 0, 0, 0, 0xff0000, (uint8_t)(255 * (1 - u)), e->y - p->y + 0.5f);
+            vs_render_blend(VS_BLEND_ALPHA);
+        }
     }
 
     for (int i = 0; i < VS_MAX_WEAPONS; i++) {
         vs_weapon *w = &g->weapons[i];
         if (!w->active) continue;
         vs_frame f;
-        if (w->type == VS_WEAPONS_GARLIC && vs_atlas_find(&g->atl_vfx, "Rings3.png", &f) == 0)
+        if (w->type == VS_WEAPONS_GARLIC && vs_atlas_find(&g->atl_vfx, "Rings3.png", &f) == 0) {
+            vs_render_blend(VS_BLEND_ADD);
             vs_render_sprite(g, g->tex_vfx, &f, p->x, p->y, 0.5f, 0.5f, 2.0f * vs_weapon_p_area(g, w), 0, 0, fmodf(g->tick * VS_TICK_MS / 6000.0f * 360.0f, 360.0f), 0xffffff, 60, -g->logical_h * 0.5f);
+            vs_render_blend(VS_BLEND_ALPHA);
+        }
         if (w->type == VS_WEAPONS_VORTEX && vs_atlas_find(&g->atl_vfx, "circle.png", &f) == 0) {
             /* Soul Eater: a black disc (alpha 0.6) and an inner one that pulses
              * 0.1..0.6 every second and shrinks to nothing every 6 s */
@@ -886,12 +904,15 @@ void vs_game_render(vs_game *g) {
         case VS_WEAPONS_SILF2: fname = "HitBlack1.png"; depth = 1e6f; break;
         case VS_WEAPONS_BONE: fname = "ProjectileBone2.png"; break;
         case VS_WEAPONS_NDUJA: {
-            /* Nduja Fritta: a filled circle (red / orange, additive in the
-             * original) growing with the hit circle, and a flame flicker */
+            /* Nduja Fritta: an additive filled circle (red / orange) growing
+             * with the hit circle, and a flame flicker */
             static const uint32_t fire[3] = { 0xff0000, 0xff6600, 0xff4400 };
             vs_frame c;
-            if (vs_atlas_find(&g->atl_vfx, "circle.png", &c) == 0 && b->scale > 0.5f)
+            if (vs_atlas_find(&g->atl_vfx, "circle.png", &c) == 0 && b->scale > 0.5f) {
+                vs_render_blend(VS_BLEND_ADD);
                 vs_render_stretched(g, g->tex_vfx, &c, b->x, b->y, 2 * b->scale, 2 * b->scale, 0, fire[b->state % 3], b->alpha, b->y - p->y);
+                vs_render_blend(VS_BLEND_ALPHA);
+            }
             if (vs_atlas_find(&g->atl_vfx, (g->tick + b->index) % 2 ? "Flame2.png" : "PfxYellow.png", &c) == 0)
                 vs_render_sprite(g, g->tex_vfx, &c, b->x, b->y, 0.5f, 0.5f, 1.0f, 0, 0, (float)((g->tick * 37 + b->index * 53) % 360), 0xffffff, b->alpha, b->y - p->y + 1);
             continue;
@@ -909,9 +930,11 @@ void vs_game_render(vs_game *g) {
         uint32_t tint = 0xffffff; uint8_t alpha = b->alpha;
         if ((b->type == VS_WEAPONS_WHIP || b->type == VS_WEAPONS_VAMPIRICA) && b->age_ms < 100) scale *= b->age_ms / 100.0f;
         if (b->type == VS_WEAPONS_VAMPIRICA) {
-            /* Bloody Tear: near-black slash over a red ghost (+4, +2) and a purple one (-4, -2) */
+            /* Bloody Tear: near-black slash over a red ghost (+4, +2) and an additive purple one (-4, -2) */
             vs_render_sprite(g, tex, &f, b->x + 4, b->y + 2, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, 0xff0000, alpha, depth);
+            vs_render_blend(VS_BLEND_ADD);
             vs_render_sprite(g, tex, &f, b->x - 4, b->y - 2, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, 0x660066, alpha, depth);
+            vs_render_blend(VS_BLEND_ALPHA);
             tint = 0x110011;
         }
         if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) { scale = b->body_r * 2 / 256.0f; tint = 0x4040ff; alpha = 60; }
@@ -937,7 +960,9 @@ void vs_game_render(vs_game *g) {
             }
             continue;
         }
+        if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) vs_render_blend(VS_BLEND_ADD);   /* the pool is additive */
         vs_render_sprite(g, tex, &f, b->x, b->y, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, tint, alpha, depth);
+        vs_render_blend(VS_BLEND_ALPHA);
     }
 
     {
@@ -954,8 +979,10 @@ void vs_game_render(vs_game *g) {
     }
     render_birds(g);
     render_weapon_effects(g);
+    vs_render_explosions(g);
     vs_fx_render(g, cam_x, cam_y);
     vs_render_end(g);
+    vs_render_timestop_flash(g);
     if (g->debug_hitboxes) render_hitboxes(g, cam_x, cam_y);
     render_hud(g);
     if (g->levelup.pending) render_levelup(g);

@@ -63,6 +63,32 @@ velocity scaled by `knockback × damageKB` for the duration of the hit blink.
 moreX, moreY)` (explosion radius/damage from the row's moreX/moreY), then
 `Disappear` (death animation, no drops).
 
+Alert ring (line 4465, 4571): `sPFX_ring_64`, origin (0.5, 0.75), additive,
+red, following the enemy; tween alpha 1 → 0 and scale 1 → 0.9, 200 ms,
+yoyo, repeating forever; every repeat (400 ms pass) multiplies its time
+scale by 1.1 and plays `Alert` (volume 0.2, 250, 3). It is a tween, so it
+keeps going while time is stopped.
+
+## Explosions (`MakeExplosion`, line 6654; class line 6258)
+
+Pool `SpawnAt(x, y, damage = moreX, radius = moreY)` (Shade Red rows:
+damage 20 / 50, radius 60). Lifetime 120 ms (a tween of the ground circle,
+then `DeSpawn`). Each frame while alive: if it has not hit yet and the
+player position is inside the circle (radius fixed at `radius`), the
+player `GetDamaged(damage)` once. Sound `Explosion` (volume 0.5, detune
+500 × (r − 0.5), 150, 3).
+
+Looks (decoration):
+- Smoke emitter: `Smoke1/2`, life 1000, rotate 0–360, angle 0–180 in 16
+  steps, speed 100–200, 4 per frame, scale 1 → 0, alpha 0.5 → 0.
+- Flash emitter: `HitSmoke1/2`, life 1000, angle 0–360 in 16 steps, speed
+  50–80, 4 per frame, scale 1 → 0, additive.
+- Both run from spawn to despawn and share a gravity well at (x, y − 20),
+  power 1, epsilon 50, gravity 20 (Phaser: factor = power × gravity × dt /
+  (max(d², ε²) × d) × 100, added to the velocity × offset).
+- Ground: a red circle (alpha 0.4, additive) growing from radius 1 to
+  `radius` in 120 ms, only with flashing VFX on.
+
 ## Taking damage (`GetDamaged(dmg, hitType, kb=1)`, line 4517)
 
 ```

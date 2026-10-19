@@ -299,6 +299,7 @@ entry of the title menu. Changes are saved when the screen closes.
 | `--show-chest` | In headless runs, still play the chest and item-found screens (pressing their buttons by itself) |
 | `--map-item NAME` | Put a map bonus item (e.g. `POWER`, `LUCK`) next to the player |
 | `--drop NAME` | Put a pickup (e.g. `NFT`, `ROAST`, `VACUUM`) next to the player |
+| `--spawn NAME` | Put 6 enemies (e.g. `SHADERED`) in a ring around the player |
 | `--unlock-all` | Make every implemented item, character and stage available, ignoring the save |
 | `--save PATH` | Use this save file (headless runs do not save without it) |
 | `--level N` | Start the run at player level N |
@@ -351,9 +352,6 @@ Do not include it in a shared executable package.
 
 The implementation is incomplete. Known gaps include:
 
-- Some enemy behaviours (exploding enemies and their sounds) are missing.
-- The chest screen leaves out the level-3 fireworks and the background
-  bubbles, and glowing effects use plain transparency.
 - The interface uses a simple built-in font, not the original's.
 - The libxenon build has no sound.
 - Xbox 360 sound and performance validation are ongoing.

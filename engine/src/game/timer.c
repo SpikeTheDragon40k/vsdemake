@@ -85,7 +85,7 @@ static void fire(vs_game *g, vs_timer *t) {
     case VS_TIMER_SELFDESTRUCT: {
         vs_enemy *e = &g->enemies[t->a];
         if (e->active && !e->is_dead && e->self_destruct && e->sd_triggered) {
-            /* MakeExplosion(x, y, moreX, moreY) → explosions arrive with weapons */
+            vs_explosion_make(g, e->x, e->y, e->more_x, e->more_y);   /* MakeExplosion(x, y, moreX, moreY) */
             vs_enemy_disappear(g, e);
         }
         break;

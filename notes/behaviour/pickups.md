@@ -69,7 +69,7 @@ lifetime coins, then saved), logged in run pickups, coin sound. Depth `9 + y −
 | --- | --- |
 | ROAST (Floor Chicken) | `RecoverHp(30)` (value from table) and 300 ms invulnerability (line 765) |
 | ROSARY | `Core.RosaryDamage()` — on-screen enemies without `res_Rosary` take `max(66, maxHp)` |
-| OROLOGION | `Core.TimeStop()` — all enemies stopped (`enemies.md`); cleared after **10000 ms** (`TimeStopConfig`, line 6352); picking up another restarts the timer |
+| OROLOGION | `Core.TimeStop()` — all enemies stopped (`enemies.md`); cleared after **10000 ms** (`TimeStopConfig`, line 6352); picking up another restarts the timer. With flashing VFX on, a flash (line 6085) plays the `Orologion` sound (volume 1.8, rate 2) and shows an additive blue `Shockwave3` at the screen centre (turning 359°/s, to 1.2 × screen height in 200 ms, fading 9–10 s) over a blue additive screen tint (alpha 0.2 in 500 ms, out 9.5–10 s); with flashing VFX off there is no flash and no sound |
 | VACUUM | `Core.TurnOnVacuum()`: every live gem gets `goToPlayer = true`. A gem's `t` tween ran 0 → 1 once at creation, so landed gems home at full speed (no drift-away like the magnet's vacuum) |
 | CLOVER | `luck += value` (0.1) (line 751) |
 | LITTLEHEART | `RecoverHp(1)` (hard-coded; the table value is 0) (line 1351) |

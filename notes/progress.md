@@ -310,3 +310,24 @@ resume in a fresh session).
 - Dev option `--drop NAME`.
 - Checks: screenshots / recordings; hash unchanged; ASan/UBSan clean; C++03
   clean.
+
+## 2026-10-19: explosions, additive blending, chest fireworks and bubbles
+
+- Self-destructing enemies (Shade Red) now explode (`enemies.md`): the
+  alert ring pulses faster and beeps (`Alert`), then `MakeExplosion` hurts
+  the player once within the radius during 120 ms, with smoke, an additive
+  flash and a red ground circle; sound `Explosion`.
+- Additive blending (`VS_BLEND_ADD` on `vs_sprite`, `vs_render_blend`):
+  SDL2 (`SDL_BLENDMODE_ADD`) and XDK (batches split by blend, dest ONE);
+  libxenon draws them normally. Used where the original uses ADD: map item
+  glow, Peachone trail, Garlic ring, Santa Water pool, Nduja circle, Bloody
+  Tear's purple ghost, the treasure scene's burst / overlay / ribbons /
+  stars / ring, explosions, alert rings. (Laurel's ring is normal in the
+  original.)
+- Treasure: level-3 fireworks and the bubbles (`treasure.md`); the OPEN
+  button no longer reads DONE while it shrinks.
+- Orologion flash (blue Shockwave3 and screen tint, `pickups.md`); like the
+  original, its sound only plays with flashing VFX on.
+- Dev option `--spawn NAME` (6 enemies around the player).
+- Checks: recordings of the explosions, a level-1 and a level-3 chest and
+  the time stop; hash f5097d0c unchanged; ASan/UBSan clean; C++03 clean.

@@ -6,8 +6,9 @@
  * shaders of libxenon's cube example (vs_xenon_shaders.c). Their pixel
  * shader computes rgb = dot(normal, lightDirection) * tex.rgb, so a sprite's
  * tint is reduced to a brightness (the normal's x component) and per-sprite
- * alpha is not available (sprites with alpha < 64 are skipped). Proper
- * colour tint and alpha need a 2D shader compiled for Xenos. */
+ * alpha is not available (sprites with alpha < 64 are skipped), and
+ * additive sprites are drawn like the others. Proper colour tint and alpha
+ * need a 2D shader compiled for Xenos. */
 #include "core/vs_platform.h"
 
 #include <stdarg.h>

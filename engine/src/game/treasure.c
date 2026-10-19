@@ -4,9 +4,8 @@
  * and hand them over when they close. The run is frozen meanwhile.
  *
  * Layout: the original is laid out for a larger menu resolution; positions
- * and sizes here are the original's times K. Additive blending is drawn as
- * plain alpha; the level-3 fireworks and the background "bubbles" are not
- * drawn. */
+ * and sizes here are the original's times K. Additive parts are drawn with
+ * VS_BLEND_ADD (vs_render_blend also applies to these immediate draws). */
 #include "game/game.h"
 
 #include <math.h>
@@ -32,6 +31,7 @@ static void sprite_at(vs_game *g, int tex, const vs_atlas *atl, const char *name
     s.dy = y + (f.off_y - oy * f.src_h) * scale;
     s.angle_deg = angle_deg; s.tint = tint;
     s.alpha = (uint8_t)(alpha >= 1 ? 255 : alpha * 255);
+    s.blend = (uint8_t)vs_render_current_blend();
     vs_plat_draw(&s);
 }
 
@@ -43,6 +43,7 @@ static void quad(vs_game *g, int tex, const vs_frame *f, float cx, float cy, flo
     s.tex = g->textures[tex]; s.sx = (int16_t)f->x; s.sy = (int16_t)f->y; s.sw = (int16_t)f->w; s.sh = (int16_t)f->h;
     s.dx = cx - 0.5f * w; s.dy = cy - 0.5f * h; s.scale_x = w / f->w; s.scale_y = h / f->h;
     s.angle_deg = angle_deg; s.tint = tint; s.alpha = alpha;
+    s.blend = (uint8_t)vs_render_current_blend();
     vs_plat_draw(&s);
 }
 
@@ -70,7 +71,9 @@ static void enter_burst(vs_game *g, float t_ms) {
     if (!g->save.flashing_vfx || t_ms >= 200) return;
     char name[32];
     snprintf(name, sizeof name, "Burst%d.png", 1 + (int)(t_ms / (1000.0f / 30)));
+    vs_render_blend(VS_BLEND_ADD);
     sprite_at(g, g->tex_vfx, &g->atl_vfx, name, 0.5f * g->logical_w, 0.5f * g->logical_h, 0.5f, 0.5f, 8 * K, 0, 0xffff00, 0.8f);
+    vs_render_blend(VS_BLEND_ALPHA);
 }
 
 /* Background grows from nothing in 150 ms (the original also turns it from 180°). */
@@ -193,6 +196,25 @@ void vs_treasure_ui_start(vs_game *g, int level, int n, const int *prizes, float
         make_reel_icons(g, i, kind);
     }
     make_ribbons(g, level == 1 ? 2 : level == 2 ? 6 : 8);
+    /* bubbles: 15 circles anywhere on the screen, radius 12.5–37.5 */
+    for (int i = 0; i < 15; i++) {
+        t->bubble[i][0] = g->logical_w * vs_rng_f32(&g->ui_rng);
+        t->bubble[i][1] = g->logical_h * vs_rng_f32(&g->ui_rng);
+        t->bubble[i][2] = (12.5f + 25 * vs_rng_f32(&g->ui_rng)) * K;
+    }
+    t->bubble_count = 1;
+    /* fireworks (StartFireworks, line 9728): 5 emitters above the chest, in
+     * the original's units relative to the chest */
+    if (level == 3) {
+        static const int frames[4] = { 0, 1, 2, 0 };   /* blue, pink, purple, blue */
+        float px, py, pw, ph;
+        panel_rect(g, &px, &py, &pw, &ph);
+        for (int i = 0; i < 5; i++) {
+            t->fw_frame[i] = frames[vs_rng_below(&g->ui_rng, 4)];
+            t->fw_x[i] = (vs_rng_f32(&g->ui_rng) - 0.5f) * 0.5f * (px + pw) / K;
+            t->fw_y[i] = -225 - 75 * vs_rng_f32(&g->ui_rng);
+        }
+    }
     vs_sfx(g, VS_SND_THINGFOUND, 0.7f, 0, 1, 0, 0);
     vs_audio_music_fade(0, 500);
 }
@@ -298,6 +320,114 @@ static void update_ribbons(vs_game *g) {
     }
 }
 
+/* Bubbles (line 9402): shown when the chest opens (graphics in 300 ms, the
+ * backgrounds over 6 / 9.7 / 5.2 s by level), hidden when the reels stop
+ * (300 ms / 1 s). Each frame they rise by 10 × count + index (count grows
+ * by 0.001 a frame) and wrap around the screen with a 72 px margin. */
+static const float BUBBLE_SHOW[3] = { 6000, 9700, 5200 };
+static const uint32_t BUBBLE_TINT[3] = { 0x666600, 0xcccc00, 0xffff00 };
+
+static void bubble_alpha(const vs_treasure_ui *t, float *graphics, float *background) {
+    float om = t->open_ms, t0 = t->open_delay;
+    *graphics = *background = 0;
+    if (om < t0) return;
+    if (om < t->stop_at) {
+        *graphics = clamp01((om - t0) / 300.0f);
+        *background = clamp01((om - t0) / BUBBLE_SHOW[t->level - 1]);
+    } else {   /* Hide completes the show tweens first, then fades */
+        *graphics = 1 - clamp01((om - t->stop_at) / 300.0f);
+        *background = 1 - clamp01((om - t->stop_at) / 1000.0f);
+    }
+}
+
+static void update_bubbles(vs_game *g) {
+    vs_treasure_ui *t = &g->treasure;
+    if (t->open_ms < t->open_delay || t->open_ms >= t->stop_at + 1000) return;
+    t->bubble_count += 0.001f;
+    float pad = 72 * K, h = g->logical_h + 2 * pad;
+    for (int i = 0; i < 15; i++) {
+        float *b = t->bubble[i];
+        b[1] -= (10 * t->bubble_count + i) * K;
+        if (b[1] < -pad) b[1] += h;
+    }
+}
+
+/* Fireworks: emitter i runs while the panel flashes at 100, 400, 700, 1000
+ * and 1300 ms after OPEN (30 ms up, 30 down), each frame 32 + i/5 × 32
+ * particles round the circle in 16 steps, 100 to 150 + i × 30 px/s, 3 s,
+ * scale 2 + i/5 × 2 → 0, additive; one gravity well 100 px above the chest
+ * (power 1 × gravity 150, epsilon 25). */
+static const float FW_AT[5] = { 100, 400, 700, 1000, 1300 };
+
+static void update_fireworks(vs_game *g) {
+    vs_treasure_ui *t = &g->treasure;
+    if (t->level != 3) return;
+    for (int i = 0; i < 5; i++) {
+        if (t->open_ms < FW_AT[i] || t->open_ms >= FW_AT[i] + 60) continue;
+        int q = (int)ceilf(32 + i / 5.0f * 32);
+        for (int k = 0; k < q; k++) {
+            vs_pfx *p = &t->fw[t->fw_next];
+            t->fw_next = (t->fw_next + 1) % VS_TREASURE_FW;
+            float a = 22.5f * (float)(t->fw_emitted[i]++ % 16) * TPI / 360, sp = 100 + (50 + i * 30.0f) * vs_rng_f32(&g->ui_rng);
+            memset(p, 0, sizeof *p);
+            p->x = t->fw_x[i]; p->y = t->fw_y[i]; p->vx = cosf(a) * sp; p->vy = sinf(a) * sp;
+            p->life = 3000; p->rot = 360 * vs_rng_f32(&g->ui_rng);
+            p->s0 = 2 + i / 5.0f * 2; p->s1 = 0; p->a0 = p->a1 = 1;
+            p->wx = 0; p->wy = -100; p->wpow = 150; p->weps2 = 25 * 25;
+            p->frame = t->fw_frame[i]; p->add = 1;
+        }
+    }
+    for (int i = 0; i < VS_TREASURE_FW; i++) vs_pfx_step(&t->fw[i], VS_TICK_MS);
+}
+
+static float firework_flash(const vs_treasure_ui *t) {
+    float best = 0;
+    if (t->level != 3) return 0;
+    for (int i = 0; i < 5; i++) {
+        float e = t->open_ms - FW_AT[i];
+        if (e >= 0 && e < 60) { float v = e < 30 ? e / 30 : (60 - e) / 30; if (v > best) best = v; }
+    }
+    return best;
+}
+
+static void draw_bubbles(vs_game *g) {
+    vs_treasure_ui *t = &g->treasure;
+    float ga, ba;
+    bubble_alpha(t, &ga, &ba);
+    vs_frame f;
+    if (ba > 0 && vs_atlas_find(&g->atl_vfx, "Gradient2.png", &f) == 0) {
+        float w = (float)g->logical_w, h = (float)g->logical_h;
+        quad(g, g->tex_vfx, &f, 0.5f * w, 0.5f * h, w, h, 0, BUBBLE_TINT[t->level - 1], (uint8_t)(255 * ba));
+        vs_render_blend(VS_BLEND_ADD);
+        quad(g, g->tex_vfx, &f, 0.5f * w, 0.5f * h, w, h, 0, 0xffffff, (uint8_t)(255 * ba));
+        vs_render_blend(VS_BLEND_ALPHA);
+    }
+    if (ga > 0 && vs_atlas_find(&g->atl_vfx, "circle.png", &f) == 0) {
+        vs_render_blend(VS_BLEND_ADD);
+        for (int i = 0; i < 15; i++) {
+            const float *b = t->bubble[i];
+            uint32_t colour = (uint32_t)(i % 15) * 0x111100u + (uint32_t)(i % 5) * 0x33u;
+            /* the graphics object is scaled (1, 1.3), positions included */
+            quad(g, g->tex_vfx, &f, b[0], 1.3f * b[1], 2 * b[2], 2.6f * b[2], 0, colour, (uint8_t)(127 * ga));
+        }
+        vs_render_blend(VS_BLEND_ALPHA);
+    }
+}
+
+static void draw_fireworks(vs_game *g, float cx, float cy) {
+    static const char *const frames[3] = { "PfxBlue.png", "PfxPink.png", "PfxPurple.png" };
+    vs_treasure_ui *t = &g->treasure;
+    if (t->level != 3) return;
+    vs_render_blend(VS_BLEND_ADD);
+    for (int i = 0; i < VS_TREASURE_FW; i++) {
+        const vs_pfx *p = &t->fw[i];
+        if (p->life <= 0) continue;
+        float s = p->s0 + (p->s1 - p->s0) * (p->age / p->life);
+        sprite_at(g, g->tex_vfx, &g->atl_vfx, frames[p->frame], cx + K * p->x, cy + K * p->y, 0.5f, 0.5f, K * s, p->rot, 0xffffff, 1);
+    }
+    vs_render_blend(VS_BLEND_ALPHA);
+}
+
 void vs_treasure_ui_update(vs_game *g, const vs_pad *pad) {
     vs_treasure_ui *t = &g->treasure;
     uint32_t pressed = pad->buttons & ~g->prev_buttons;
@@ -323,6 +453,8 @@ void vs_treasure_ui_update(vs_game *g, const vs_pad *pad) {
     }
     update_coins(g);
     update_ribbons(g);
+    update_bubbles(g);
+    update_fireworks(g);
 }
 
 static void draw_coins(vs_game *g, int front) {
@@ -345,6 +477,7 @@ void vs_treasure_ui_render(vs_game *g) {
     panel_rect(g, &px, &py, &pw, &ph);
     chest_pos(g, &cx, &cy);
     float om = t->open_ms, closing = t->close_ms;
+    if (closing < 0) draw_bubbles(g);
     zoom_panel(g, t->t_ms, closing);
     if (t->t_ms < 150 || closing >= 150) { enter_burst(g, t->t_ms); return; }
     float upper_top = py + 15 * K, upper_bottom = cy - 70 * K;   /* UpperMask */
@@ -356,8 +489,13 @@ void vs_treasure_ui_render(vs_game *g) {
         float stop = t->stop_at;
         if (t->level == 2) a = om < stop ? 0.7f * clamp01(om / stop) : 0.7f * (1 - clamp01((om - stop) / 1000.0f));
         else if (t->level == 3 && om >= t->open_delay) a = om < stop ? 1.0f : 1 - clamp01((om - stop) / 1000.0f);
+        float flash = firework_flash(t);
+        if (flash > a) a = flash;
+        vs_render_blend(VS_BLEND_ADD);
         if (a > 0) vs_ui_nine_slice_alpha(g, "frame5_c4_ad.png", px, py, pw, ph, 12, 12, 0xffffff, (uint8_t)(a * 200));
+        vs_render_blend(VS_BLEND_ALPHA);
     }
+    if (om >= 0) draw_fireworks(g, cx, cy);
 
     /* header, shrinking away when the chest opens */
     float hk = om < 0 ? 1 : 1 - clamp01(om / 300.0f);
@@ -398,9 +536,10 @@ void vs_treasure_ui_render(vs_game *g) {
         }
     }
 
-    /* ribbons (above the chest only) */
+    /* ribbons (above the chest only), additive */
     vs_frame rib;
     if (om >= 0 && vs_atlas_find(&g->atl_vfx, "Ribbon1.png", &rib) == 0) {
+        vs_render_blend(VS_BLEND_ADD);
         float maxd = 0;
         for (int i = 0; i < t->n; i++) if (t->stop_delay[i] > maxd) maxd = t->stop_delay[i];
         for (int r = 0; r < t->ribbon_n; r++) {
@@ -419,6 +558,7 @@ void vs_treasure_ui_render(vs_game *g) {
                      atan2f(ddy, ddx) * 360 / TPI - 90, 0xffffff, (uint8_t)(200 * alpha));
             }
         }
+        vs_render_blend(VS_BLEND_ALPHA);
     }
 
     draw_coins(g, 0);
@@ -444,8 +584,10 @@ void vs_treasure_ui_render(vs_game *g) {
         if (closing >= 0) { x += (0.5f * g->logical_w - x) * (1 - hide); y += (0 - y) * (1 - hide); }
         float p1 = 2 + 2 * (0.5f - 0.5f * cosf(TPI * e / 1000.0f)), p2 = 2 + 2 * (0.5f - 0.5f * cosf(TPI * e / 1200.0f));
         const char *star = e < 50 ? "HitStarWhite2.png" : "HitStar2.png";
+        vs_render_blend(VS_BLEND_ADD);
         sprite_at(g, g->tex_vfx, &g->atl_vfx, star, x, y, 0.5f, 0.5f, (e < 50 ? 6 : p1) * K * pop, 360 * e / 10000.0f, 0xffffff, 0.7f);
         sprite_at(g, g->tex_vfx, &g->atl_vfx, star, x, y, 0.5f, 0.5f, (e < 50 ? 8 : p2) * K * pop, 45 + 405 * e / 7000.0f, 0xffffff, 0.7f);
+        vs_render_blend(VS_BLEND_ALPHA);
         sprite_at(g, g->tex_vfx, &g->atl_vfx, "PrizeBG.png", x, y, 0.5f, 0.5f, 2 * K * pop, 0, 0xffffff, 0.8f);
         sprite_at(g, g->tex_items, &g->atl_items, item_frame(g, t->prize[i]), x, y, 0.5f, 0.5f, 2 * K * pop, 0, 0xffffff, 1);
     }
@@ -467,7 +609,11 @@ void vs_treasure_ui_render(vs_game *g) {
             vs_text_draw(0.5f * g->logical_w - 0.5f * tw, yy - 3.5f * sc * hide, sc * hide, done ? 0xffff00 : 0xffffff, buf);
             sprite_at(g, g->tex_items, &g->atl_items, "coin-spin-gold_01.png", 0.5f * g->logical_w + 0.5f * tw + 10, yy, 0.5f, 0.5f, sc * hide * 0.6f, 0, 0xffffff, 1);
         }
-        if (done && om - t->c_end < 100) sprite_at(g, g->tex_vfx, &g->atl_vfx, "sPFX_ring_64.png", 0.5f * g->logical_w, yy, 0.5f, 0.5f, 8 * K * (1 - (om - t->c_end) / 100.0f), 0, 0xffffff, 0.5f);
+        if (done && om - t->c_end < 100) {
+            vs_render_blend(VS_BLEND_ADD);
+            sprite_at(g, g->tex_vfx, &g->atl_vfx, "sPFX_ring_64.png", 0.5f * g->logical_w, yy, 0.5f, 0.5f, 8 * K * (1 - (om - t->c_end) / 100.0f), 0, 0xffffff, 0.5f);
+            vs_render_blend(VS_BLEND_ALPHA);
+        }
     }
 
     /* OPEN / DONE button */
@@ -475,7 +621,7 @@ void vs_treasure_ui_render(vs_game *g) {
     if (om < 0) bk = clamp01((t->t_ms - 300) / 150.0f);
     else if (om < 150 && !t->done_shown) bk = 1 - clamp01(om / 150.0f);
     else if (t->done_shown) bk = clamp01((om - t->ok_at) / 150.0f) * hide;
-    button(g, "button_c9_normal.png", om < 0 ? vs_lang_get(&g->lang, "treasure_open", "OPEN") : "DONE",
+    button(g, "button_c9_normal.png", !t->done_shown ? vs_lang_get(&g->lang, "treasure_open", "OPEN") : "DONE",
            0.5f * g->logical_w, py + ph - 64 * K + (t->done_shown ? 0 : 0), 120, 40, bk, bk >= 1);
     if (t->skippable && !t->skipped && om >= (t->level == 1 ? 900 : 1800) && om < t->stop_at)
         text_centered(0.5f * g->logical_w, py + ph + 6, 1, 0xa0a0a0, "B: skip");
