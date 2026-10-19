@@ -370,3 +370,13 @@ resume in a fresh session).
   unchanged (6 px advance, 7 px capitals per unit of scale).
 - Checks: screenshots of the title, options, level-up, collection and HUD;
   hash unchanged; C++03 clean.
+
+## 2026-10-19: version and release notes
+
+- Version 1.0.0-rc1 (`engine/src/core/vs_version.h`), shown at the bottom
+  right of the title screen and logged at start-up.
+- `CHANGELOG.md` with the release notes (what is in, pack and save
+  compatibility, known limitations); README: status, features, an
+  Install section (PC and Xbox 360, and what to replace when updating),
+  limitations; the Xbox guide's Updating section points to the notes.
+- No tag yet: the owner decides when to tag and publish.

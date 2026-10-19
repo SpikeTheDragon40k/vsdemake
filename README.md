@@ -17,13 +17,14 @@ The project does not distribute the original Vampire Survivors source
 code, game assets, or generated data packs. You must own Vampire Survivors
 on Steam and supply the supported game files yourself.
 
-> **Status: work in progress.** The game is playable on PC (SDL2) and on
-> Xbox 360 hardware (XDK build): two stages, weapons and evolutions, the
-> level-up screen, saves with unlocks and achievements, and sound and
-> music. Gameplay accuracy, console performance and the remaining content
-> are still being worked on.
+> **Status: 1.0.0 release candidate.** The game is playable on PC (SDL2)
+> and on Xbox 360 hardware (XDK build) with the content of 0.2.10: both
+> stages, the 13 characters, the weapons and evolutions, the shop, the
+> treasure scene, the collection and achievements, saves, and sound and
+> music. Console performance in long sessions is still being checked.
 >
-> See `notes/progress.md` for the latest development status.
+> What changed: [CHANGELOG.md](CHANGELOG.md). Development log:
+> `notes/progress.md`.
 
 ---
 
@@ -31,9 +32,8 @@ on Steam and supply the supported game files yourself.
 
 - **Stages:** Mad Forest and Inlaid Library, with their music. The Library
   unlocks as in the original (reach level 20 in Mad Forest).
-- **Characters:** the starting characters, plus hidden ones once their
-  unlock is earned. Characters whose starting weapon is not implemented yet
-  are not listed.
+- **Characters:** the 13 playable characters: the starting ones, plus the
+  hidden ones once their unlock is earned, bought at the character select.
 - **Weapons:** Whip, Magic Wand, Knife, Axe, Cross, King Bible, Fire Wand,
   Garlic, Santa Water, Runetracer, Lightning Ring, Peachone, Ebony Wings,
   Clock Lancet, Laurel and Bone: every weapon of this version except
@@ -48,14 +48,18 @@ on Steam and supply the supported game files yourself.
   name, "New!" or its level, and what the item does or what this level
   adds (for example "Base damage up by 5"). The text is built from the
   game's own English strings when the pack is made.
+- **Enemies:** the version's enemies, bosses and stage events; Shade bombs
+  flash a red ring that speeds up, then explode.
 - **Pickups:** gems, gold, coin bags, Floor Chicken, hearts, Vacuum,
-  Rosary, Orologion, Clover, Nduja Fritta (10 s of fire breath) and
+  Rosary, Orologion (with its blue time-stop flash), Clover, Nduja Fritta
+  (10 s of fire breath) and
   treasure chests, dropped by candles with the original's odds (about 80 %
   money at the start; the rarer items unlock at player levels 4–12 and
   Luck makes them likelier).
 - **Treasure chests:** the original's opening screen: press OPEN, the chest
   bursts open with coins, ribbons and reels of item icons, the gold counter
-  ticks up, the prizes pop in, then DONE. Experienced players can skip the
+  ticks up, the prizes pop in, then DONE; the big chest adds fireworks, and
+  bubbles rise behind the panel. Experienced players can skip the
   animation with B, as in the original.
 - **Map bonus items:** the passives hidden far out on the Mad Forest and
   Inlaid Library maps (Might, Luck, Max Health, Recovery, Greed,
@@ -66,6 +70,9 @@ on Steam and supply the supported game files yourself.
   Amount, Move Speed, Magnet, Luck, Growth, Greed), with the original's
   prices and the refund button; characters are bought at the character
   select, as in the original.
+- **Collection and achievements:** the original's two menu screens: every
+  weapon and item found so far, and the 40 achievements with what each one
+  unlocks.
 - **Saves and unlocks:** gold, lifetime totals, the original's 40
   achievements, unlocked items, characters and stages (see
   [Saves and unlocks](#saves-and-unlocks)).
@@ -75,6 +82,9 @@ on Steam and supply the supported game files yourself.
 - **Pause and options:** the original's pause screen (volumes, Flashing
   VFX, Damage Numbers, Quit/Resume), also reachable from the title menu
   (see [Pause and options](#pause-and-options)).
+- **Look:** additive blending where the original uses it (glows, trails,
+  explosions, the chest scene) and a Courier-style font like the original's
+  menus.
 - **Platforms:** PC (Linux, Windows, macOS via SDL2) and Xbox 360 (XDK).
   The PC build doubles as a test tool: headless runs, fixed seeds, state
   hashes, screenshots, frame and audio recording.
@@ -125,6 +135,31 @@ Supported build:
 Other manifests are not supported. The patcher checks hashes against the
 known build. The `--allow-unknown` override is intended for development
 and does not make another build supported.
+
+## Install
+
+There is nothing to download from this project but its source: the game
+data comes from your own Steam copy, and the console executable is built
+with your own XDK. In short:
+
+1. **Get the game files:** download the supported Steam build
+   ([Step 1](#step-1-download-the-supported-build-from-steam)).
+2. **Build the data pack:** run the patcher on them to make
+   `vsdata.vspack` ([Steps 2–3](#step-2-get-the-patcher)).
+3. **Play on PC:** build the SDL2 engine and run it with the pack
+   ([Step 4](#step-4-play-on-pc)).
+4. **Or play on Xbox 360:** build `default.xex` with the XDK, copy
+   `default.xex` and `vsdata.vspack` into one folder on the console's HDD
+   or a USB stick, and launch `default.xex` from Aurora, XeXMenu or
+   FreeStyle Dash ([Step 5](#step-5-play-on-xbox-360),
+   [docs/XBOX360_GUIDE.md](docs/XBOX360_GUIDE.md)).
+
+**Updating:** rebuild and replace `default.xex` (or the PC executable).
+Rebuild `vsdata.vspack` only when [CHANGELOG.md](CHANGELOG.md) says so,
+or when the game tells you at start-up ("Game init failed", "vsdata.vspack
+is damaged", or "NO SOUNDS IN THE PACK" on the title). Keep `vsdemake.sav`:
+it stays valid across updates. The version is shown at the bottom right of
+the title screen.
 
 ## What you need
 
@@ -352,8 +387,11 @@ Do not include it in a shared executable package.
 
 The implementation is incomplete. Known gaps include:
 
-- The libxenon build has no sound.
-- Xbox 360 sound and performance validation are ongoing.
+- Hyper mode and Green Acres can be unlocked and are saved, but cannot be
+  played yet.
+- The libxenon build has no sound and no alpha or additive blending; the
+  XDK build is the supported one.
+- Xbox 360 performance validation in long sessions is ongoing.
 
 ## Saves and unlocks
 

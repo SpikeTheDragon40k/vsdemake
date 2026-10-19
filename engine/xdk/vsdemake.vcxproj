@@ -93,6 +93,8 @@
   <ItemGroup>
     <ClInclude Include="..\src\core\vs_compat.h" />
     <ClInclude Include="..\src\core\vs_pack.h" />
+    <ClInclude Include="..\src\core\vs_version.h" />
+    <ClInclude Include="..\src\core\vs_font_data.h" />
     <ClInclude Include="..\src\core\vs_platform.h" />
     <ClInclude Include="..\src\core\vs_rng.h" />
     <ClInclude Include="..\src\core\vs_text.h" />

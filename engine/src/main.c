@@ -17,6 +17,7 @@
 #include "core/vs_pack.h"
 #include "core/vs_platform.h"
 #include "core/vs_text.h"
+#include "core/vs_version.h"
 #include "game/game.h"
 
 #define LOGICAL_W 810
@@ -157,7 +158,7 @@ static int vs_main(int argc, char **argv) {
 #endif
         return 1;
     }
-    vs_plat_log("pack: %u entries, manifest %llu", pack.count, (unsigned long long)pack.manifest);
+    vs_plat_log("vsdemake %s; pack: %u entries, manifest %llu", VS_VERSION, pack.count, (unsigned long long)pack.manifest);
 
     /* static: vs_game is ~600 KB, far beyond a console thread's stack */
     static vs_game game;

@@ -7,6 +7,7 @@
 #include "core/vs_audio.h"
 #include "core/vs_enums.h"
 #include "core/vs_text.h"
+#include "core/vs_version.h"
 
 static float table_constant(const vs_pack *pack, const char *name, float dflt) {
     vs_table t;
@@ -638,6 +639,8 @@ static void render_menu(vs_game *g) {
         {
             const char *hint = "unofficial demake - arrows/WASD move, enter/A select, esc/B back";
             vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, hint)), 398, 1, 0x808080, hint);
+            const char *ver = "v" VS_VERSION;
+            vs_text_draw(g->logical_w - vs_text_width(1, ver) - 8, (float)g->logical_h - 14, 1, 0x808080, ver);
         }
         const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
         vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 411, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
