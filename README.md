@@ -85,7 +85,12 @@ on Steam and supply the supported game files yourself.
 - **Look:** additive blending where the original uses it (glows, trails,
   explosions, the chest scene) and a Courier-style font like the original's
   menus.
-- **Title screen:** the demake's own background art.
+- **Title screen and menus:** the demake's own background art (dimmed
+  behind the other menus).
+- **Character and stage select:** laid out like the original's: character
+  cards (silhouettes for the ones not bought yet), the stats panel with
+  your bought power-ups, then the stage cards with their pictures; confirm
+  once, then START.
 - **Platform:** Xbox 360 (XDK). The engine also builds on PC as a
   headless test tool for development only (no window, controls or sound
   output); the game cannot be played on PC.

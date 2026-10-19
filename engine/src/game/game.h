@@ -292,7 +292,7 @@ typedef struct {
 } vs_fx;
 
 enum { VS_SCREEN_TITLE = 0, VS_SCREEN_SELECT, VS_SCREEN_GAME, VS_SCREEN_GAMEOVER, VS_SCREEN_OPTIONS, VS_SCREEN_POWERUP,
-       VS_SCREEN_COLLECTION, VS_SCREEN_ACHIEVEMENTS };
+       VS_SCREEN_COLLECTION, VS_SCREEN_ACHIEVEMENTS, VS_SCREEN_STAGE };
 
 /* ---- tilemap (notes/behaviour/stage-map.md) */
 typedef struct {
@@ -385,6 +385,9 @@ typedef struct {
     float recovered_hp;     /* HP actually recovered (Soul Eater's onHPRecoveryCallback) */
     int screen;             /* VS_SCREEN_* */
     int menu_sel, menu_stage, menu_char_list[16], menu_char_count;
+    int menu_ready;         /* character / stage select: confirmed once, the next A starts */
+    float menu_scroll;      /* character select: list scroll */
+    int stage_list[8], stage_count, stage_sel;   /* stage select: visible stages, selected row */
     int title_sel;          /* title menu: 0 start, 1 power up, 2 collection, 3 achievements, 4 options */
     int coll_sel, ach_sel;  /* collection / achievements: selected entry */
     float coll_scroll, ach_scroll;
@@ -580,6 +583,14 @@ int vs_char_bought(const vs_game *g, int c);
 double vs_char_price(const vs_game *g, int c);
 int vs_char_buy(vs_game *g, int c);
 
+/* select.c: character and stage selection */
+void vs_char_select_open(vs_game *g);
+void vs_char_select_input(vs_game *g, const vs_pad *pad);
+void vs_char_select_render(vs_game *g);
+void vs_stage_select_open(vs_game *g);
+void vs_stage_select_input(vs_game *g, const vs_pad *pad);
+void vs_stage_select_render(vs_game *g);
+
 /* collection.c: collection and achievements screens */
 void vs_collection_open(vs_game *g);
 void vs_collection_input(vs_game *g, const vs_pad *pad);
@@ -596,6 +607,15 @@ void vs_options_render(vs_game *g);
 void vs_ui_nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint);
 void vs_ui_nine_slice_alpha(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint, uint8_t alpha);
 void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha);
+/* options.c: the 14-stat panel (pause screen and character select) */
+#define VS_UI_STAT_ROWS 16
+extern const int VS_UI_STATS[VS_UI_STAT_ROWS];   /* weapon enum per row, -1 = gap */
+void vs_ui_stats_panel(vs_game *g, float x, float y, float w, const float *values, const uint8_t *hi, int magnet_pct);
+/* game.c: the title art, dimmed, behind the menus */
+void vs_ui_menu_backdrop(vs_game *g, uint8_t dim);
+void vs_build_character_list(vs_game *g);
+/* collection.c: word-wrapped text, at most max_lines lines */
+void vs_ui_text_wrapped(float x, float y, float scale, uint32_t tint, const char *text, float max_w, int max_lines);
 void vs_ui_rect_blend(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha, int blend);
 const char *vs_weapon_name(const vs_game *g, int type);
 

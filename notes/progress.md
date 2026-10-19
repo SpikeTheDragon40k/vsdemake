@@ -400,3 +400,20 @@ resume in a fresh session).
 - The title hint now names the controller buttons.
 - Checks: title screenshot; hash f5097d0c unchanged; ASan/UBSan clean;
   C++03 clean (stb_image included).
+
+## 2026-10-19: new title art; character and stage select
+
+- Title art replaced with the owner's new picture; it is now also the
+  dimmed backdrop of every other menu (`vs_ui_menu_backdrop`).
+- Character and stage selection rebuilt like the original's
+  (`notes/behaviour/select.md`, `game/select.c`): character cards, the
+  stats panel (character + bought power-ups, yellow when raised), the
+  bottom panel with Confirm / Unlock / START; stage cards with pictures and
+  descriptions, locked ones as "???", confirm then START; B goes back.
+  The pause screen's stats panel became `vs_ui_stats_panel`, shared.
+- Font fix: a scale now uses the largest raster not bigger than needed,
+  scaled up; scaling the 15 px raster down at 1.2–1.4 dropped one-pixel
+  strokes ("+" read as "-", "Imelda" as "Inelda").
+- Checks: screenshots of both screens, menu → character → stage → run
+  flows for both stages; hash f5097d0c unchanged; ASan/UBSan clean; C++03
+  clean.

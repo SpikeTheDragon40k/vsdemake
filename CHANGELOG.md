@@ -48,9 +48,12 @@ select, as in the original.
   and stats panels, Quit / Resume.
 - **Sound and music:** the original's sound effects and stage tracks with
   their volume, pitch and repeat rules.
+- **Character and stage select** like the original's: character cards,
+  stats panel with bought power-ups, stage cards with their pictures,
+  confirm then START.
 - **Look:** additive blending where the original uses it (glows, trails,
   explosions, the chest scene), a Courier-style font like the original's
-  menus, and the demake's own title screen art.
+  menus, and the demake's own art behind the title and the menus.
 
 ### Robustness
 

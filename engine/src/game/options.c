@@ -162,37 +162,35 @@ static float weapons_panel(vs_game *g, float x, float y, float w) {
     return h;
 }
 
-static void stats_panel(vs_game *g, float x, float y, float w) {
-    const vs_player *p = &g->player;
-    enum { HEALTH, PER_SEC, FLAT, PCT, MAGNET, GAP };
-    static const struct { int type, kind; } rows[] = {
-        { VS_WEAPONS_MAXHEALTH, HEALTH }, { VS_WEAPONS_REGEN, PER_SEC }, { VS_WEAPONS_ARMOR, FLAT }, { VS_WEAPONS_MOVESPEED, PCT }, { 0, GAP },
-        { VS_WEAPONS_MIGHT, PCT }, { VS_WEAPONS_AREA, PCT }, { VS_WEAPONS_SPEED, PCT }, { VS_WEAPONS_DURATION, PCT }, { VS_WEAPONS_AMOUNT, FLAT },
-        { VS_WEAPONS_COOLDOWN, PCT }, { 0, GAP }, { VS_WEAPONS_LUCK, PCT }, { VS_WEAPONS_GROWTH, PCT }, { VS_WEAPONS_GREED, PCT }, { VS_WEAPONS_MAGNET, MAGNET },
-    };
-    const int n = (int)(sizeof rows / sizeof rows[0]);
-    vs_ui_nine_slice_alpha(g, "frame1_c2.png", x, y, w, 32.0f + 16 * (n - 1), 12, 12, 0xffffff, 191);
-    for (int i = 0; i < n; i++) {
-        if (rows[i].kind == GAP) continue;
-        float v = 0;
-        switch (rows[i].type) {
-        case VS_WEAPONS_MAXHEALTH: v = p->maxHp; break;   case VS_WEAPONS_REGEN: v = p->regen; break;
-        case VS_WEAPONS_ARMOR: v = p->armor; break;       case VS_WEAPONS_MOVESPEED: v = p->moveSpeed; break;
-        case VS_WEAPONS_MIGHT: v = p->power; break;       case VS_WEAPONS_AREA: v = p->area; break;
-        case VS_WEAPONS_SPEED: v = p->speed; break;       case VS_WEAPONS_DURATION: v = p->duration; break;
-        case VS_WEAPONS_AMOUNT: v = p->amount; break;     case VS_WEAPONS_COOLDOWN: v = p->cooldown; break;
-        case VS_WEAPONS_LUCK: v = p->luck; break;         case VS_WEAPONS_GROWTH: v = p->growth; break;
-        case VS_WEAPONS_GREED: v = p->greed; break;       case VS_WEAPONS_MAGNET: v = g->magnet.radius; break;
-        }
+/* The stats panel (the original's StatsPanel, line 1779): 14 stats in its
+ * order and number formats. values[] follows VS_UI_STATS[]; hi[] (may be
+ * NULL) marks values shown in yellow; magnet_pct shows the magnet as the
+ * character select does (a bonus in %) instead of a radius. */
+const int VS_UI_STATS[VS_UI_STAT_ROWS] = {
+    VS_WEAPONS_MAXHEALTH, VS_WEAPONS_REGEN, VS_WEAPONS_ARMOR, VS_WEAPONS_MOVESPEED, -1,
+    VS_WEAPONS_MIGHT, VS_WEAPONS_AREA, VS_WEAPONS_SPEED, VS_WEAPONS_DURATION, VS_WEAPONS_AMOUNT,
+    VS_WEAPONS_COOLDOWN, -1, VS_WEAPONS_LUCK, VS_WEAPONS_GROWTH, VS_WEAPONS_GREED, VS_WEAPONS_MAGNET,
+};
+
+void vs_ui_stats_panel(vs_game *g, float x, float y, float w, const float *values, const uint8_t *hi, int magnet_pct) {
+    vs_ui_nine_slice_alpha(g, "frame1_c2.png", x, y, w, 32.0f + 16 * (VS_UI_STAT_ROWS - 1), 12, 12, 0xffffff, 191);
+    for (int i = 0; i < VS_UI_STAT_ROWS; i++) {
+        int type = VS_UI_STATS[i];
+        if (type < 0) continue;
+        float v = values[i];
         char val[24];
-        switch (rows[i].kind) {   /* GetStatDisplayTextValue */
-        case HEALTH: case MAGNET: snprintf(val, sizeof val, "%.0f", v); break;
-        case PER_SEC: snprintf(val, sizeof val, "%.1f", v); if (!strcmp(val, "0.0")) strcpy(val, "-"); break;
-        case FLAT: snprintf(val, sizeof val, "%s%.0f", v >= 0 ? "+" : "", v); if (!strcmp(val, "+0")) strcpy(val, "-"); break;
+        switch (type) {   /* GetStatDisplayTextValue */
+        case VS_WEAPONS_MAXHEALTH: snprintf(val, sizeof val, "%.0f", v); break;
+        case VS_WEAPONS_MAGNET:
+            if (magnet_pct) { snprintf(val, sizeof val, "+%d%%", (int)floorf(100 * v + 0.5f)); if (!strcmp(val, "+0%")) strcpy(val, "-"); }
+            else snprintf(val, sizeof val, "%.0f", v);
+            break;
+        case VS_WEAPONS_REGEN: snprintf(val, sizeof val, "%.1f", v); if (!strcmp(val, "0.0")) strcpy(val, "-"); break;
+        case VS_WEAPONS_ARMOR: case VS_WEAPONS_AMOUNT: snprintf(val, sizeof val, "%s%.0f", v >= 0 ? "+" : "", v); if (!strcmp(val, "+0")) strcpy(val, "-"); break;
         default: snprintf(val, sizeof val, "%s%d%%", v >= 1 ? "+" : "", (int)floorf(100 * (v - 1) + 0.5f)); if (!strcmp(val, "+0%")) strcpy(val, "-"); break;
         }
         const char *name = "?", *frame = NULL;
-        int gi = vs_table_find_group_enum(&g->powerups_table, rows[i].type);
+        int gi = vs_table_find_group_enum(&g->powerups_table, type);
         if (gi >= 0) {
             vs_group grp; vs_table_group(&g->powerups_table, (uint32_t)gi, &grp);
             vs_powerups_rec r; vs_table_record(&g->powerups_table, grp.first, &r);
@@ -202,8 +200,27 @@ static void stats_panel(vs_game *g, float x, float y, float w) {
         float ry = y + 16 + 16 * i;
         ui_item(g, g->tex_items, &g->atl_items, frame, x + 14, ry, 1, 0xffffff);
         vs_text_draw(x + 26, ry - 5, 1.4f, 0xffffff, name);
-        vs_text_draw(x + w - 12 - vs_text_width(1.4f, val), ry - 5, 1.4f, 0xffffff, val);
+        vs_text_draw(x + w - 12 - vs_text_width(1.4f, val), ry - 5, 1.4f, hi && hi[i] ? 0xffff00 : 0xffffff, val);
     }
+}
+
+/* the paused player's current stats */
+static void stats_panel(vs_game *g, float x, float y, float w) {
+    const vs_player *p = &g->player;
+    float v[VS_UI_STAT_ROWS];
+    for (int i = 0; i < VS_UI_STAT_ROWS; i++) {
+        switch (VS_UI_STATS[i]) {
+        case VS_WEAPONS_MAXHEALTH: v[i] = p->maxHp; break;   case VS_WEAPONS_REGEN: v[i] = p->regen; break;
+        case VS_WEAPONS_ARMOR: v[i] = p->armor; break;       case VS_WEAPONS_MOVESPEED: v[i] = p->moveSpeed; break;
+        case VS_WEAPONS_MIGHT: v[i] = p->power; break;       case VS_WEAPONS_AREA: v[i] = p->area; break;
+        case VS_WEAPONS_SPEED: v[i] = p->speed; break;       case VS_WEAPONS_DURATION: v[i] = p->duration; break;
+        case VS_WEAPONS_AMOUNT: v[i] = p->amount; break;     case VS_WEAPONS_COOLDOWN: v[i] = p->cooldown; break;
+        case VS_WEAPONS_LUCK: v[i] = p->luck; break;         case VS_WEAPONS_GROWTH: v[i] = p->growth; break;
+        case VS_WEAPONS_GREED: v[i] = p->greed; break;       case VS_WEAPONS_MAGNET: v[i] = g->magnet.radius; break;
+        default: v[i] = 0; break;
+        }
+    }
+    vs_ui_stats_panel(g, x, y, w, v, NULL, 0);
 }
 
 void vs_options_render(vs_game *g) {

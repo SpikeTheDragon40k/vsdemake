@@ -7,8 +7,8 @@
 /* The UI font: Liberation Mono (Courier metrics, like the browser default
  * the original's menus use) pre-rasterized at 10, 15, 20 and 30 px
  * (vs_font_data.h, SIL OFL 1.1). Layout keeps the old 6 px × scale
- * advance and 7 px × scale cap height, so a scale picks the raster whose
- * advance is closest to 6 × scale and draws it at the remaining factor. */
+ * advance and 7 px × scale cap height, so a scale picks a raster and draws
+ * it at the remaining factor (see pick_size). */
 #include "core/vs_font_data.h"
 
 static vs_texture *g_tex;
@@ -35,13 +35,13 @@ int vs_text_init(void) {
     return g_tex ? 0 : -1;
 }
 
-/* The raster for `scale` and the factor to draw it at. */
+/* The raster for `scale` and the factor to draw it at: the largest one not
+ * bigger than needed, scaled up (point sampling scaled down would drop
+ * one-pixel strokes, e.g. the bar of a "+"). */
 static int pick_size(float scale, float *factor) {
-    int best = 0; float best_d = 1e9f;
-    for (int i = 0; i < VS_FONT_SIZES; i++) {
-        float base = VS_FONT_SIZE_INFO[i][1] / 6.0f, r = scale / base, d = r > 1 ? r : 1 / r;
-        if (d < best_d) { best_d = d; best = i; }
-    }
+    int best = 0;
+    for (int i = 0; i < VS_FONT_SIZES; i++)
+        if (VS_FONT_SIZE_INFO[i][1] / 6.0f <= scale * 1.001f) best = i;
     *factor = scale / (VS_FONT_SIZE_INFO[best][1] / 6.0f);
     return best;
 }

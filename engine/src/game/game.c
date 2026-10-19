@@ -54,6 +54,17 @@ static int load_title_bg(vs_game *g) {
     return g->texture_count++;
 }
 
+/* The title art over the whole screen, darkened by `dim` (0 = as is). */
+void vs_ui_menu_backdrop(vs_game *g, uint8_t dim) {
+    if (g->tex_title_bg < 0) return;
+    vs_sprite s = {0};
+    s.tex = g->textures[g->tex_title_bg]; s.sw = (int16_t)g->title_bg_w; s.sh = (int16_t)g->title_bg_h;
+    s.scale_x = (float)g->logical_w / g->title_bg_w; s.scale_y = (float)g->logical_h / g->title_bg_h;
+    s.alpha = 255; s.tint = 0xffffff;
+    vs_plat_draw(&s);
+    if (dim) vs_ui_rect(g, 0, 0, (float)g->logical_w, (float)g->logical_h, 0x000000, dim);
+}
+
 static int load_texture(vs_game *g, const char *name) {
     for (int i = 0; i < g->texture_count; i++) if (g->texture_names[i] && strcmp(g->texture_names[i], name) == 0) return i;
     int entry = vs_pack_find(g->pack, "TEX", name);
@@ -123,7 +134,7 @@ static const enum_field EVENT_IDS[] = { { VS_STAGES_EVENTS_F_EVENTTYPE, VS_EVENT
 static const enum_field TREASURE_IDS[] = { { VS_STAGES_TREASURE_F_PRIZETYPES, VS_PRIZES_COUNT }, { VS_STAGES_TREASURE_F_FIXEDPRIZES, VS_WEAPONS_COUNT } };
 static const enum_field NO_IDS[1] = { { -1, 0 } };
 
-static void build_character_list(vs_game *g) {
+void vs_build_character_list(vs_game *g) {
     g->menu_char_count = 0;
     for (uint32_t gi = 0; gi < g->characters_table.group_count && g->menu_char_count < 16; gi++) {
         vs_group grp; vs_table_group(&g->characters_table, gi, &grp);
@@ -232,7 +243,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (vs_text_init() != 0) return -1;
     sound_init(g);
     vs_sfx(g, VS_SND_BGM_INTRO, 0.7f, 0, 1, 0, 0);   /* after the start-up warning in the original */
-    build_character_list(g);
+    vs_build_character_list(g);
     /* menus start on the last run's choices (save), command line wins */
     if (!g->selected_character) g->selected_character = vs_character_selectable(g, g->save.selected_character) ? g->save.selected_character : VS_CHARACTERS_ANTONIO;
     for (int i = 0; i < g->menu_char_count; i++) if (g->menu_char_list[i] == g->selected_character) g->menu_sel = i;
@@ -304,6 +315,8 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
     if (g->screen == VS_SCREEN_OPTIONS) { vs_options_input(g, pad); return; }   /* reads prev_buttons itself */
     if (g->screen == VS_SCREEN_POWERUP) { vs_shop_input(g, pad); return; }
     if (g->screen == VS_SCREEN_COLLECTION) { vs_collection_input(g, pad); return; }
+    if (g->screen == VS_SCREEN_SELECT) { vs_char_select_input(g, pad); return; }
+    if (g->screen == VS_SCREEN_STAGE) { vs_stage_select_input(g, pad); return; }
     if (g->screen == VS_SCREEN_ACHIEVEMENTS) { vs_achievements_input(g, pad); return; }
     uint32_t pressed = pad->buttons & ~g->prev_buttons;
     g->prev_buttons = pad->buttons;
@@ -317,32 +330,9 @@ static void menu_update(vs_game *g, const vs_pad *pad) {
             else if (g->title_sel == 3) vs_achievements_open(g);
             else if (g->title_sel == 2) vs_collection_open(g);
             else if (g->title_sel == 1) vs_shop_open(g);
-            else { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; }
+            else vs_char_select_open(g);
         }
         break;
-    case VS_SCREEN_SELECT: {
-        int n = g->menu_char_count;
-        if (pressed & VS_BTN_UP) { g->menu_sel = (g->menu_sel + n - 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if (pressed & VS_BTN_DOWN) { g->menu_sel = (g->menu_sel + 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if ((pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) && vs_stage_selectable(g, VS_STAGES_LIBRARY)) { g->menu_stage ^= 1; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if (pressed & VS_BTN_B) { g->screen = VS_SCREEN_TITLE; vs_sfx(g, VS_SND_CLICKOUT, -1, -400, 1, 0, 0); }
-        if (g->shop_msg_ms > 0) g->shop_msg_ms -= VS_TICK_MS;
-        if (pressed & (VS_BTN_A | VS_BTN_START)) {
-            int c = g->menu_char_list[g->menu_sel];
-            if (!vs_char_bought(g, c)) {
-                /* the original: a character is bought first (ClickOut, -400 cents), started with the next press */
-                if (vs_char_buy(g, c)) vs_sfx(g, VS_SND_CLICKOUT, -1, -400, 1, 0, 0);
-                else { snprintf(g->shop_msg, sizeof g->shop_msg, "Not enough gold"); g->shop_msg_ms = 1500; }
-                break;
-            }
-            vs_sfx(g, VS_SND_CLICKIN, -1, 200, 1, 0, 0);
-            g->selected_character = c;
-            g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
-            g->seed = g->seed * 6364136223846793005ull + 1442695040888963407ull;
-            if (vs_game_start_run(g, g->selected_character, g->selected_stage) != 0) g->screen = VS_SCREEN_TITLE;
-        }
-        break;
-    }
     case VS_SCREEN_GAMEOVER:
         if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_TITLE; vs_audio_music_stop(); vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         break;
@@ -426,15 +416,6 @@ static uint32_t day_night_tint(const vs_game *g) {
     int even = (g->survived_seconds / cycle) % 2 == 0;
     float f = even ? (float)t / cycle : (float)(cycle - t) / cycle;
     return lerp_color(0xffffff, 0x0444ee, f);
-}
-
-static const char *character_name(vs_game *g, int type, char *buf, size_t n) {
-    int gi = vs_table_find_group_enum(&g->characters_table, type);
-    if (gi < 0) return "?";
-    vs_group grp; vs_table_group(&g->characters_table, (uint32_t)gi, &grp);
-    vs_characters_rec c; vs_table_record(&g->characters_table, grp.first, &c);
-    snprintf(buf, n, "%s %s", vs_table_str(&g->characters_table, c.charName), VS_HAS(&c, VS_CHARACTERS_F_SURNAME) ? vs_table_str(&g->characters_table, c.surname) : "");
-    return buf;
 }
 
 /* Draws `frame` from the UI atlas stretched over (x, y, w, h) as a nine-slice
@@ -644,20 +625,16 @@ static void render_menu(vs_game *g) {
     char buf[256];
     vs_plat_begin_frame(0x000000);
     int title_art = g->screen == VS_SCREEN_TITLE && g->tex_title_bg >= 0;
+    if (g->screen == VS_SCREEN_TITLE) vs_ui_menu_backdrop(g, 0);
+    else if (g->screen != VS_SCREEN_GAMEOVER) vs_ui_menu_backdrop(g, 150);   /* the other menus: the art, dimmed */
     if (title_art) {
-        /* the background art (it carries its own VSDEMAKE logo), with dark
-         * panels behind the text so it stays readable */
-        vs_sprite s = {0};
-        s.tex = g->textures[g->tex_title_bg]; s.sw = (int16_t)g->title_bg_w; s.sh = (int16_t)g->title_bg_h;
-        s.scale_x = (float)g->logical_w / g->title_bg_w; s.scale_y = (float)g->logical_h / g->title_bg_h;
-        s.alpha = 255; s.tint = 0xffffff;
-        vs_plat_draw(&s);
+        /* the art carries its own VSDEMAKE logo; dark panels behind the text keep it readable */
         vs_ui_rect(g, 0.5f * g->logical_w - 120, 244, 240, 112, 0x000000, 170);
         vs_ui_rect(g, 0.5f * g->logical_w - 230, 391, 460, 46, 0x000000, 170);
         vs_ui_rect(g, (float)g->logical_w - 230, 0, 230, 18, 0x000000, 170);
         vs_ui_rect(g, (float)g->logical_w - 90, (float)g->logical_h - 18, 90, 18, 0x000000, 170);
     }
-    if ((g->screen == VS_SCREEN_TITLE && !title_art) || g->screen == VS_SCREEN_SELECT) {
+    if (g->screen == VS_SCREEN_TITLE && !title_art) {
         if (g->tex_title >= 0) {
             vs_sprite s = {0};
             /* widest fit in 3/4 of the screen and 200 px of height, at most 2x */
@@ -669,7 +646,7 @@ static void render_menu(vs_game *g) {
             s.dx = 0.5f * (g->logical_w - g->title_w * sc); s.dy = 130.0f - 0.5f * g->title_h * sc; vs_plat_draw(&s);
         }
     }
-    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT || g->screen == VS_SCREEN_POWERUP) {
+    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT || g->screen == VS_SCREEN_STAGE || g->screen == VS_SCREEN_POWERUP) {
         snprintf(buf, sizeof buf, "GOLD %.0f   ACHIEVEMENTS %d/%d", g->save.coins, vs_save_achievement_count(g), VS_ACHIEVEMENTS_COUNT);
         vs_text_draw(g->logical_w - vs_text_width(1, buf) - 8, 6, 1, 0xffd040, buf);
     }
@@ -694,22 +671,9 @@ static void render_menu(vs_game *g) {
         if (g->audio_status[0])
             vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, g->audio_status)), 424, 1, strstr(g->audio_status, "NO ") ? 0xff4040 : 0x60a060, g->audio_status);
     } else if (g->screen == VS_SCREEN_SELECT) {
-        vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
-        for (int i = 0; i < g->menu_char_count; i++) {
-            char nm[64];
-            int c = g->menu_char_list[i], bought = vs_char_bought(g, c);
-            char price[32] = "";
-            if (!bought) snprintf(price, sizeof price, "  - buy: %.0f gold", vs_char_price(g, c));
-            snprintf(buf, sizeof buf, "%s %s%s", i == g->menu_sel ? ">" : " ", character_name(g, c, nm, sizeof nm), price);
-            vs_text_draw(60, (float)(260 + 10 * i), 1, i == g->menu_sel ? 0xffff80 : bought ? 0xffffff : 0xa0a0a0, buf);
-        }
-        if (g->shop_msg_ms > 0) vs_text_draw(60, (float)(264 + 10 * g->menu_char_count), 1, 0xff8080, g->shop_msg);
-        vs_text_draw(420, 240, 1.5f, 0xffffff, "STAGE (left/right)");
-        snprintf(buf, sizeof buf, "%s %s", g->menu_stage == 0 ? ">" : " ", vs_stage_name(g, VS_STAGES_FOREST));
-        vs_text_draw(420, 260, 1, g->menu_stage == 0 ? 0xffff80 : 0xffffff, buf);
-        if (vs_stage_selectable(g, VS_STAGES_LIBRARY)) snprintf(buf, sizeof buf, "%s %s", g->menu_stage == 1 ? ">" : " ", vs_stage_name(g, VS_STAGES_LIBRARY));
-        else snprintf(buf, sizeof buf, "  ??? (reach LV 20 in %s)", vs_stage_name(g, VS_STAGES_FOREST));
-        vs_text_draw(420, 270, 1, g->menu_stage == 1 ? 0xffff80 : vs_stage_selectable(g, VS_STAGES_LIBRARY) ? 0xffffff : 0x808080, buf);
+        vs_char_select_render(g);
+    } else if (g->screen == VS_SCREEN_STAGE) {
+        vs_stage_select_render(g);
     } else if (g->screen == VS_SCREEN_OPTIONS) {
         vs_options_render(g);
     } else if (g->screen == VS_SCREEN_POWERUP) {

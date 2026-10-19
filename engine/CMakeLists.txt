@@ -34,6 +34,7 @@ set(VS_CORE_SOURCES
   src/game/treasure.c
   src/game/shop.c
   src/game/collection.c
+  src/game/select.c
   src/main.c)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")

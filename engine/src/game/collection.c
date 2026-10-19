@@ -38,7 +38,7 @@ static void text_centered(float cx, float y, float scale, uint32_t tint, const c
 }
 
 /* Draws `text` word-wrapped to `max_w`, at most `max_lines` lines. */
-static void text_wrapped(float x, float y, float scale, uint32_t tint, const char *text, float max_w, int max_lines) {
+void vs_ui_text_wrapped(float x, float y, float scale, uint32_t tint, const char *text, float max_w, int max_lines) {
     char line[200];
     const float adv = (VS_TEXT_GLYPH_W + 1) * scale;
     int per_line = (int)(max_w / adv), lines = 0;
@@ -79,8 +79,8 @@ static void detail_panel(vs_game *g, int found, const char *name, const char *de
     vs_ui_nine_slice(g, "frame1_c2.png", px, py, pw, PANEL_H, 12, 12, found ? 0xffffff : 0x888888);
     *icx = px + 52; *icy = py + 52;
     if (name && *name) text_centered(px + 0.5f * pw, py + 8, 2, 0xffff00, name);
-    if (desc) text_wrapped(px + 0.25f * pw - 0.5f * 0.25f * pw + 52, py + 32, 1.5f, 0xffffff, desc, 0.75f * pw - 40, 2);
-    if (tips) text_wrapped(px + 0.25f * pw - 0.5f * 0.25f * pw + 52, py + 66, 1.5f, 0xffa500, tips, 0.75f * pw - 40, 2);
+    if (desc) vs_ui_text_wrapped(px + 0.25f * pw - 0.5f * 0.25f * pw + 52, py + 32, 1.5f, 0xffffff, desc, 0.75f * pw - 40, 2);
+    if (tips) vs_ui_text_wrapped(px + 0.25f * pw - 0.5f * 0.25f * pw + 52, py + 66, 1.5f, 0xffa500, tips, 0.75f * pw - 40, 2);
 }
 
 /* ---- collection ---- */
@@ -361,7 +361,7 @@ void vs_achievements_render(vs_game *g) {
         ach_get(g, list[i], &ai);
         frame_at(g, g->tex_ui, &g->atl_ui, "menu_checkbox_24_bg.png", x0 + 32, y + 20, 0.5f, 0.5f, 1, 0xffffff, 255);
         if (ai.done) frame_at(g, g->tex_ui, &g->atl_ui, "menu_checkbox_24_checkmark.png", x0 + 32, y + 20, 0.5f, 0.5f, 1, 0xffffff, 255);
-        text_wrapped(x0 + 54, y + 9, 1.5f, ai.done ? 0xffffff : 0xb0b0b0, ai.desc, 340, 2);
+        vs_ui_text_wrapped(x0 + 54, y + 9, 1.5f, ai.done ? 0xffffff : 0xb0b0b0, ai.desc, 340, 2);
         ach_icon(g, &ai, &ai.row, 0, x0 + 432, y + 20);   /* rows show no frame behind weapons */
         if (i == g->ach_sel) vs_ui_nine_slice(g, "selectionSquareActive_03.png", x0 + 10, y + 1, ROW_W - 10, 38, 7, 7, 0xffffff);
     }
