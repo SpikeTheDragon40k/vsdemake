@@ -2,11 +2,14 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/vs_audio.h"
 #include "core/vs_enums.h"
+#include "core/vs_image.h"
 #include "core/vs_text.h"
+#include "core/vs_version.h"
 
 static float table_constant(const vs_pack *pack, const char *name, float dflt) {
     vs_table t;
@@ -17,7 +20,49 @@ static float table_constant(const vs_pack *pack, const char *name, float dflt) {
     vs_table_group(&t, (uint32_t)gi, &grp);
     vs_constants_rec r;
     vs_table_record(&t, grp.first, &r);
-    return r.value;
+    /* speeds and multipliers: a NaN, zero or absurd value would break the
+     * simulation, so the built-in value is used instead */
+    return r.value > 1e-6f && r.value < 1e7f ? r.value : dflt;
+}
+
+/* The title screen's background art, built into the executable
+ * (engine/assets/title_bg.png → title_bg_data.h). Padded to 1024 × 512
+ * like the pack's textures. Returns the texture index or -1. */
+#include "game/title_bg_data.h"
+static int load_title_bg(vs_game *g) {
+    int w, h;
+    if (g->texture_count >= VS_MAX_TEXTURES) return -1;
+    uint8_t *rgba = vs_image_decode(VS_TITLE_BG_JPG, sizeof VS_TITLE_BG_JPG, &w, &h);
+    if (!rgba) return -1;
+    const int tw = 1024, th = 512;
+    uint8_t *argb = w <= tw && h <= th ? (uint8_t *)calloc((size_t)tw * th, 4) : NULL;
+    if (argb) {
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                const uint8_t *s = rgba + ((size_t)y * w + x) * 4;
+                uint8_t *d = argb + ((size_t)y * tw + x) * 4;
+                d[0] = 255; d[1] = s[0]; d[2] = s[1]; d[3] = s[2];   /* big-endian ARGB */
+            }
+    }
+    vs_image_free(rgba);
+    vs_texture *t = argb ? vs_plat_texture_create((uint32_t)tw, (uint32_t)th, argb) : NULL;
+    free(argb);
+    if (!t) return -1;
+    g->title_bg_w = w; g->title_bg_h = h;
+    g->textures[g->texture_count] = t;
+    g->texture_names[g->texture_count] = "title_bg";
+    return g->texture_count++;
+}
+
+/* The title art over the whole screen, darkened by `dim` (0 = as is). */
+void vs_ui_menu_backdrop(vs_game *g, uint8_t dim) {
+    if (g->tex_title_bg < 0) return;
+    vs_sprite s = {0};
+    s.tex = g->textures[g->tex_title_bg]; s.sw = (int16_t)g->title_bg_w; s.sh = (int16_t)g->title_bg_h;
+    s.scale_x = (float)g->logical_w / g->title_bg_w; s.scale_y = (float)g->logical_h / g->title_bg_h;
+    s.alpha = 255; s.tint = 0xffffff;
+    vs_plat_draw(&s);
+    if (dim) vs_ui_rect(g, 0, 0, (float)g->logical_w, (float)g->logical_h, 0x000000, dim);
 }
 
 static int load_texture(vs_game *g, const char *name) {
@@ -39,12 +84,57 @@ static int load_atlas(vs_game *g, const char *name, vs_atlas *out, int *tex) {
     return *tex < 0 ? -1 : 0;
 }
 
-static int open_table(vs_game *g, const char *name, vs_table *t, const char *fields) {
-    if (vs_pack_table(g->pack, name, t) != 0 || vs_table_check_fields(t, fields) != 0) { vs_plat_log("table %s missing or layout mismatch", name); return -1; }
-    return 0;
+/* Enum ids from the tables index arrays sized by the compiled enums, so a
+ * table whose group keys or enum fields (single or list) fall outside them
+ * is refused (vs_pack_init has already checked every offset). */
+typedef struct { int field, count; } enum_field;
+
+static int ids_in_range(const vs_table *t, int key_count, const enum_field *ef, int nef) {
+    for (uint32_t i = 0; i < t->group_count; i++) {
+        int32_t k = vs_bei32(t->groups + 16 * i + 4);
+        if (k < -1 || k >= key_count) return 0;
+    }
+    for (int j = 0; j < nef; j++) {
+        uint32_t f = (uint32_t)ef[j].field;
+        if (f >= t->field_count) return 0;
+        uint32_t type = vs_be32(t->fields + 36 * f + 32);
+        for (uint32_t r = 0; r < t->record_count; r++) {
+            const uint8_t *rec = t->records + (uint64_t)r * t->record_size;
+            uint32_t v = vs_be32(rec + 8 + 4 * f);
+            if (type == 5) { if ((int32_t)v < -1 || (int32_t)v >= ef[j].count) return 0; }
+            else if (type == 6) {
+                if (!((vs_be64(rec) >> f) & 1) && v == 0) continue;
+                const uint8_t *items; uint32_t n = vs_table_list(t, v, &items);
+                for (uint32_t q = 0; q < n; q++) if (vs_list_i32(items, q) < -1 || vs_list_i32(items, q) >= ef[j].count) return 0;
+            } else return 0;
+        }
+    }
+    return 1;
 }
 
-static void build_character_list(vs_game *g) {
+static int open_table_ids(vs_game *g, const char *name, vs_table *t, const char *fields, int key_count, const enum_field *ef, int nef) {
+    if (vs_pack_table(g->pack, name, t) != 0 || vs_table_check_fields(t, fields) != 0) { vs_plat_log("table %s missing or layout mismatch", name); return -1; }
+    if (!ids_in_range(t, key_count, ef, nef)) { vs_plat_log("table %s has ids outside the game's enums", name); return -1; }
+    return 0;
+}
+#define open_table(g, name, t, fields, key_count, ef) open_table_ids(g, name, t, fields, key_count, ef, (int)(sizeof ef / sizeof ef[0]))
+
+static const enum_field CHARACTER_IDS[] = { { VS_CHARACTERS_F_STARTINGWEAPON, VS_WEAPONS_COUNT }, { VS_CHARACTERS_F_SHOWCASE, VS_WEAPONS_COUNT } };
+static const enum_field ENEMY_IDS[] = { { VS_ENEMIES_F_SKILLS, 64 } };
+static const enum_field WEAPON_IDS[] = { { VS_WEAPONS_F_BULLETTYPE, VS_WEAPONS_COUNT }, { VS_WEAPONS_F_ADDEVOLVEDWEAPON, VS_WEAPONS_COUNT },
+                                         { VS_WEAPONS_F_EVOLVESFROM, VS_WEAPONS_COUNT }, { VS_WEAPONS_F_REQUIRES, VS_WEAPONS_COUNT }, { VS_WEAPONS_F_HITVFX, VS_HITVFX_COUNT } };
+static const enum_field POWERUP_IDS[] = { { VS_POWERUPS_F_BULLETTYPE, VS_WEAPONS_COUNT } };
+static const enum_field DESTRUCTIBLE_IDS[] = { { VS_DESTRUCTIBLES_F_DESTRUCTIBLETYPE, VS_DESTRUCTIBLES_COUNT } };
+static const enum_field ACHIEVEMENT_IDS[] = { { VS_ACHIEVEMENTS_F_WEAPONTOUNLOCK, VS_WEAPONS_COUNT }, { VS_ACHIEVEMENTS_F_STAGETOUNLOCK, VS_STAGES_COUNT },
+                                              { VS_ACHIEVEMENTS_F_CHARACTERTOUNLOCK, VS_CHARACTERS_COUNT }, { VS_ACHIEVEMENTS_F_HYPERTOUNLOCK, VS_STAGES_COUNT },
+                                              { VS_ACHIEVEMENTS_F_WEAPONICON, VS_WEAPONS_COUNT } };
+static const enum_field STAGE_IDS[] = { { VS_STAGES_F_BGM, VS_BGM_COUNT }, { VS_STAGES_F_LEGACYBGM, VS_BGM_COUNT }, { VS_STAGES_F_DESTRUCTIBLETYPE, VS_DESTRUCTIBLES_COUNT },
+                                        { VS_STAGES_F_SPAWNTYPE, VS_SPAWN_COUNT }, { VS_STAGES_F_ENEMIES, VS_ENEMIES_COUNT }, { VS_STAGES_F_BOSSES, VS_ENEMIES_COUNT } };
+static const enum_field EVENT_IDS[] = { { VS_STAGES_EVENTS_F_EVENTTYPE, VS_EVENTS_COUNT }, { VS_STAGES_EVENTS_F_MOREY, VS_ENEMIES_COUNT } };
+static const enum_field TREASURE_IDS[] = { { VS_STAGES_TREASURE_F_PRIZETYPES, VS_PRIZES_COUNT }, { VS_STAGES_TREASURE_F_FIXEDPRIZES, VS_WEAPONS_COUNT } };
+static const enum_field NO_IDS[1] = { { -1, 0 } };
+
+void vs_build_character_list(vs_game *g) {
     g->menu_char_count = 0;
     for (uint32_t gi = 0; gi < g->characters_table.group_count && g->menu_char_count < 16; gi++) {
         vs_group grp; vs_table_group(&g->characters_table, gi, &grp);
@@ -61,7 +151,7 @@ static const char *const SND_KEYS[VS_SND_COUNT] = {
     "Rosary", "Orologion", "Whip", "MagicMissile", "Shot", "Holywater",
     "Lightning", "LevelUp", "ClickIn", "ClickOut", "ThingFound",
     "Treasure1", "Treasure2", "Treasure3", "BGM_Intro", "BGM_GameOver",
-    "Fireloop",
+    "Fireloop", "Explosion", "Alert",
 };
 
 void vs_sfx(vs_game *g, int snd, float volume, float detune, float rate, float delay_ms, int max_instances) {
@@ -110,15 +200,20 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     g->base_enemy_speed = table_constant(pack, "_baseEnemySpeed", 0.231f);
     g->base_projectile_speed = table_constant(pack, "_baseProjectileSpeed", 165.0f);
 
-    if (open_table(g, "characters", &g->characters_table, VS_CHARACTERS_FIELD_NAMES)) return -1;
-    if (open_table(g, "enemies", &g->enemies_table, VS_ENEMIES_FIELD_NAMES)) return -1;
-    if (open_table(g, "hitvfx", &g->hitvfx_table, VS_HITVFX_FIELD_NAMES)) return -1;
-    if (open_table(g, "weapons", &g->weapons_table, VS_WEAPONS_FIELD_NAMES)) return -1;
-    if (open_table(g, "pickups", &g->pickups_table, VS_PICKUPS_FIELD_NAMES)) return -1;
-    if (open_table(g, "destructibles", &g->destructibles_table, VS_DESTRUCTIBLES_FIELD_NAMES)) return -1;
-    if (open_table(g, "achievements", &g->achievements_table, VS_ACHIEVEMENTS_FIELD_NAMES)) return -1;
-    if (open_table(g, "stages", &g->stages_table, VS_STAGES_FIELD_NAMES)) return -1;
-    if (open_table(g, "powerups", &g->powerups_table, VS_POWERUPS_FIELD_NAMES)) return -1;
+    if (open_table(g, "characters", &g->characters_table, VS_CHARACTERS_FIELD_NAMES, VS_CHARACTERS_COUNT, CHARACTER_IDS)) return -1;
+    if (open_table(g, "enemies", &g->enemies_table, VS_ENEMIES_FIELD_NAMES, VS_ENEMIES_COUNT, ENEMY_IDS)) return -1;
+    if (open_table_ids(g, "hitvfx", &g->hitvfx_table, VS_HITVFX_FIELD_NAMES, VS_HITVFX_COUNT, NO_IDS, 0)) return -1;
+    if (open_table(g, "weapons", &g->weapons_table, VS_WEAPONS_FIELD_NAMES, VS_WEAPONS_COUNT, WEAPON_IDS)) return -1;
+    if (open_table_ids(g, "pickups", &g->pickups_table, VS_PICKUPS_FIELD_NAMES, VS_PICKUPS_COUNT, NO_IDS, 0)) return -1;
+    if (open_table(g, "destructibles", &g->destructibles_table, VS_DESTRUCTIBLES_FIELD_NAMES, VS_DESTRUCTIBLES_COUNT, DESTRUCTIBLE_IDS)) return -1;
+    if (open_table(g, "achievements", &g->achievements_table, VS_ACHIEVEMENTS_FIELD_NAMES, VS_ACHIEVEMENTS_COUNT, ACHIEVEMENT_IDS)) return -1;
+    if (open_table(g, "stages", &g->stages_table, VS_STAGES_FIELD_NAMES, VS_STAGES_COUNT, STAGE_IDS)) return -1;
+    if (open_table(g, "powerups", &g->powerups_table, VS_POWERUPS_FIELD_NAMES, VS_WEAPONS_COUNT, POWERUP_IDS)) return -1;
+    {   /* the stage sub-tables, opened again by vs_stage_init */
+        vs_table sub;
+        if (open_table(g, "stages.events", &sub, VS_STAGES_EVENTS_FIELD_NAMES, VS_STAGES_COUNT, EVENT_IDS)) return -1;
+        if (open_table(g, "stages.treasure", &sub, VS_STAGES_TREASURE_FIELD_NAMES, VS_STAGES_COUNT, TREASURE_IDS)) return -1;
+    }
     vs_save_load(g, save_path);
 
     if (load_atlas(g, "characters", &g->atl_characters, &g->tex_characters) != 0) return -1;
@@ -139,6 +234,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
             g->title_w = (int)ti.used_w; g->title_h = (int)ti.used_h;
         }
     }
+    g->tex_title_bg = load_title_bg(g);
     {
         int fi = vs_pack_find(pack, "FNT", "damNum-export");
         if (fi < 0 || vs_pack_font(pack, fi, &g->damage_font) != 0) return -1;
@@ -147,7 +243,7 @@ int vs_game_init(vs_game *g, const vs_pack *pack, int lw, int lh, uint64_t seed)
     if (vs_text_init() != 0) return -1;
     sound_init(g);
     vs_sfx(g, VS_SND_BGM_INTRO, 0.7f, 0, 1, 0, 0);   /* after the start-up warning in the original */
-    build_character_list(g);
+    vs_build_character_list(g);
     /* menus start on the last run's choices (save), command line wins */
     if (!g->selected_character) g->selected_character = vs_character_selectable(g, g->save.selected_character) ? g->save.selected_character : VS_CHARACTERS_ANTONIO;
     for (int i = 0; i < g->menu_char_count; i++) if (g->menu_char_list[i] == g->selected_character) g->menu_sel = i;
@@ -175,6 +271,9 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     memset(&g->stage, 0, sizeof g->stage);
     memset(&g->tilemap, 0, sizeof g->tilemap);
     memset(g->fx, 0, sizeof g->fx);
+    memset(g->explosions, 0, sizeof g->explosions);
+    memset(g->smoke, 0, sizeof g->smoke);
+    g->timestop_fx_ms = -1;
     memset(g->timers, 0, sizeof g->timers);
     g->enemy_count = 0; g->cull_index = 0; g->next_uid = 1; g->time_stopped = 0; g->game_over = 0;
     g->kills = 0; g->coins = 0; g->chests_opened = 0; g->tick = 0; g->update_tick = 0; g->survived_seconds = 0;
@@ -210,45 +309,30 @@ int vs_game_start_run(vs_game *g, int character_enum, int stage_enum) {
     return g->tex_bg < 0 ? -1 : 0;
 }
 
+#define TITLE_ITEMS 5   /* START, POWER UP, COLLECTION, ACHIEVEMENTS, OPTIONS */
+
 static void menu_update(vs_game *g, const vs_pad *pad) {
     if (g->screen == VS_SCREEN_OPTIONS) { vs_options_input(g, pad); return; }   /* reads prev_buttons itself */
     if (g->screen == VS_SCREEN_POWERUP) { vs_shop_input(g, pad); return; }
+    if (g->screen == VS_SCREEN_COLLECTION) { vs_collection_input(g, pad); return; }
+    if (g->screen == VS_SCREEN_SELECT) { vs_char_select_input(g, pad); return; }
+    if (g->screen == VS_SCREEN_STAGE) { vs_stage_select_input(g, pad); return; }
+    if (g->screen == VS_SCREEN_ACHIEVEMENTS) { vs_achievements_input(g, pad); return; }
     uint32_t pressed = pad->buttons & ~g->prev_buttons;
     g->prev_buttons = pad->buttons;
     switch (g->screen) {
     case VS_SCREEN_TITLE:
-        if (pressed & VS_BTN_UP) { g->title_sel = (g->title_sel + 2) % 3; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if (pressed & VS_BTN_DOWN) { g->title_sel = (g->title_sel + 1) % 3; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_UP) { g->title_sel = (g->title_sel + TITLE_ITEMS - 1) % TITLE_ITEMS; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
+        if (pressed & VS_BTN_DOWN) { g->title_sel = (g->title_sel + 1) % TITLE_ITEMS; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         if (pressed & (VS_BTN_A | VS_BTN_START)) {
             vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0);
-            if (g->title_sel == 2) { g->screen = VS_SCREEN_OPTIONS; vs_options_open(g); }
+            if (g->title_sel == 4) { g->screen = VS_SCREEN_OPTIONS; vs_options_open(g); }
+            else if (g->title_sel == 3) vs_achievements_open(g);
+            else if (g->title_sel == 2) vs_collection_open(g);
             else if (g->title_sel == 1) vs_shop_open(g);
-            else { g->screen = VS_SCREEN_SELECT; g->menu_sel = 0; }
+            else vs_char_select_open(g);
         }
         break;
-    case VS_SCREEN_SELECT: {
-        int n = g->menu_char_count;
-        if (pressed & VS_BTN_UP) { g->menu_sel = (g->menu_sel + n - 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if (pressed & VS_BTN_DOWN) { g->menu_sel = (g->menu_sel + 1) % n; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if ((pressed & (VS_BTN_LEFT | VS_BTN_RIGHT)) && vs_stage_selectable(g, VS_STAGES_LIBRARY)) { g->menu_stage ^= 1; vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
-        if (pressed & VS_BTN_B) { g->screen = VS_SCREEN_TITLE; vs_sfx(g, VS_SND_CLICKOUT, -1, -400, 1, 0, 0); }
-        if (g->shop_msg_ms > 0) g->shop_msg_ms -= VS_TICK_MS;
-        if (pressed & (VS_BTN_A | VS_BTN_START)) {
-            int c = g->menu_char_list[g->menu_sel];
-            if (!vs_char_bought(g, c)) {
-                /* the original: a character is bought first (ClickOut, -400 cents), started with the next press */
-                if (vs_char_buy(g, c)) vs_sfx(g, VS_SND_CLICKOUT, -1, -400, 1, 0, 0);
-                else { snprintf(g->shop_msg, sizeof g->shop_msg, "Not enough gold"); g->shop_msg_ms = 1500; }
-                break;
-            }
-            vs_sfx(g, VS_SND_CLICKIN, -1, 200, 1, 0, 0);
-            g->selected_character = c;
-            g->selected_stage = g->menu_stage ? VS_STAGES_LIBRARY : VS_STAGES_FOREST;
-            g->seed = g->seed * 6364136223846793005ull + 1442695040888963407ull;
-            if (vs_game_start_run(g, g->selected_character, g->selected_stage) != 0) g->screen = VS_SCREEN_TITLE;
-        }
-        break;
-    }
     case VS_SCREEN_GAMEOVER:
         if (pressed & (VS_BTN_A | VS_BTN_START)) { g->screen = VS_SCREEN_TITLE; vs_audio_music_stop(); vs_sfx(g, VS_SND_CLICKIN, -1, 0, 1, 0, 0); }
         break;
@@ -308,6 +392,7 @@ void vs_game_update(vs_game *g, const vs_pad *pad) {
     vs_bullets_update(g);
     vs_weapons_update(g);
     vs_enemies_update(g);
+    vs_explosions_update(g);
     vs_pickups_physics(g);
     vs_destructibles_update(g);
     vs_fx_update(g);
@@ -333,15 +418,6 @@ static uint32_t day_night_tint(const vs_game *g) {
     return lerp_color(0xffffff, 0x0444ee, f);
 }
 
-static const char *character_name(vs_game *g, int type, char *buf, size_t n) {
-    int gi = vs_table_find_group_enum(&g->characters_table, type);
-    if (gi < 0) return "?";
-    vs_group grp; vs_table_group(&g->characters_table, (uint32_t)gi, &grp);
-    vs_characters_rec c; vs_table_record(&g->characters_table, grp.first, &c);
-    snprintf(buf, n, "%s %s", vs_table_str(&g->characters_table, c.charName), VS_HAS(&c, VS_CHARACTERS_F_SURNAME) ? vs_table_str(&g->characters_table, c.surname) : "");
-    return buf;
-}
-
 /* Draws `frame` from the UI atlas stretched over (x, y, w, h) as a nine-slice
  * with corners of `c` px (the original's NineSlice configs). */
 void vs_ui_nine_slice(vs_game *g, const char *frame, float x, float y, float w, float h, int cw, int ch, uint32_t tint) {
@@ -365,7 +441,7 @@ void vs_ui_nine_slice_alpha(vs_game *g, const char *frame, float x, float y, flo
             s.tex = g->textures[g->tex_ui];
             s.sx = (int16_t)sx[i]; s.sy = (int16_t)sy[j]; s.sw = (int16_t)sw[i]; s.sh = (int16_t)sh[j];
             s.dx = dx[i]; s.dy = dy[j]; s.scale_x = dw[i] / sw[i]; s.scale_y = dh[j] / sh[j];
-            s.tint = tint; s.alpha = alpha;
+            s.tint = tint; s.alpha = alpha; s.blend = (uint8_t)vs_render_current_blend();
             vs_plat_draw(&s);
         }
     }
@@ -376,14 +452,15 @@ static void nine_slice(vs_game *g, const char *frame, float x, float y, float w,
 }
 
 /* Solid rectangle in screen space (whiteDot stretched). */
-void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha) {
+void vs_ui_rect_blend(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha, int blend) {
     vs_frame white;
     if (vs_atlas_find(&g->atl_characters, "whiteDot.png", &white) != 0) return;
     vs_sprite s = {0};
     s.tex = g->textures[g->tex_characters]; s.sx = (int16_t)white.x; s.sy = (int16_t)white.y; s.sw = 1; s.sh = 1;
-    s.dx = x; s.dy = y; s.scale_x = w; s.scale_y = h; s.tint = tint; s.alpha = alpha;
+    s.dx = x; s.dy = y; s.scale_x = w; s.scale_y = h; s.tint = tint; s.alpha = alpha; s.blend = (uint8_t)blend;
     vs_plat_draw(&s);
 }
+void vs_ui_rect(vs_game *g, float x, float y, float w, float h, uint32_t tint, uint8_t alpha) { vs_ui_rect_blend(g, x, y, w, h, tint, alpha, VS_BLEND_ALPHA); }
 
 /* Draws `text` word-wrapped to `max_w`; honours '\n'. Returns lines drawn. */
 static int text_wrapped(float x, float y, float scale, uint32_t tint, const char *text, float max_w, float line_h, int max_lines) {
@@ -547,7 +624,17 @@ static void render_hud(vs_game *g) {
 static void render_menu(vs_game *g) {
     char buf[256];
     vs_plat_begin_frame(0x000000);
-    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT) {
+    int title_art = g->screen == VS_SCREEN_TITLE && g->tex_title_bg >= 0;
+    if (g->screen == VS_SCREEN_TITLE) vs_ui_menu_backdrop(g, 0);
+    else if (g->screen != VS_SCREEN_GAMEOVER) vs_ui_menu_backdrop(g, 150);   /* the other menus: the art, dimmed */
+    if (title_art) {
+        /* the art carries its own VSDEMAKE logo; dark panels behind the text keep it readable */
+        vs_ui_rect(g, 0.5f * g->logical_w - 120, 244, 240, 112, 0x000000, 170);
+        vs_ui_rect(g, 0.5f * g->logical_w - 230, 391, 460, 46, 0x000000, 170);
+        vs_ui_rect(g, (float)g->logical_w - 230, 0, 230, 18, 0x000000, 170);
+        vs_ui_rect(g, (float)g->logical_w - 90, (float)g->logical_h - 18, 90, 18, 0x000000, 170);
+    }
+    if (g->screen == VS_SCREEN_TITLE && !title_art) {
         if (g->tex_title >= 0) {
             vs_sprite s = {0};
             /* widest fit in 3/4 of the screen and 200 px of height, at most 2x */
@@ -559,46 +646,42 @@ static void render_menu(vs_game *g) {
             s.dx = 0.5f * (g->logical_w - g->title_w * sc); s.dy = 130.0f - 0.5f * g->title_h * sc; vs_plat_draw(&s);
         }
     }
-    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT || g->screen == VS_SCREEN_POWERUP) {
+    if (g->screen == VS_SCREEN_TITLE || g->screen == VS_SCREEN_SELECT || g->screen == VS_SCREEN_STAGE || g->screen == VS_SCREEN_POWERUP) {
         snprintf(buf, sizeof buf, "GOLD %.0f   ACHIEVEMENTS %d/%d", g->save.coins, vs_save_achievement_count(g), VS_ACHIEVEMENTS_COUNT);
         vs_text_draw(g->logical_w - vs_text_width(1, buf) - 8, 6, 1, 0xffd040, buf);
     }
     if (g->screen == VS_SCREEN_TITLE) {
-        static const char *const fallback[3] = { "START", "POWER UP", "OPTIONS" };
-        static const char *const keys[3] = { "menu_start", "menu_power_up", "options_header" };
-        for (int i = 0; i < 3; i++) {
+        static const char *const fallback[TITLE_ITEMS] = { "START", "POWER UP", "COLLECTION", "ACHIEVEMENTS", "OPTIONS" };
+        static const char *const keys[TITLE_ITEMS] = { "menu_start", "menu_power_up", "menu_collection", "menu_achievements", "options_header" };
+        for (int i = 0; i < TITLE_ITEMS; i++) {
             char label[64];
             snprintf(label, sizeof label, "%s%s", g->title_sel == i ? "> " : "", vs_lang_get(&g->lang, keys[i], fallback[i]));
             for (char *c = label; *c; c++) if (*c >= 'a' && *c <= 'z') *c = (char)(*c - 32);
             vs_text_draw(0.5f * (g->logical_w - vs_text_width(1.5f, label)), 255.0f + 18 * i, 1.5f, g->title_sel == i ? 0xffff80 : 0xffffff, label);
         }
-        vs_text_draw(g->logical_w * 0.5f - 140, 398, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
+        {
+            const char *hint = "unofficial demake - stick/d-pad move, A select, B back";
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, hint)), 398, 1, 0x808080, hint);
+            const char *ver = "v" VS_VERSION;
+            vs_text_draw(g->logical_w - vs_text_width(1, ver) - 8, (float)g->logical_h - 14, 1, 0x808080, ver);
+        }
         const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
         vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 411, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
         /* sound state in one line; the sound test is in Options */
         if (g->audio_status[0])
             vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, g->audio_status)), 424, 1, strstr(g->audio_status, "NO ") ? 0xff4040 : 0x60a060, g->audio_status);
     } else if (g->screen == VS_SCREEN_SELECT) {
-        vs_text_draw(60, 240, 1.5f, 0xffffff, "CHARACTER");
-        for (int i = 0; i < g->menu_char_count; i++) {
-            char nm[64];
-            int c = g->menu_char_list[i], bought = vs_char_bought(g, c);
-            char price[32] = "";
-            if (!bought) snprintf(price, sizeof price, "  - buy: %.0f gold", vs_char_price(g, c));
-            snprintf(buf, sizeof buf, "%s %s%s", i == g->menu_sel ? ">" : " ", character_name(g, c, nm, sizeof nm), price);
-            vs_text_draw(60, (float)(260 + 10 * i), 1, i == g->menu_sel ? 0xffff80 : bought ? 0xffffff : 0xa0a0a0, buf);
-        }
-        if (g->shop_msg_ms > 0) vs_text_draw(60, (float)(264 + 10 * g->menu_char_count), 1, 0xff8080, g->shop_msg);
-        vs_text_draw(420, 240, 1.5f, 0xffffff, "STAGE (left/right)");
-        snprintf(buf, sizeof buf, "%s %s", g->menu_stage == 0 ? ">" : " ", vs_stage_name(g, VS_STAGES_FOREST));
-        vs_text_draw(420, 260, 1, g->menu_stage == 0 ? 0xffff80 : 0xffffff, buf);
-        if (vs_stage_selectable(g, VS_STAGES_LIBRARY)) snprintf(buf, sizeof buf, "%s %s", g->menu_stage == 1 ? ">" : " ", vs_stage_name(g, VS_STAGES_LIBRARY));
-        else snprintf(buf, sizeof buf, "  ??? (reach LV 20 in %s)", vs_stage_name(g, VS_STAGES_FOREST));
-        vs_text_draw(420, 270, 1, g->menu_stage == 1 ? 0xffff80 : vs_stage_selectable(g, VS_STAGES_LIBRARY) ? 0xffffff : 0x808080, buf);
+        vs_char_select_render(g);
+    } else if (g->screen == VS_SCREEN_STAGE) {
+        vs_stage_select_render(g);
     } else if (g->screen == VS_SCREEN_OPTIONS) {
         vs_options_render(g);
     } else if (g->screen == VS_SCREEN_POWERUP) {
         vs_shop_render(g);
+    } else if (g->screen == VS_SCREEN_COLLECTION) {
+        vs_collection_render(g);
+    } else if (g->screen == VS_SCREEN_ACHIEVEMENTS) {
+        vs_achievements_render(g);
     } else if (g->screen == VS_SCREEN_GAMEOVER) {
         if (g->quit_run) {
             const char *t = "RESULTS";
@@ -661,8 +744,7 @@ static void render_hitboxes(vs_game *g, float cam_x, float cam_y) {
 /* Map bonus item (WEAPON pickup, line 1274): the item's icon floating 8 px
  * up and down (1 s, Sine), a shadow spot that breathes with it, a glow
  * whose colour cycles and fades in and out every 500 ms, and a puff of 10
- * sparkles every 200 ms (falling, 100–400 ms). Additive glow drawn with
- * plain alpha. */
+ * sparkles every 200 ms (falling, 100–400 ms). The glow is additive. */
 static float hash01(uint32_t v) { v ^= v >> 16; v *= 0x7feb352du; v ^= v >> 15; v *= 0x846ca68bu; v ^= v >> 16; return (v & 0xffffff) / 16777216.0f; }
 static void render_map_item(vs_game *g, const vs_pickup *pk, int index) {
     const float t = pk->anim_ms, dy = g->player.y;
@@ -675,7 +757,9 @@ static void render_map_item(vs_game *g, const vs_pickup *pk, int index) {
         float c = 0.1f * t / VS_TICK_MS;
         uint32_t r = (uint32_t)(255 * fabsf(sinf(c))), gg = (uint32_t)(255 * fabsf(cosf(0.5f * c))), b = (uint32_t)(200 + 55 * fabsf(cosf(c)));
         float a = 0.5f * (0.5f + 0.5f * cosf(3.14159265f * t / 500.0f));
+        vs_render_blend(VS_BLEND_ADD);
         vs_render_sprite(g, g->tex_vfx, &f, pk->x, y, 0.5f, 0.5f, 1, 0, 0, 0, (r << 16) | (gg << 8) | b, (uint8_t)(255 * a), pk->y - dy);
+        vs_render_blend(VS_BLEND_ALPHA);
     }
     vs_weapons_rec rec;
     if (vs_weapon_record(g, pk->weapon_type, 0, &rec) == 0 && VS_HAS(&rec, VS_WEAPONS_F_FRAMENAME) &&
@@ -699,7 +783,7 @@ static void render_map_item(vs_game *g, const vs_pickup *pk, int index) {
 /* Bird bolt trail: the original's Rope of a small gradient texture along the
  * bolt's last 24 positions (one per frame). Drawn as 24 strips along the
  * flight curve, each with its share of the texture's columns (head first);
- * plain alpha instead of Peachone's additive blend. Fades in over 200 ms
+ * additive for Peachone, plain alpha for the others. Fades in over 200 ms
  * and out over 200 ms after the burst. */
 static void render_bird_bolt(vs_game *g, const vs_bullet *b, int pool_index) {
     const vs_weapon *w = &g->weapons[b->weapon];
@@ -717,6 +801,7 @@ static void render_bird_bolt(vs_game *g, const vs_bullet *b, int pool_index) {
     const float window = 24 * VS_TICK_MS;
     const int n = 24;
     float px = 0, py = 0;
+    if (b->type == VS_WEAPONS_SILF) vs_render_blend(VS_BLEND_ADD);
     for (int k = 0; k <= n; k++) {
         float t = (b->age_ms - window * k / n) / ray, x, y;
         vs_bird_curve(b, t, &x, &y);
@@ -730,6 +815,7 @@ static void render_bird_bolt(vs_game *g, const vs_bullet *b, int pool_index) {
         }
         px = x; py = y;
     }
+    vs_render_blend(VS_BLEND_ALPHA);
 }
 
 
@@ -846,14 +932,24 @@ void vs_game_render(vs_game *g) {
         float angle = e->dying || e->time_stopped ? 0 : (phase < 500 ? -5 + 10 * phase / 500 : 5 - 10 * (phase - 500) / 500);
         uint32_t tint = e->time_stopped ? 0x0000ff : (e->receiving_damage && g->save.flashing_vfx ? e->hit_tint : 0xffffff);
         vs_render_sprite(g, g->tex_enemies, &f, e->x, e->y, 0.5f, 1.0f, e->scale, e->dir_x > 0, 0, angle, tint, (uint8_t)(e->alpha * 255), e->y - p->y);
+        if (e->self_destruct && e->sd_triggered && !e->dying && vs_atlas_find(&g->atl_vfx, "sPFX_ring_64.png", &f) == 0) {
+            /* alert: additive red ring, alpha 1 → 0 and scale 1 → 0.9, back and forth */
+            float len = 400.0f / powf(1.1f, (float)e->sd_cycle), ph = e->sd_phase_ms / len, u = ph < 0.5f ? 2 * ph : 2 - 2 * ph;
+            vs_render_blend(VS_BLEND_ADD);
+            vs_render_sprite(g, g->tex_vfx, &f, e->x, e->y, 0.5f, 0.75f, 1 - 0.1f * u, 0, 0, 0, 0xff0000, (uint8_t)(255 * (1 - u)), e->y - p->y + 0.5f);
+            vs_render_blend(VS_BLEND_ALPHA);
+        }
     }
 
     for (int i = 0; i < VS_MAX_WEAPONS; i++) {
         vs_weapon *w = &g->weapons[i];
         if (!w->active) continue;
         vs_frame f;
-        if (w->type == VS_WEAPONS_GARLIC && vs_atlas_find(&g->atl_vfx, "Rings3.png", &f) == 0)
+        if (w->type == VS_WEAPONS_GARLIC && vs_atlas_find(&g->atl_vfx, "Rings3.png", &f) == 0) {
+            vs_render_blend(VS_BLEND_ADD);
             vs_render_sprite(g, g->tex_vfx, &f, p->x, p->y, 0.5f, 0.5f, 2.0f * vs_weapon_p_area(g, w), 0, 0, fmodf(g->tick * VS_TICK_MS / 6000.0f * 360.0f, 360.0f), 0xffffff, 60, -g->logical_h * 0.5f);
+            vs_render_blend(VS_BLEND_ALPHA);
+        }
         if (w->type == VS_WEAPONS_VORTEX && vs_atlas_find(&g->atl_vfx, "circle.png", &f) == 0) {
             /* Soul Eater: a black disc (alpha 0.6) and an inner one that pulses
              * 0.1..0.6 every second and shrinks to nothing every 6 s */
@@ -886,12 +982,15 @@ void vs_game_render(vs_game *g) {
         case VS_WEAPONS_SILF2: fname = "HitBlack1.png"; depth = 1e6f; break;
         case VS_WEAPONS_BONE: fname = "ProjectileBone2.png"; break;
         case VS_WEAPONS_NDUJA: {
-            /* Nduja Fritta: a filled circle (red / orange, additive in the
-             * original) growing with the hit circle, and a flame flicker */
+            /* Nduja Fritta: an additive filled circle (red / orange) growing
+             * with the hit circle, and a flame flicker */
             static const uint32_t fire[3] = { 0xff0000, 0xff6600, 0xff4400 };
             vs_frame c;
-            if (vs_atlas_find(&g->atl_vfx, "circle.png", &c) == 0 && b->scale > 0.5f)
+            if (vs_atlas_find(&g->atl_vfx, "circle.png", &c) == 0 && b->scale > 0.5f) {
+                vs_render_blend(VS_BLEND_ADD);
                 vs_render_stretched(g, g->tex_vfx, &c, b->x, b->y, 2 * b->scale, 2 * b->scale, 0, fire[b->state % 3], b->alpha, b->y - p->y);
+                vs_render_blend(VS_BLEND_ALPHA);
+            }
             if (vs_atlas_find(&g->atl_vfx, (g->tick + b->index) % 2 ? "Flame2.png" : "PfxYellow.png", &c) == 0)
                 vs_render_sprite(g, g->tex_vfx, &c, b->x, b->y, 0.5f, 0.5f, 1.0f, 0, 0, (float)((g->tick * 37 + b->index * 53) % 360), 0xffffff, b->alpha, b->y - p->y + 1);
             continue;
@@ -909,9 +1008,11 @@ void vs_game_render(vs_game *g) {
         uint32_t tint = 0xffffff; uint8_t alpha = b->alpha;
         if ((b->type == VS_WEAPONS_WHIP || b->type == VS_WEAPONS_VAMPIRICA) && b->age_ms < 100) scale *= b->age_ms / 100.0f;
         if (b->type == VS_WEAPONS_VAMPIRICA) {
-            /* Bloody Tear: near-black slash over a red ghost (+4, +2) and a purple one (-4, -2) */
+            /* Bloody Tear: near-black slash over a red ghost (+4, +2) and an additive purple one (-4, -2) */
             vs_render_sprite(g, tex, &f, b->x + 4, b->y + 2, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, 0xff0000, alpha, depth);
+            vs_render_blend(VS_BLEND_ADD);
             vs_render_sprite(g, tex, &f, b->x - 4, b->y - 2, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, 0x660066, alpha, depth);
+            vs_render_blend(VS_BLEND_ALPHA);
             tint = 0x110011;
         }
         if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) { scale = b->body_r * 2 / 256.0f; tint = 0x4040ff; alpha = 60; }
@@ -937,7 +1038,9 @@ void vs_game_render(vs_game *g) {
             }
             continue;
         }
+        if (b->type == VS_WEAPONS_HOLYWATER && b->state == 1) vs_render_blend(VS_BLEND_ADD);   /* the pool is additive */
         vs_render_sprite(g, tex, &f, b->x, b->y, 0.5f, 0.5f, scale, b->flip_x, b->flip_y, b->angle, tint, alpha, depth);
+        vs_render_blend(VS_BLEND_ALPHA);
     }
 
     {
@@ -954,8 +1057,10 @@ void vs_game_render(vs_game *g) {
     }
     render_birds(g);
     render_weapon_effects(g);
+    vs_render_explosions(g);
     vs_fx_render(g, cam_x, cam_y);
     vs_render_end(g);
+    vs_render_timestop_flash(g);
     if (g->debug_hitboxes) render_hitboxes(g, cam_x, cam_y);
     render_hud(g);
     if (g->levelup.pending) render_levelup(g);

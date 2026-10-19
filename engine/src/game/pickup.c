@@ -123,7 +123,8 @@ static void get_taken(vs_game *g, vs_pickup *p) {
         vs_enemy_time_stop_all(g, 1);
         vs_timer_cancel(g, VS_TIMER_TIMESTOP, 0);
         vs_timer_add(g, VS_TIMER_TIMESTOP, 10000, 0, 0, 0);
-        vs_sfx(g, VS_SND_OROLOGION, 1.8f, 0, 2, 0, 0);
+        /* the blue flash plays the sound too, and only with flashing VFX on (line 6551) */
+        if (g->save.flashing_vfx) { g->timestop_fx_ms = 0; vs_sfx(g, VS_SND_OROLOGION, 1.8f, 0, 2, 0, 0); }
         break;
     case VS_PICKUPS_ROSARY:
         vs_sfx(g, VS_SND_ROSARY, 1.8f, 0, 2, 0, 0);

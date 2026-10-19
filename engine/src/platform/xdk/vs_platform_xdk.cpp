@@ -39,7 +39,7 @@ static vtx *g_verts;
 static int g_quad_count;
 static int g_lw, g_lh, g_fbw, g_fbh;
 static float g_scale, g_off_x, g_off_y;
-static struct batch { IDirect3DTexture9 *tex; int first, count; } g_batches[4096];
+static struct batch { IDirect3DTexture9 *tex; int first, count, blend; } g_batches[4096];
 static int g_batch_count;
 
 static const char *VS_SRC =
@@ -160,13 +160,14 @@ extern "C" void vs_plat_begin_frame(uint32_t clear_rgb) {
     g_batch_count = 0;
 }
 
-static void push_quad(IDirect3DTexture9 *tex, const float px[4], const float py[4], float u0, float v0, float u1, float v1, DWORD color) {
+static void push_quad(IDirect3DTexture9 *tex, int blend, const float px[4], const float py[4], float u0, float v0, float u1, float v1, DWORD color) {
     if (g_quad_count >= MAX_QUADS) return;
-    if (g_batch_count == 0 || g_batches[g_batch_count - 1].tex != tex) {
+    if (g_batch_count == 0 || g_batches[g_batch_count - 1].tex != tex || g_batches[g_batch_count - 1].blend != blend) {
         if (g_batch_count >= (int)(sizeof g_batches / sizeof g_batches[0])) return;
         g_batches[g_batch_count].tex = tex;
         g_batches[g_batch_count].first = g_quad_count * VERTS_PER_QUAD;
         g_batches[g_batch_count].count = 0;
+        g_batches[g_batch_count].blend = blend;
         g_batch_count++;
     }
     vtx *v = g_verts + g_quad_count * VERTS_PER_QUAD;
@@ -181,8 +182,11 @@ static void push_quad(IDirect3DTexture9 *tex, const float px[4], const float py[
     g_batches[g_batch_count - 1].count += VERTS_PER_QUAD;
 }
 
+/* NaN or huge coordinates come only from damaged data; skip them. */
+static int sane(float v) { return v > -1e6f && v < 1e6f; }
+
 extern "C" void vs_plat_draw(const vs_sprite *s) {
-    if (!s->tex || s->alpha == 0) return;
+    if (!s->tex || s->alpha == 0 || !sane(s->dx) || !sane(s->dy) || !sane(s->scale_x) || !sane(s->scale_y) || !sane(s->angle_deg)) return;
     float w = s->sw * s->scale_x, h = s->sh * s->scale_y;
     float cx = s->dx + w * 0.5f, cy = s->dy + h * 0.5f;
     float px[4] = { s->dx, s->dx + w, s->dx + w, s->dx }, py[4] = { s->dy, s->dy, s->dy + h, s->dy + h };
@@ -198,7 +202,7 @@ extern "C" void vs_plat_draw(const vs_sprite *s) {
     if (s->flip & VS_FLIP_X) { float t = u0; u0 = u1; u1 = t; }
     if (s->flip & VS_FLIP_Y) { float t = v0; v0 = v1; v1 = t; }
     DWORD color = ((DWORD)s->alpha << 24) | (s->tint & 0xffffff);
-    push_quad(s->tex->t, px, py, u0, v0, u1, v1, color);
+    push_quad(s->tex->t, s->blend, px, py, u0, v0, u1, v1, color);
 }
 
 extern "C" void vs_plat_draw_tiled(vs_texture *tex, float ox, float oy, uint32_t tint) {
@@ -216,6 +220,7 @@ extern "C" void vs_plat_draw_tiled(vs_texture *tex, float ox, float oy, uint32_t
 extern "C" void vs_plat_end_frame(void) {
     for (int i = 0; i < g_batch_count; i++) {
         g_dev->SetTexture(0, g_batches[i].tex);
+        g_dev->SetRenderState(D3DRS_DESTBLEND, g_batches[i].blend == VS_BLEND_ADD ? D3DBLEND_ONE : D3DBLEND_INVSRCALPHA);
         g_dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, g_batches[i].count / 3, g_verts + g_batches[i].first, sizeof(vtx));
     }
     g_dev->EndScene();

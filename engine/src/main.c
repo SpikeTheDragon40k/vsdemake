@@ -1,12 +1,17 @@
 /* Entry point: fixed 60 Hz simulation, render every frame.
  *
- *   vsdemake-sdl2 <vsdata.vspack> [--scale N] [--headless --frames N --screenshot out.bmp] [--auto-pick]
- *                                 [--input "RRRRDDLL"] [--seed N]
+ * On Xbox 360 this is the game. On PC it is only the test tool (the game is
+ * not playable on PC; README, "Why Xbox 360 only"): every run is headless,
+ * one tick per frame, for a fixed number of frames:
  *
- * --no-render skips drawing except the last frame (fast headless runs).
- * --input is a scripted pad for headless runs and replays: tokens like
+ *   vsdemake-test <vsdata.vspack> --frames N [--screenshot out.bmp] [--auto-pick]
+ *                 [--input "RRRRDDLL"] [--seed N] ...
+ *
+ * --no-render skips drawing except the last frame (fast runs).
+ * --input is a scripted pad for test runs and replays: tokens like
  * "R120 D120 L120 U120" (direction letters U/D/L/R, buttons A/B/X/Y and
  * S = start, '.' = idle, optional tick count), looped when exhausted. */
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +21,7 @@
 #include "core/vs_pack.h"
 #include "core/vs_platform.h"
 #include "core/vs_text.h"
+#include "core/vs_version.h"
 #include "game/game.h"
 
 #define LOGICAL_W 810
@@ -85,15 +91,14 @@ static int fatal_screen(const char *msg) {
 #endif
 
 static int vs_main(int argc, char **argv) {
-    const char *map_item = NULL, *drop = NULL;
+    const char *map_item = NULL, *drop = NULL, *spawn = NULL;
     const char *pack_path = NULL, *screenshot = NULL, *input = NULL, *record_dir = NULL, *save_arg = NULL, *audio_dump_path = NULL;
     int mute = 0;
-    int scale = 2, headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, unlock_all = 0, show_gameover = 0, show_chest = 0, start_level = 0, give_count = 0, chest = 0, show_levelup = 0;
+    int headless = 0, frames = -1, auto_pick = 0, no_render = 0, stage = 0, hitboxes = 0, character = 0, menu = 0, record_from = 0, unlock_all = 0, show_gameover = 0, show_chest = 0, start_level = 0, give_count = 0, chest = 0, show_levelup = 0;
     const char *give[16];
     uint64_t seed = 1;
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) scale = atoi(argv[++i]);
-        else if (strcmp(argv[i], "--headless") == 0) headless = 1;
+        if (strcmp(argv[i], "--headless") == 0) headless = 1;   /* always on PC; kept for old scripts */
         else if (strcmp(argv[i], "--auto-pick") == 0) auto_pick = 1;
         else if (strcmp(argv[i], "--no-render") == 0) no_render = 1;
         else if (strcmp(argv[i], "--hitboxes") == 0) hitboxes = 1;
@@ -103,6 +108,7 @@ static int vs_main(int argc, char **argv) {
         else if (strcmp(argv[i], "--show-chest") == 0) show_chest = 1;
         else if (strcmp(argv[i], "--map-item") == 0 && i + 1 < argc) map_item = argv[++i];
         else if (strcmp(argv[i], "--drop") == 0 && i + 1 < argc) drop = argv[++i];
+        else if (strcmp(argv[i], "--spawn") == 0 && i + 1 < argc) spawn = argv[++i];
         else if (strcmp(argv[i], "--level") == 0 && i + 1 < argc) start_level = atoi(argv[++i]);
         else if (strcmp(argv[i], "--save") == 0 && i + 1 < argc) save_arg = argv[++i];
         else if (strcmp(argv[i], "--chest") == 0) { chest = 1; if (i + 1 < argc && argv[i + 1][0] >= '1' && argv[i + 1][0] <= '3' && !argv[i + 1][1]) chest = argv[++i][0] - '0'; }
@@ -121,13 +127,17 @@ static int vs_main(int argc, char **argv) {
         else if (argv[i][0] != '-') pack_path = argv[i];
         else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
     }
-#if defined(VS_XENON) || defined(VS_XDK)
-    scale = 1;
-#else
-    if (!pack_path) { fprintf(stderr, "usage: vsdemake-sdl2 <vsdata.vspack> [options]\n"); return 2; }
+#if !defined(VS_XENON) && !defined(VS_XDK)
+    if (!pack_path || frames < 0) {
+        fprintf(stderr, "usage: vsdemake-test <vsdata.vspack> --frames N [options]\n"
+                        "This is the PC test tool: it runs headless (no window, input or sound output).\n"
+                        "vsdemake is played on Xbox 360 (see the README).\n");
+        return 2;
+    }
+    headless = 1;
 #endif
 
-    vs_plat_config cfg = { LOGICAL_W, LOGICAL_H, scale, headless, "vsdemake" };
+    vs_plat_config cfg = { LOGICAL_W, LOGICAL_H, 1, headless, "vsdemake" };
     if (vs_plat_init(&cfg) != 0) return 1;
 #if defined(VS_XENON) || defined(VS_XDK)
     /* look for the pack after the platform is up, so a miss can be shown */
@@ -147,15 +157,15 @@ static int vs_main(int argc, char **argv) {
     vs_pack pack;
     int rc = vs_pack_init(&pack, data, size);
     if (rc != 0) {
-        fprintf(stderr, "%s is not a valid pack (error %d)\n", pack_path, rc);
+        fprintf(stderr, "%s is not a valid pack (error %d) %s\n", pack_path, rc, vs_pack_error());
 #if defined(VS_XENON) || defined(VS_XDK)
-        char msg[160];
-        snprintf(msg, sizeof msg, "vsdata.vspack is damaged or from another\nversion (error %d). Rebuild it with vspatch\nand copy it again.", rc);
+        char msg[256];
+        snprintf(msg, sizeof msg, "vsdata.vspack is damaged or from another\nversion (error %d). Rebuild it with vspatch\nand copy it again.\n\n%s", rc, vs_pack_error());
         return fatal_screen(msg);
 #endif
         return 1;
     }
-    vs_plat_log("pack: %u entries, manifest %llu", pack.count, (unsigned long long)pack.manifest);
+    vs_plat_log("vsdemake %s; pack: %u entries, manifest %llu", VS_VERSION, pack.count, (unsigned long long)pack.manifest);
 
     /* static: vs_game is ~600 KB, far beyond a console thread's stack */
     static vs_game game;
@@ -231,6 +241,13 @@ static int vs_main(int argc, char **argv) {
         vs_enum pe;
         int type = vs_pack_enum(&pack, "pickups", &pe) == 0 ? vs_enum_find_value(&pe, drop) : -1;
         if (type <= 0 || !vs_pickup_make(&game, game.player.x, game.player.y + 40, type)) fprintf(stderr, "--drop: unknown pickup %s\n", drop);
+    }
+    /* dev aid: --spawn NAME puts 6 enemies (e.g. SHADERED) in a ring 150 px around the player */
+    if (spawn && game.screen == VS_SCREEN_GAME) {
+        vs_enum ee;
+        int type = vs_pack_enum(&pack, "enemies", &ee) == 0 ? vs_enum_find_value(&ee, spawn) : -1;
+        if (type < 0) fprintf(stderr, "--spawn: unknown enemy %s\n", spawn);
+        else for (int k = 0; k < 6; k++) vs_enemy_spawn(&game, type, game.player.x + 150 * cosf(k * 1.0471976f), game.player.y + 150 * sinf(k * 1.0471976f), 0);
     }
     /* dev aid: --level N starts the run at player level N */
     if (start_level > 1 && game.screen == VS_SCREEN_GAME) { game.player.level = start_level; vs_levelup_calculate_xp_factor(&game); game.player.xp = game.levelup.previous_xp_factor; }

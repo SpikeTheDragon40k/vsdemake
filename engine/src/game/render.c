@@ -16,10 +16,15 @@ typedef struct {
 static queued g_queue[VS_MAX_SPRITES];
 static int g_count;
 static float g_cam_x, g_cam_y;
+static uint8_t g_blend;     /* VS_BLEND_* for the sprites queued next */
+
+void vs_render_blend(int mode) { g_blend = (uint8_t)mode; }
+int vs_render_current_blend(void) { return g_blend; }
 
 void vs_render_begin(vs_game *g, float cam_x, float cam_y) {
     (void)g;
     g_count = 0;
+    g_blend = VS_BLEND_ALPHA;
     g_cam_x = cam_x;
     g_cam_y = cam_y;
 }
@@ -48,6 +53,7 @@ void vs_render_sprite(vs_game *g, int tex, const vs_frame *f, float x, float y, 
     s->flip = (flip_x ? VS_FLIP_X : 0) | (flip_y ? VS_FLIP_Y : 0);
     s->tint = tint;
     s->alpha = alpha;
+    s->blend = g_blend;
     q->depth = depth;
     q->order = (uint32_t)g_count;
     g_count++;
@@ -69,6 +75,7 @@ void vs_render_stretched(vs_game *g, int tex, const vs_frame *f, float cx, float
     s->angle_deg = angle;
     s->tint = tint;
     s->alpha = alpha;
+    s->blend = g_blend;
     q->depth = depth;
     q->order = (uint32_t)g_count;
     g_count++;

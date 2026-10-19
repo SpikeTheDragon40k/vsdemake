@@ -25,9 +25,11 @@ typedef struct {
     uint64_t manifest;
 } vs_pack;
 
-/* Validates the header and directory. Returns 0 on success; the pack keeps a
- * pointer to `data` (not a copy). */
+/* Validates the header, the directory and every entry (each offset a reader
+ * may follow stays inside its entry). Returns 0 on success; the pack keeps a
+ * pointer to `data` (not a copy). -6: a damaged entry, named by vs_pack_error(). */
 int vs_pack_init(vs_pack *p, const void *data, size_t size);
+const char *vs_pack_error(void);
 /* Entry index for (kind, name) or -1. kind is "TEX", "ATL", "MAP", "FNT", "TAB", "ENM". */
 int vs_pack_find(const vs_pack *p, const char *kind, const char *name);
 const uint8_t *vs_pack_blob(const vs_pack *p, int idx, uint32_t *size);

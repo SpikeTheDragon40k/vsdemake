@@ -122,7 +122,29 @@ On OPEN (per level, ms after the press):
   sound restarts at 6.3 / 9.7 s (its ending).
 - The music fades to 0 while the scene is open and back to 0.3 after.
 
+Bubbles (line 9402): created first, so behind the panel. Two full-screen
+`Gradient2` images (one tinted by level, normal; one white, additive) and
+15 additive circles (random position on screen, radius 12.5–37.5, colour
+(i mod 15) × 0x111100 + (i mod 5) × 0x33, alpha 0.5, the graphics scaled
+(1, 1.3)). `Show(duration, tint)` when the chest opens: level 1 (6000,
+0x666600), level 2 (9700, 0xcccc00), level 3 (5200, 0xffff00): circles to
+alpha 1 in 300 ms, gradients in `duration`. While shown, every frame
+count += 0.001 and circle i rises by 10 × count + i, wrapping around the
+camera with a 72 px margin. `Hide()` when the reels stop (or on a skip):
+the show tweens complete, circles fade in 300 ms, gradients in 1000 ms.
+
+Fireworks (level 3, `StartFireworks`, line 9728, when OPEN is pressed): 5
+emitters at chest.x + (r − 0.5) × 0.5 × BottomRight.x, chest.y − 225 − 75r,
+each one frame of Blue / Pink / Purple / Blue, life 3000, rotate 0–360,
+angle 0–360 in 16 steps, speed 100 to 150 + i × 30, quantity 32 + i/5 × 32,
+scale 2 + i/5 × 2 → 0, additive; one gravity well at (chest.x, chest.y −
+100), power 1, epsilon 25, gravity 150. Emitter i runs during a flash of
+the panel overlay at 100 / 400 / 700 / 1000 / 1300 ms (alpha → 1, 30 ms,
+yoyo).
+
+Additive in the scene: the enter burst, the overlay (`PanelBackgroundAdd`),
+ribbons, the prize stars and the counter ring.
+
 Demake: same timeline and layout scaled by 0.6, the panel moved up so the
-prize panel fits under it; additive effects drawn with plain alpha; level
-3's fireworks and the background "bubbles" are not drawn. Headless runs
+prize panel fits under it. Headless runs
 skip the screen and give the prizes at once (`--show-chest` plays it).

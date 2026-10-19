@@ -197,6 +197,14 @@ static void update_one(vs_game *g, vs_enemy *e) {
         if (e->anim_t >= (e->frame_end + 1) * (1000.0f / 24.0f)) despawn(g, e);
         return;
     }
+    if (e->self_destruct && e->sd_triggered) {
+        /* alert ring pulse (alpha 1 → 0 and back, 200 ms each way), 1.1×
+         * faster after every pulse, which also beeps (Alert, volume 0.2); a tween, so it
+         * keeps going while time is stopped */
+        float len = 400.0f / powf(1.1f, (float)e->sd_cycle);
+        e->sd_phase_ms += VS_TICK_MS;
+        if (e->sd_phase_ms >= len) { e->sd_phase_ms -= len; e->sd_cycle++; vs_sfx(g, VS_SND_ALERT, 0.2f, 0, 1, 250, 3); }
+    }
     if (e->blink_ms > 0) {
         e->blink_ms -= VS_TICK_MS;
         if (e->blink_ms <= 0) { e->blink_ms = 0; e->receiving_damage = 0; }

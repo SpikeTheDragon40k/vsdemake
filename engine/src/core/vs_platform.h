@@ -31,6 +31,7 @@ vs_texture *vs_plat_texture_create(uint32_t w, uint32_t h, const uint8_t *argb8_
 void vs_plat_texture_destroy(vs_texture *t);
 
 enum { VS_FLIP_X = 1, VS_FLIP_Y = 2 };
+enum { VS_BLEND_ALPHA = 0, VS_BLEND_ADD = 1 };
 typedef struct {
     vs_texture *tex;
     int16_t sx, sy, sw, sh;  /* source rect in texels */
@@ -39,6 +40,7 @@ typedef struct {
     float angle_deg;         /* rotation about the destination centre */
     uint8_t flip;
     uint8_t alpha;           /* 255 = opaque */
+    uint8_t blend;           /* VS_BLEND_*: ADD = colour × alpha added to the screen (Phaser ADD) */
     uint32_t tint;           /* 0xRRGGBB multiply, 0xffffff = none */
 } vs_sprite;
 

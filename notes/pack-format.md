@@ -182,3 +182,38 @@ u8  data[size]   the .ogg file
 
 `sfx_sounds_impact2.ogg` is in the depot but never loaded by the game, so
 it is not packed.
+
+## Validation at load
+
+`vs_pack_init` checks the whole pack before anything reads it, so the
+readers can follow offsets without checks of their own. A pack that fails
+is refused with the damaged entry's kind and name (on the console: on the
+error screen).
+
+- Header and directory: magic, version, file size, the directory and every
+  blob inside the file (64-bit arithmetic, so nothing wraps on the 32-bit
+  console), names NUL-terminated within their 32 bytes.
+- TEX: format 1, sides 1–8192, size = 24 + w × h × 4.
+- ATL: texture entry is a TEX, frames and string table inside the blob,
+  string table NUL-terminated, every name offset inside it.
+- TAB: at most 64 fields (one presence bit each), record size = 8 + 4 ×
+  fields, every section inside the blob, field names terminated and types
+  1–7, groups non-empty and inside the records, string offsets inside the
+  string table, lists inside the pool, sub-table indices below the
+  sub-table's record count. Absent fields must be 0.
+- ENM, LNG: members/pairs inside the blob, offsets inside a terminated
+  string table.
+- MAP: texture entry is a TEX, sizes 1–1024, columns > 0, collision table,
+  layers and every object group / object / property inside the blob, all
+  names terminated.
+- FNT: texture entry is a TEX, glyphs inside the blob. SND: stream inside
+  the blob.
+
+On top of that the engine checks, when it opens the tables, that group keys
+and enum fields (single or list) fall inside the compiled enums
+(`vs_enums.h`), since they index fixed arrays; constants outside
+(1e-6, 1e7) fall back to the built-in values; the sound loader refuses odd
+formats and over-long "short" sounds; and the backends skip sprites with
+NaN or huge coordinates. Checked with a mutation fuzzer under ASan/UBSan
+(random byte changes in the structural parts of every entry, and random
+values in table records with the whole game running).

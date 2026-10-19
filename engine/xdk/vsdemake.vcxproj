@@ -71,6 +71,7 @@
     <ClCompile Include="..\src\core\vs_text.c" />
     <ClCompile Include="..\src\core\vs_audio.c" />
     <ClCompile Include="..\src\core\vs_vorbis.c" />
+    <ClCompile Include="..\src\core\vs_image.c" />
     <ClCompile Include="..\src\game\game.c" />
     <ClCompile Include="..\src\game\timer.c" />
     <ClCompile Include="..\src\game\player.c" />
@@ -86,12 +87,16 @@
     <ClCompile Include="..\src\game\options.c" />
     <ClCompile Include="..\src\game\treasure.c" />
     <ClCompile Include="..\src\game\shop.c" />
+    <ClCompile Include="..\src\game\collection.c" />
+    <ClCompile Include="..\src\game\select.c" />
     <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\platform\xdk\vs_platform_xdk.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\core\vs_compat.h" />
     <ClInclude Include="..\src\core\vs_pack.h" />
+    <ClInclude Include="..\src\core\vs_version.h" />
+    <ClInclude Include="..\src\core\vs_font_data.h" />
     <ClInclude Include="..\src\core\vs_platform.h" />
     <ClInclude Include="..\src\core\vs_rng.h" />
     <ClInclude Include="..\src\core\vs_text.h" />

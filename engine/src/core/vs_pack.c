@@ -1,9 +1,14 @@
 #include "vs_pack.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #define HEAD 32
 #define DIR 48
+#define FRAME 28
+
+static char g_error[96];
+const char *vs_pack_error(void) { return g_error; }
 
 float vs_bef32(const uint8_t *p) {
     uint32_t u = vs_be32(p);
@@ -21,8 +26,175 @@ uint32_t vs_fnv1a(const char *s) {
     return h;
 }
 
+/* ---- validation ----
+ * vs_pack_init checks every entry once, so the readers below can follow the
+ * pack's offsets without checks of their own: any offset or count a reader
+ * may use stays inside its entry, and every string it may hand out ends
+ * inside it. A damaged or edited pack is refused instead of being read out
+ * of bounds. */
+
+/* [off, off + len) lies inside [0, size) (64-bit: no wrap-around). */
+static int in_range(uint64_t off, uint64_t len, uint64_t size) { return off <= size && len <= size - off; }
+
+/* A NUL inside b[start .. end). */
+static int has_nul(const uint8_t *b, uint64_t start, uint64_t end) {
+    for (uint64_t i = start; i < end; i++) if (!b[i]) return 1;
+    return 0;
+}
+
+/* A string table at [off, off + n): empty, or ending in NUL so any offset
+ * below n gives a terminated string. */
+static int strings_ok(const uint8_t *b, uint32_t sz, uint32_t off, uint32_t n) {
+    return in_range(off, n, sz) && (n == 0 || b[(uint64_t)off + n - 1] == 0);
+}
+
+static int is_kind(const vs_pack *p, uint32_t idx, const char *kind) {
+    return idx < p->count && strncmp((const char *)(p->dir + (uint64_t)idx * DIR), kind, 4) == 0;
+}
+
+static int check_tex(const uint8_t *b, uint32_t sz) {
+    if (sz < 24) return 0;
+    uint32_t w = vs_be32(b), h = vs_be32(b + 4);
+    return w > 0 && h > 0 && w <= 8192 && h <= 8192 && vs_be32(b + 8) == 1 && (uint64_t)w * h * 4 + 24 == sz;
+}
+
+static int check_atlas(const vs_pack *p, const uint8_t *b, uint32_t sz) {
+    if (sz < 16 || !is_kind(p, vs_be32(b), "TEX")) return 0;
+    uint32_t n = vs_be32(b + 4), so = vs_be32(b + 8), ss = vs_be32(b + 12);
+    if (!in_range(16, (uint64_t)n * FRAME, sz) || !strings_ok(b, sz, so, ss)) return 0;
+    for (uint32_t i = 0; i < n; i++) if (vs_be32(b + 16 + (uint64_t)i * FRAME + 4) >= ss) return 0;
+    return 1;
+}
+
+static int check_enum(const uint8_t *b, uint32_t sz) {
+    if (sz < 16) return 0;
+    uint32_t n = vs_be32(b), so = vs_be32(b + 4), ss = vs_be32(b + 8);
+    if (!in_range(16, (uint64_t)n * 12, sz) || !strings_ok(b, sz, so, ss)) return 0;
+    for (uint32_t i = 0; i < n; i++) {
+        const uint8_t *m = b + 16 + (uint64_t)i * 12;
+        if (vs_be32(m) >= ss || vs_be32(m + 4) >= ss) return 0;
+    }
+    return 1;
+}
+
+static int check_lang(const uint8_t *b, uint32_t sz) {
+    if (sz < 8) return 0;
+    uint32_t n = vs_be32(b);
+    if (!in_range(8, (uint64_t)n * 8, sz)) return 0;
+    uint32_t so = 8 + 8 * n, ss = sz - so;
+    if (!strings_ok(b, sz, so, ss)) return 0;
+    for (uint32_t i = 0; i < n; i++) if (vs_be32(b + 8 + 8 * (uint64_t)i) >= ss || vs_be32(b + 12 + 8 * (uint64_t)i) >= ss) return 0;
+    return 1;
+}
+
+static int check_font(const vs_pack *p, const uint8_t *b, uint32_t sz) {
+    return sz >= 16 && is_kind(p, vs_be32(b), "TEX") && in_range(16, (uint64_t)vs_be32(b + 8) * 20, sz);
+}
+
+static int check_sound(const uint8_t *b, uint32_t sz) {
+    return sz >= 16 && vs_be32(b + 4) <= sz - 16;
+}
+
+/* Record count of the TAB entry `name`, or -1. */
+static int64_t table_records(const vs_pack *p, const char *name) {
+    int idx = vs_pack_find(p, "TAB", name);
+    uint32_t sz;
+    const uint8_t *b = vs_pack_blob(p, idx, &sz);
+    return b && sz >= 48 ? (int64_t)vs_be32(b + 12) : -1;
+}
+
+enum { F_STR = 4, F_LIST = 6, F_SUB = 7 };
+
+static int check_table(const vs_pack *p, const char *name, const uint8_t *b, uint32_t sz) {
+    if (sz < 48) return 0;
+    uint32_t fc = vs_be32(b), rs = vs_be32(b + 4), gc = vs_be32(b + 8), rc = vs_be32(b + 12);
+    uint32_t fo = vs_be32(b + 16), go = vs_be32(b + 20), ro = vs_be32(b + 24), po = vs_be32(b + 28), ps = vs_be32(b + 32), so = vs_be32(b + 36), ss = vs_be32(b + 40);
+    if (fc > 64 || rs != 8 + 4 * fc) return 0;   /* one presence bit per field */
+    if (!in_range(fo, (uint64_t)fc * 36, sz) || !in_range(go, (uint64_t)gc * 16, sz) || !in_range(ro, (uint64_t)rc * rs, sz) ||
+        !in_range(po, ps, sz) || !strings_ok(b, sz, so, ss)) return 0;
+    uint32_t type[64];
+    int64_t sub_records[64];
+    for (uint32_t f = 0; f < fc; f++) {
+        const uint8_t *fd = b + fo + 36 * f;
+        type[f] = vs_be32(fd + 32);
+        if (!has_nul(fd, 0, 32) || type[f] < 1 || type[f] > 7) return 0;
+        sub_records[f] = -1;
+        if (type[f] == F_SUB) {
+            char sub[80];
+            snprintf(sub, sizeof sub, "%s.%s", name, (const char *)fd);
+            if ((sub_records[f] = table_records(p, sub)) < 0) return 0;
+        }
+    }
+    for (uint32_t i = 0; i < gc; i++) {
+        const uint8_t *g = b + go + 16 * i;
+        /* readers take a group's first record without looking at its count */
+        if (vs_be32(g) >= ss || vs_be32(g + 12) == 0 || (uint64_t)vs_be32(g + 8) + vs_be32(g + 12) > rc) return 0;
+    }
+    for (uint32_t r = 0; r < rc; r++) {
+        const uint8_t *rec = b + ro + (uint64_t)r * rs;
+        uint64_t present = vs_be64(rec);
+        for (uint32_t f = 0; f < fc; f++) {
+            uint32_t v = vs_be32(rec + 8 + 4 * f);
+            if (type[f] != F_STR && type[f] != F_LIST && type[f] != F_SUB) continue;
+            /* absent fields hold 0; readers may still look at them */
+            if (!((present >> f) & 1) && v == 0) { if (type[f] == F_STR ? ss == 0 : ps < 4) return 0; continue; }
+            if (type[f] == F_STR) { if (v >= ss) return 0; continue; }
+            if (!in_range(v, 4, ps)) return 0;
+            uint32_t n = vs_be32(b + po + v);
+            if (!in_range((uint64_t)v + 4, (uint64_t)n * 4, ps)) return 0;
+            if (type[f] == F_SUB)
+                for (uint32_t k = 0; k < n; k++) if (vs_be32(b + po + v + 4 + 4 * (uint64_t)k) >= (uint64_t)sub_records[f]) return 0;
+        }
+    }
+    return 1;
+}
+
+static int check_map(const vs_pack *p, const uint8_t *b, uint32_t sz) {
+    if (sz < 64) return 0;
+    uint32_t w = vs_be32(b), h = vs_be32(b + 4), tw = vs_be32(b + 8), th = vs_be32(b + 12);
+    uint32_t cols = vs_be32(b + 24), tiles = vs_be32(b + 36), lc = vs_be32(b + 40), gc = vs_be32(b + 44);
+    uint32_t co = vs_be32(b + 48), lo = vs_be32(b + 52), oo = vs_be32(b + 56);
+    if (!is_kind(p, vs_be32(b + 16), "TEX") || w == 0 || h == 0 || w > 1024 || h > 1024 || tw == 0 || th == 0 || tw > 1024 || th > 1024 || cols == 0) return 0;
+    uint64_t layer = 40 + 4 * (uint64_t)w * h;
+    if (!in_range(co, tiles, sz) || !in_range(lo, lc * layer, sz)) return 0;
+    for (uint32_t i = 0; i < lc; i++) if (!has_nul(b + lo + i * layer, 0, 32)) return 0;
+    uint64_t c = oo;
+    for (uint32_t gi = 0; gi < gc; gi++) {
+        if (!in_range(c, 36, sz) || !has_nul(b, c, c + 32)) return 0;
+        uint32_t n = vs_be32(b + c + 32);
+        c += 36;
+        for (uint32_t k = 0; k < n; k++) {
+            if (!in_range(c, 84, sz) || !has_nul(b, c, c + 32) || !has_nul(b, c + 32, c + 64)) return 0;
+            uint32_t props = vs_be32(b + c + 80);
+            c += 84;
+            if (!in_range(c, (uint64_t)props * 36, sz)) return 0;
+            for (uint32_t q = 0; q < props; q++) if (!has_nul(b, c + 36 * (uint64_t)q, c + 36 * (uint64_t)q + 32)) return 0;
+            c += (uint64_t)props * 36;
+        }
+    }
+    return 1;
+}
+
+static int check_entry(const vs_pack *p, uint32_t i) {
+    const uint8_t *e = p->dir + (uint64_t)i * DIR;
+    const char *name = (const char *)e + 8;
+    uint32_t sz;
+    const uint8_t *b = vs_pack_blob(p, (int)i, &sz);
+    if (!strncmp((const char *)e, "TEX", 4)) return check_tex(b, sz);
+    if (!strncmp((const char *)e, "ATL", 4)) return check_atlas(p, b, sz);
+    if (!strncmp((const char *)e, "MAP", 4)) return check_map(p, b, sz);
+    if (!strncmp((const char *)e, "FNT", 4)) return check_font(p, b, sz);
+    if (!strncmp((const char *)e, "TAB", 4)) return check_table(p, name, b, sz);
+    if (!strncmp((const char *)e, "ENM", 4)) return check_enum(b, sz);
+    if (!strncmp((const char *)e, "LNG", 4)) return check_lang(b, sz);
+    if (!strncmp((const char *)e, "SND", 4)) return check_sound(b, sz);
+    return 1;   /* unknown kinds are never read */
+}
+
 int vs_pack_init(vs_pack *p, const void *data, size_t size) {
     const uint8_t *d = (const uint8_t *)data;
+    memset(p, 0, sizeof *p);
+    g_error[0] = 0;
     if (size < HEAD || memcmp(d, "VSPK", 4) != 0) return -1;
     if (vs_be32(d + 4) != 1) return -2;
     p->data = d;
@@ -31,12 +203,17 @@ int vs_pack_init(vs_pack *p, const void *data, size_t size) {
     p->count = vs_be32(d + 16);
     uint32_t dir_off = vs_be32(d + 20);
     if (vs_be32(d + 24) != size) return -3;
-    if ((size_t)dir_off + (size_t)p->count * DIR > size) return -4;
+    if (!in_range(dir_off, (uint64_t)p->count * DIR, size)) return -4;
     p->dir = d + dir_off;
     for (uint32_t i = 0; i < p->count; i++) {
-        const uint8_t *e = p->dir + i * DIR;
-        uint64_t off = vs_be32(e + 40), sz = vs_be32(e + 44);
-        if (off + sz > size) return -5;
+        const uint8_t *e = p->dir + (uint64_t)i * DIR;
+        if (!in_range(vs_be32(e + 40), vs_be32(e + 44), size) || !has_nul(e, 8, 40)) return -5;
+    }
+    for (uint32_t i = 0; i < p->count; i++) {
+        if (!check_entry(p, i)) {
+            snprintf(g_error, sizeof g_error, "entry %u (%.4s %s) is damaged", (unsigned)i, (const char *)(p->dir + (uint64_t)i * DIR), (const char *)(p->dir + (uint64_t)i * DIR + 8));
+            return -6;
+        }
     }
     return 0;
 }
@@ -80,7 +257,6 @@ int vs_pack_tex(const vs_pack *p, int idx, vs_tex_info *out) {
 }
 
 /* ATL */
-#define FRAME 28
 int vs_pack_atlas(const vs_pack *p, int idx, vs_atlas *out) {
     uint32_t sz;
     const uint8_t *b = vs_pack_blob(p, idx, &sz);

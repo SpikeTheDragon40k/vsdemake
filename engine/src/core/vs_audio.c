@@ -59,7 +59,7 @@ int vs_audio_init(const vs_pack *pack) {
         const uint8_t *b = vs_pack_blob(pack, (int)i, &size);
         if (!b || size < 16 || vs_be32(b) != 1) continue;
         uint32_t n = vs_be32(b + 4);
-        if (16 + n > size) continue;
+        if (n > size - 16) continue;
         snd_t *s = &g_snd[g_snd_count];
         memset(s, 0, sizeof *s);
         snprintf(s->key, sizeof s->key, "%s", vs_pack_entry_name(pack, (int)i));
@@ -68,12 +68,19 @@ int vs_audio_init(const vs_pack *pack) {
         stb_vorbis *v = stb_vorbis_open_memory(s->ogg, s->ogg_size, &err, NULL);
         if (!v) { vs_plat_log("audio: cannot open %s (stb_vorbis error %d)", s->key, err); continue; }
         stb_vorbis_info info = stb_vorbis_get_info(v);
+        if (info.channels < 1 || info.sample_rate < 1000 || info.sample_rate > 192000) {
+            vs_plat_log("audio: %s has an unusable format", s->key);
+            stb_vorbis_close(v);
+            continue;
+        }
         s->channels = info.channels > 2 ? 2 : info.channels;
         s->rate = (int)info.sample_rate;
         float seconds = stb_vorbis_stream_length_in_seconds(v);
         s->streamed = seconds > STREAM_SECONDS;
         if (!s->streamed) {
             int total = (int)stb_vorbis_stream_length_in_samples(v);
+            /* a short sound is at most STREAM_SECONDS long at 192 kHz */
+            if (total <= 0 || total > (int)(STREAM_SECONDS * 192000)) { stb_vorbis_close(v); continue; }
             s->pcm = (int16_t *)malloc((size_t)(total + 1) * (size_t)s->channels * sizeof(int16_t));
             if (s->pcm) {
                 s->frames = stb_vorbis_get_samples_short_interleaved(v, s->channels, s->pcm, total * s->channels);

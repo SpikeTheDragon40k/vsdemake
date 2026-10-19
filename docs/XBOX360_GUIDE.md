@@ -287,6 +287,8 @@ Nothing has run on hardware yet. Confirm these in order and report:
 - New engine → rebuild `default.xex`, copy it over.
 - Keep `vsdemake.sav` when updating; it is plain text and stays valid
   across engine and pack updates.
+- Each release's notes ([CHANGELOG.md](../CHANGELOG.md)) say whether the
+  pack must be rebuilt; the title screen shows the version you are running.
 
 ## 9. Fallback: libxenon / XeLL
 

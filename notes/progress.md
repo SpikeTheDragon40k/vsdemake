@@ -310,3 +310,110 @@ resume in a fresh session).
 - Dev option `--drop NAME`.
 - Checks: screenshots / recordings; hash unchanged; ASan/UBSan clean; C++03
   clean.
+
+## 2026-10-19: explosions, additive blending, chest fireworks and bubbles
+
+- Self-destructing enemies (Shade Red) now explode (`enemies.md`): the
+  alert ring pulses faster and beeps (`Alert`), then `MakeExplosion` hurts
+  the player once within the radius during 120 ms, with smoke, an additive
+  flash and a red ground circle; sound `Explosion`.
+- Additive blending (`VS_BLEND_ADD` on `vs_sprite`, `vs_render_blend`):
+  SDL2 (`SDL_BLENDMODE_ADD`) and XDK (batches split by blend, dest ONE);
+  libxenon draws them normally. Used where the original uses ADD: map item
+  glow, Peachone trail, Garlic ring, Santa Water pool, Nduja circle, Bloody
+  Tear's purple ghost, the treasure scene's burst / overlay / ribbons /
+  stars / ring, explosions, alert rings. (Laurel's ring is normal in the
+  original.)
+- Treasure: level-3 fireworks and the bubbles (`treasure.md`); the OPEN
+  button no longer reads DONE while it shrinks.
+- Orologion flash (blue Shockwave3 and screen tint, `pickups.md`); like the
+  original, its sound only plays with flashing VFX on.
+- Dev option `--spawn NAME` (6 enemies around the player).
+- Checks: recordings of the explosions, a level-1 and a level-3 chest and
+  the time stop; hash f5097d0c unchanged; ASan/UBSan clean; C++03 clean.
+
+## 2026-10-19: pack hardening
+
+- `vs_pack_init` validates every entry (`pack-format.md`, "Validation at
+  load"): all offsets, counts and strings a reader may follow stay inside
+  the entry; 64-bit arithmetic so nothing wraps on the console; a damaged
+  entry is named on the error screen.
+- Tables: group keys and enum fields must fit the compiled enums (they
+  index fixed arrays, e.g. the level-up store's exclusion list); constants
+  out of range fall back to the built-in values.
+- Sounds: the size check could wrap (`16 + n`), now `n <= size - 16`; odd
+  formats and over-long short sounds are refused.
+- Backends skip sprites with NaN or huge coordinates (SDL's software
+  renderer crashed on them).
+- Checks: 16,000 structural mutations through every reader and 600
+  table-value mutations with the whole game running, all under ASan/UBSan:
+  no errors left; hash f5097d0c unchanged; C++03 clean.
+
+## 2026-10-19: collection and achievements screens
+
+- Title menu: START, POWER UP, COLLECTION, ACHIEVEMENTS, OPTIONS.
+- Collection (`collection.md`): the weapons and pickups grid with question
+  marks for things not found yet and the description panel.
+- Achievements: the list with ticks, unlock icons, a scroll bar and the
+  panel saying what each one unlocks / unlocked.
+- Checks: screenshots (with and without `--unlock-all`), an ASan run
+  through both screens; C++03 clean.
+
+## 2026-10-19: UI font
+
+- 0.2.10 ships no UI font: its menus use Phaser's default text style,
+  the browser's Courier at 16 px (Arial in three places). The demake now
+  uses Liberation Mono (Courier metrics, SIL OFL 1.1) pre-rasterized at 10,
+  15, 20 and 30 px into a run-length coded 4-bit alpha atlas
+  (`engine/tools/gen_font.py` → `vs_font_data.h`, license in
+  `engine/src/core/OFL.txt`). The text API and layout metrics are
+  unchanged (6 px advance, 7 px capitals per unit of scale).
+- Checks: screenshots of the title, options, level-up, collection and HUD;
+  hash unchanged; C++03 clean.
+
+## 2026-10-19: version and release notes
+
+- Version 1.0.0-rc1 (`engine/src/core/vs_version.h`), shown at the bottom
+  right of the title screen and logged at start-up.
+- `CHANGELOG.md` with the release notes (what is in, pack and save
+  compatibility, known limitations); README: status, features, an
+  Install section (PC and Xbox 360, and what to replace when updating),
+  limitations; the Xbox guide's Updating section points to the notes.
+- No tag yet: the owner decides when to tag and publish.
+
+## 2026-10-19: Xbox 360 only; title art
+
+- Owner's decision: the game is played on Xbox 360 only, so as not to
+  compete with the original on PC (README, "Why Xbox 360 only"). The SDL2
+  backend became the PC test backend (`platform/test/`, target
+  `vsdemake-test`): headless always, `--frames N` required, no window,
+  keyboard, gamepad or sound device; `--input`, `--screenshot`,
+  `--record`, `--audio-dump` and the state hash work as before. `--scale`
+  is gone, `--headless` is accepted and ignored.
+- Title screen background: the owner's art (`engine/assets/title_bg.png`)
+  scaled to 810 × 456 and built into the executable as a JPEG
+  (`engine/tools/gen_title_bg.py` → `game/title_bg_data.h`), decoded at
+  start-up by stb_image v2.30 (`core/vs_image.c`, JPEG only, no SIMD).
+  The art has its own VSDEMAKE logo, so the engine's logo is not drawn
+  over it; dark panels keep the menu text readable. The font atlas and
+  the art are padded to power-of-two textures for the console.
+- The title hint now names the controller buttons.
+- Checks: title screenshot; hash f5097d0c unchanged; ASan/UBSan clean;
+  C++03 clean (stb_image included).
+
+## 2026-10-19: new title art; character and stage select
+
+- Title art replaced with the owner's new picture; it is now also the
+  dimmed backdrop of every other menu (`vs_ui_menu_backdrop`).
+- Character and stage selection rebuilt like the original's
+  (`notes/behaviour/select.md`, `game/select.c`): character cards, the
+  stats panel (character + bought power-ups, yellow when raised), the
+  bottom panel with Confirm / Unlock / START; stage cards with pictures and
+  descriptions, locked ones as "???", confirm then START; B goes back.
+  The pause screen's stats panel became `vs_ui_stats_panel`, shared.
+- Font fix: a scale now uses the largest raster not bigger than needed,
+  scaled up; scaling the 15 px raster down at 1.2–1.4 dropped one-pixel
+  strokes ("+" read as "-", "Imelda" as "Inelda").
+- Checks: screenshots of both screens, menu → character → stage → run
+  flows for both stages; hash f5097d0c unchanged; ASan/UBSan clean; C++03
+  clean.
