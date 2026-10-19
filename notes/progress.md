@@ -358,3 +358,15 @@ resume in a fresh session).
   panel saying what each one unlocks / unlocked.
 - Checks: screenshots (with and without `--unlock-all`), an ASan run
   through both screens; C++03 clean.
+
+## 2026-10-19: UI font
+
+- 0.2.10 ships no UI font: its menus use Phaser's default text style,
+  the browser's Courier at 16 px (Arial in three places). The demake now
+  uses Liberation Mono (Courier metrics, SIL OFL 1.1) pre-rasterized at 10,
+  15, 20 and 30 px into a run-length coded 4-bit alpha atlas
+  (`engine/tools/gen_font.py` → `vs_font_data.h`, license in
+  `engine/src/core/OFL.txt`). The text API and layout metrics are
+  unchanged (6 px advance, 7 px capitals per unit of scale).
+- Checks: screenshots of the title, options, level-up, collection and HUD;
+  hash unchanged; C++03 clean.

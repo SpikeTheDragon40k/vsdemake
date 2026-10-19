@@ -1,125 +1,47 @@
 #include "core/vs_text.h"
 
+#include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
-/* 5x7 glyphs, one byte per row, bit 4 = leftmost pixel. ASCII 32..126. */
-static const uint8_t GLYPHS[95][7] = {
-    {0,0,0,0,0,0,0},                       /* space */
-    {4,4,4,4,4,0,4},                       /* ! */
-    {10,10,10,0,0,0,0},                    /* " */
-    {10,10,31,10,31,10,10},                /* # */
-    {4,15,20,14,5,30,4},                   /* $ */
-    {24,25,2,4,8,19,3},                    /* % */
-    {12,18,20,8,21,18,13},                 /* & */
-    {12,4,8,0,0,0,0},                      /* ' */
-    {2,4,8,8,8,4,2},                       /* ( */
-    {8,4,2,2,2,4,8},                       /* ) */
-    {0,4,21,14,21,4,0},                    /* * */
-    {0,4,4,31,4,4,0},                      /* + */
-    {0,0,0,0,12,4,8},                      /* , */
-    {0,0,0,31,0,0,0},                      /* - */
-    {0,0,0,0,0,12,12},                     /* . */
-    {0,1,2,4,8,16,0},                      /* / */
-    {14,17,19,21,25,17,14},                /* 0 */
-    {4,12,4,4,4,4,14},                     /* 1 */
-    {14,17,1,2,4,8,31},                    /* 2 */
-    {31,2,4,2,1,17,14},                    /* 3 */
-    {2,6,10,18,31,2,2},                    /* 4 */
-    {31,16,30,1,1,17,14},                  /* 5 */
-    {6,8,16,30,17,17,14},                  /* 6 */
-    {31,1,2,4,8,8,8},                      /* 7 */
-    {14,17,17,14,17,17,14},                /* 8 */
-    {14,17,17,15,1,2,12},                  /* 9 */
-    {0,12,12,0,12,12,0},                   /* : */
-    {0,12,12,0,12,4,8},                    /* ; */
-    {2,4,8,16,8,4,2},                      /* < */
-    {0,0,31,0,31,0,0},                     /* = */
-    {8,4,2,1,2,4,8},                       /* > */
-    {14,17,1,2,4,0,4},                     /* ? */
-    {14,17,1,13,21,21,14},                 /* @ */
-    {14,17,17,17,31,17,17},                /* A */
-    {30,17,17,30,17,17,30},                /* B */
-    {14,17,16,16,16,17,14},                /* C */
-    {28,18,17,17,17,18,28},                /* D */
-    {31,16,16,30,16,16,31},                /* E */
-    {31,16,16,30,16,16,16},                /* F */
-    {14,17,16,23,17,17,15},                /* G */
-    {17,17,17,31,17,17,17},                /* H */
-    {14,4,4,4,4,4,14},                     /* I */
-    {7,2,2,2,2,18,12},                     /* J */
-    {17,18,20,24,20,18,17},                /* K */
-    {16,16,16,16,16,16,31},                /* L */
-    {17,27,21,21,17,17,17},                /* M */
-    {17,17,25,21,19,17,17},                /* N */
-    {14,17,17,17,17,17,14},                /* O */
-    {30,17,17,30,16,16,16},                /* P */
-    {14,17,17,17,21,18,13},                /* Q */
-    {30,17,17,30,20,18,17},                /* R */
-    {15,16,16,14,1,1,30},                  /* S */
-    {31,4,4,4,4,4,4},                      /* T */
-    {17,17,17,17,17,17,14},                /* U */
-    {17,17,17,17,17,10,4},                 /* V */
-    {17,17,17,21,21,21,10},                /* W */
-    {17,17,10,4,10,17,17},                 /* X */
-    {17,17,17,10,4,4,4},                   /* Y */
-    {31,1,2,4,8,16,31},                    /* Z */
-    {14,8,8,8,8,8,14},                     /* [ */
-    {0,16,8,4,2,1,0},                      /* \ */
-    {14,2,2,2,2,2,14},                     /* ] */
-    {4,10,17,0,0,0,0},                     /* ^ */
-    {0,0,0,0,0,0,31},                      /* _ */
-    {8,4,2,0,0,0,0},                       /* ` */
-    {0,0,14,1,15,17,15},                   /* a */
-    {16,16,22,25,17,17,30},                /* b */
-    {0,0,14,16,16,17,14},                  /* c */
-    {1,1,13,19,17,17,15},                  /* d */
-    {0,0,14,17,31,16,14},                  /* e */
-    {6,9,8,28,8,8,8},                      /* f */
-    {0,15,17,17,15,1,14},                  /* g */
-    {16,16,22,25,17,17,17},                /* h */
-    {4,0,12,4,4,4,14},                     /* i */
-    {2,0,6,2,2,18,12},                     /* j */
-    {16,16,18,20,24,20,18},                /* k */
-    {12,4,4,4,4,4,14},                     /* l */
-    {0,0,26,21,21,17,17},                  /* m */
-    {0,0,22,25,17,17,17},                  /* n */
-    {0,0,14,17,17,17,14},                  /* o */
-    {0,0,30,17,30,16,16},                  /* p */
-    {0,0,13,19,15,1,1},                    /* q */
-    {0,0,22,25,16,16,16},                  /* r */
-    {0,0,14,16,14,1,30},                   /* s */
-    {8,8,28,8,8,9,6},                      /* t */
-    {0,0,17,17,17,19,13},                  /* u */
-    {0,0,17,17,17,10,4},                   /* v */
-    {0,0,17,17,21,21,10},                  /* w */
-    {0,0,17,10,4,10,17},                   /* x */
-    {0,0,17,17,15,1,14},                   /* y */
-    {0,0,31,2,4,8,31},                     /* z */
-    {2,4,4,8,4,4,2},                       /* { */
-    {4,4,4,4,4,4,4},                       /* | */
-    {8,4,4,2,4,4,8},                       /* } */
-    {0,0,8,21,2,0,0},                      /* ~ */
-};
+/* The UI font: Liberation Mono (Courier metrics, like the browser default
+ * the original's menus use) pre-rasterized at 10, 15, 20 and 30 px
+ * (vs_font_data.h, SIL OFL 1.1). Layout keeps the old 6 px × scale
+ * advance and 7 px × scale cap height, so a scale picks the raster whose
+ * advance is closest to 6 × scale and draws it at the remaining factor. */
+#include "core/vs_font_data.h"
 
 static vs_texture *g_tex;
-#define TEX_W (95 * VS_TEXT_GLYPH_W)
 
 int vs_text_init(void) {
-    static uint8_t px[TEX_W * VS_TEXT_GLYPH_H * 4];
-    memset(px, 0, sizeof px);
-    for (int c = 0; c < 95; c++) {
-        for (int y = 0; y < VS_TEXT_GLYPH_H; y++) {
-            for (int x = 0; x < VS_TEXT_GLYPH_W; x++) {
-                if (!((GLYPHS[c][y] >> (4 - x)) & 1)) continue;
-                uint8_t *p = px + ((y * TEX_W) + c * VS_TEXT_GLYPH_W + x) * 4;
-                p[0] = p[1] = p[2] = p[3] = 255; /* big-endian ARGB white */
-            }
+    uint8_t *px = (uint8_t *)malloc((size_t)VS_FONT_ATLAS_W * VS_FONT_ATLAS_H * 4);
+    if (!px) return -1;
+    size_t n = (size_t)VS_FONT_ATLAS_W * VS_FONT_ATLAS_H, o = 0;
+    for (size_t i = 0; i < sizeof VS_FONT_RLE && o < n; i++) {
+        uint8_t b = VS_FONT_RLE[i];
+        if (b & 0x80) {
+            for (int k = 0; k <= (b & 0x7f) && o < n; k++, o++) memset(px + o * 4, 0, 4);
+        } else {
+            uint8_t *q = px + o * 4;
+            q[0] = (uint8_t)(b * 17); q[1] = q[2] = q[3] = 255;   /* big-endian ARGB: white, alpha */
+            o++;
         }
     }
-    /* texture width must be whatever the backend accepts; 475 is fine on PC,
-     * the console backend pads to a power of two itself */
-    g_tex = vs_plat_texture_create(TEX_W, VS_TEXT_GLYPH_H, px);
+    for (; o < n; o++) memset(px + o * 4, 0, 4);
+    g_tex = vs_plat_texture_create(VS_FONT_ATLAS_W, VS_FONT_ATLAS_H, px);
+    free(px);
     return g_tex ? 0 : -1;
+}
+
+/* The raster for `scale` and the factor to draw it at. */
+static int pick_size(float scale, float *factor) {
+    int best = 0; float best_d = 1e9f;
+    for (int i = 0; i < VS_FONT_SIZES; i++) {
+        float base = VS_FONT_SIZE_INFO[i][1] / 6.0f, r = scale / base, d = r > 1 ? r : 1 / r;
+        if (d < best_d) { best_d = d; best = i; }
+    }
+    *factor = scale / (VS_FONT_SIZE_INFO[best][1] / 6.0f);
+    return best;
 }
 
 void vs_text_shutdown(void) {
@@ -128,18 +50,29 @@ void vs_text_shutdown(void) {
 }
 
 void vs_text_draw(float x, float y, float scale, uint32_t tint, const char *s) {
-    if (!g_tex) return;
+    if (!g_tex || scale <= 0) return;
+    float f;
+    const short *info = VS_FONT_SIZE_INFO[pick_size(scale, &f)];
+    const int adv = info[1], cell_h = info[2], cap_top = info[4], row_y = info[5], per_row = info[6];
+    const float step = (VS_TEXT_GLYPH_W + 1) * scale;   /* = adv × f */
+    if (f > 0.99f && f < 1.01f) { x = floorf(x + 0.5f); y = floorf(y + 0.5f); f = 1; }   /* crisp at native size */
     float cx = x;
     for (; *s; s++) {
         unsigned char c = (unsigned char)*s;
         if (c == '\n') { cx = x; y += (VS_TEXT_GLYPH_H + 2) * scale; continue; }
-        if (c < 32 || c > 126) c = '?';
-        vs_sprite sp = {0};
-        sp.tex = g_tex;
-        sp.sx = (int16_t)((c - 32) * VS_TEXT_GLYPH_W); sp.sy = 0; sp.sw = VS_TEXT_GLYPH_W; sp.sh = VS_TEXT_GLYPH_H;
-        sp.dx = cx; sp.dy = y; sp.scale_x = sp.scale_y = scale; sp.alpha = 255; sp.tint = tint;
-        vs_plat_draw(&sp);
-        cx += (VS_TEXT_GLYPH_W + 1) * scale;
+        if (c < VS_FONT_FIRST || c > VS_FONT_LAST) c = '?';
+        if (c != ' ') {
+            int i = c - VS_FONT_FIRST;
+            vs_sprite sp;
+            memset(&sp, 0, sizeof sp);
+            sp.tex = g_tex;
+            sp.sx = (int16_t)((i % per_row) * adv); sp.sy = (int16_t)(row_y + (i / per_row) * cell_h);
+            sp.sw = (int16_t)adv; sp.sh = (int16_t)cell_h;
+            sp.dx = cx; sp.dy = y - cap_top * f;   /* cap tops line up with y */
+            sp.scale_x = sp.scale_y = f; sp.alpha = 255; sp.tint = tint;
+            vs_plat_draw(&sp);
+        }
+        cx += step;
     }
 }
 

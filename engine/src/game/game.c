@@ -635,7 +635,10 @@ static void render_menu(vs_game *g) {
             for (char *c = label; *c; c++) if (*c >= 'a' && *c <= 'z') *c = (char)(*c - 32);
             vs_text_draw(0.5f * (g->logical_w - vs_text_width(1.5f, label)), 255.0f + 18 * i, 1.5f, g->title_sel == i ? 0xffff80 : 0xffffff, label);
         }
-        vs_text_draw(g->logical_w * 0.5f - 140, 398, 1, 0x808080, "unofficial demake - arrows/WASD move, enter/A select, esc/B back");
+        {
+            const char *hint = "unofficial demake - arrows/WASD move, enter/A select, esc/B back";
+            vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, hint)), 398, 1, 0x808080, hint);
+        }
         const char *st = g->save_boot_status[0] ? g->save_boot_status : "Save: off";
         vs_text_draw(0.5f * (g->logical_w - vs_text_width(1, st)), 411, 1, strncmp(st, "SAVE FAILED", 11) == 0 ? 0xff4040 : 0x60a060, st);
         /* sound state in one line; the sound test is in Options */
