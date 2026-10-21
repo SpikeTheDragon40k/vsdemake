@@ -257,3 +257,14 @@ is kept for reference). It is never offered.
 
 (When it was implemented, the demake cut the picture into 4 × 4 tiles per
 layer instead of triangles, tinted rather than filled; see commit 0c966d2.)
+
+
+## Santa Water: looks (line 3259)
+
+The pool is a blue (0x0000ff) additive circle at alpha 0.2, radius 16 ×
+area. While it lasts, every frame two emitters put 1 + level/3 flames each
+at random points of a circle of radius 8 × 3 × area:
+`ProjectileFlameHoly` / `ProjectileFlameBlue`, turned 90°, 600 ms, one at
+alpha 1 → 0 and scale 0.25 → 1, one additive at alpha 0.2 → 0 and scale
+0.25 → 0.5. When the bottle breaks: `HitCloud2` (scale 0.25 → 2) and three
+`HitCloud1` (0.25 → 1), 150 ms, alpha 1 → 0.5. All at the pool's depth.
