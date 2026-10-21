@@ -152,6 +152,34 @@ static void emit_smoke(vs_game *g, vs_explosion *e) {
     e->emitted += 8;
 }
 
+/* Santa Water (line 3259). While the pool lasts, every frame two emitters
+ * put 1 + level/3 flames each at random points of a circle of radius
+ * 24 × area: ProjectileFlameHoly / ProjectileFlameBlue, turned 90°,
+ * 600 ms, one at alpha 1 → 0 and scale 0.25 → 1, one additive at alpha
+ * 0.2 → 0 and scale 0.25 → 0.5. The bottle breaking adds HitCloud2
+ * (scale 0.25 → 2) and three HitCloud1 (0.25 → 1), 150 ms, alpha 1 → 0.5.
+ * Drawn at the pool's depth (half a screen under the player's row). */
+void vs_fx_holywater(vs_game *g, float x, float y, float area, int level, int burst) {
+    int n = burst ? 4 : 2 * (1 + level / 3);
+    for (int k = 0; k < n; k++) {
+        vs_pfx *p = &g->smoke[g->smoke_next];
+        g->smoke_next = (g->smoke_next + 1) % VS_MAX_SMOKE;
+        memset(p, 0, sizeof *p);
+        p->z = y - 0.5f * g->logical_h - 1;   /* depth = z - player.y + 1 */
+        if (burst) {
+            p->x = x; p->y = y; p->life = 150; p->rot = 360 * vs_rng_f32(&g->ui_rng);
+            p->frame = k == 0 ? 7 : 6; p->s0 = 0.25f; p->s1 = k == 0 ? 2.0f : 1.0f; p->a0 = 1; p->a1 = 0.5f;
+            continue;
+        }
+        float ang = 6.2831853f * vs_rng_f32(&g->ui_rng), r = 24.0f * area * sqrtf(vs_rng_f32(&g->ui_rng));
+        int add = k >= n / 2;
+        p->x = x + cosf(ang) * r; p->y = y + sinf(ang) * r;
+        p->life = 600; p->rot = 90;
+        p->frame = vs_rng_f32(&g->ui_rng) < 0.5f ? 4 : 5;
+        p->s0 = 0.25f; p->s1 = add ? 0.5f : 1.0f; p->a0 = add ? 0.2f : 1.0f; p->a1 = 0; p->add = add;
+    }
+}
+
 void vs_explosions_update(vs_game *g) {
     const vs_player *pl = &g->player;
     for (int i = 0; i < VS_MAX_EXPLOSIONS; i++) {
@@ -172,9 +200,10 @@ void vs_explosions_update(vs_game *g) {
 /* Smoke at the explosion's depth, and the ground flash: an additive red
  * circle (alpha 0.4) growing to the blast radius (flashing VFX only). */
 void vs_render_explosions(vs_game *g) {
-    static const char *const frames[4] = { "Smoke1.png", "Smoke2.png", "HitSmoke1.png", "HitSmoke2.png" };
-    vs_frame f[4]; int ok[4];
-    for (int k = 0; k < 4; k++) ok[k] = vs_atlas_find(&g->atl_vfx, frames[k], &f[k]) == 0;
+    static const char *const frames[8] = { "Smoke1.png", "Smoke2.png", "HitSmoke1.png", "HitSmoke2.png",
+                                           "ProjectileFlameHoly.png", "ProjectileFlameBlue.png", "HitCloud1.png", "HitCloud2.png" };
+    vs_frame f[8]; int ok[8];
+    for (int k = 0; k < 8; k++) ok[k] = vs_atlas_find(&g->atl_vfx, frames[k], &f[k]) == 0;
     const float py = g->player.y;
     for (int i = 0; i < VS_MAX_SMOKE; i++) {
         const vs_pfx *p = &g->smoke[i];

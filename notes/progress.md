@@ -417,3 +417,13 @@ resume in a fresh session).
 - Checks: screenshots of both screens, menu → character → stage → run
   flows for both stages; hash f5097d0c unchanged; ASan/UBSan clean; C++03
   clean.
+
+## 2026-10-21: Santa Water visibility
+
+- Reported on the console: the Santa Water pool was hard to see. The demake
+  drew only the faint additive blue circle; the original also fills the
+  pool with holy flames every frame and puffs a cloud when the bottle
+  breaks (`weapons.md`). Both added (`vs_fx_holywater`, decoration only;
+  the particle pool grew to 2048).
+- Checks: recording at level 8; hash f5097d0c unchanged; ASan/UBSan clean;
+  C++03 clean.

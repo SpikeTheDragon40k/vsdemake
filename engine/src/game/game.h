@@ -26,7 +26,7 @@
 #define VS_MAX_FX 1200
 #define VS_BULLET_HITS 64
 #define VS_MAX_EXPLOSIONS 128
-#define VS_MAX_SMOKE 768
+#define VS_MAX_SMOKE 2048
 #define VS_TREASURE_FW 1024
 
 /* ---- timers (ms, Phaser-like: elapsed accumulates, loops keep the remainder) */
@@ -550,6 +550,8 @@ void vs_fx_hit(vs_game *g, float x, float y, int hit_type);
 void vs_fx_update(vs_game *g);
 void vs_fx_render(vs_game *g, float cam_x, float cam_y);
 void vs_explosion_make(vs_game *g, float x, float y, float damage, float radius);
+/* Santa Water pool particles: burst = the bottle breaking, else one frame of flames */
+void vs_fx_holywater(vs_game *g, float x, float y, float area, int level, int burst);
 void vs_explosions_update(vs_game *g);
 void vs_render_explosions(vs_game *g);
 void vs_render_timestop_flash(vs_game *g);

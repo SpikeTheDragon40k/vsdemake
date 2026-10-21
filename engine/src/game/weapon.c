@@ -739,6 +739,7 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
             if (t >= 1) {
                 t = 1; b->state = 1; b->hit_count = 0; b->hit_reset_ms = 0; b->f1 = b->age_ms; b->scale = area; b->body_r = 16.0f * area;
                 vs_sfx(g, VS_SND_HOLYWATER, 0.35f, -200.0f + 50.0f * b->index, 2, 200, 12);   /* the bottle breaks */
+                vs_fx_holywater(g, b->ax + (b->bx - b->ax), b->ay + (b->by - b->ay), area, w->level, 1);
             }
             b->x = b->ax + (b->bx - b->ax) * t; b->y = b->ay + (b->by - b->ay) * t;
             b->angle += 600.0f * dt;
@@ -747,6 +748,7 @@ static void bullet_motion(vs_game *g, vs_bullet *b) {
             b->hit_reset_ms += VS_TICK_MS;
             if (b->hit_reset_ms >= w->hitBoxDelay) { b->hit_reset_ms -= w->hitBoxDelay; b->hit_count = 0; }
             if (b->age_ms - b->f1 >= p_duration(g, w)) { b->active = 0; return; }
+            vs_fx_holywater(g, b->x, b->y, b->scale, w->level, 0);   /* the flames (decoration) */
         }
         break;
     default: break;
