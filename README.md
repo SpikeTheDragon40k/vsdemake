@@ -1,6 +1,7 @@
 # vsdemake
 ![vsdemake](banner.png)
-
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20me-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/spikethedragon)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20me-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/spike_the_dragon)
 
 An unofficial Xbox 360 homebrew demake of Vampire Survivors: a C99
 gameplay engine built as `default.xex` with the Xbox 360 XDK. It is played
