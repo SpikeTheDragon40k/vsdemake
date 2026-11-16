@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vsdemake — Vampire Survivors demake for Xbox 360</title>
+<meta name="description" content="An unofficial Xbox 360 homebrew demake of Vampire Survivors 0.2.10, built from your own Steam copy.">
+<link rel="icon" type="image/png" href="favicon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="vsdemake">
+<meta property="og:description" content="Survive the night — on your Xbox 360. An unofficial homebrew demake of Vampire Survivors 0.2.10, built from your own Steam copy.">
+<meta property="og:url" content="https://spikethedragon40k.github.io/vsdemake/">
+<meta property="og:image" content="https://spikethedragon40k.github.io/vsdemake/logo.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fbf8f3; --surface:#ffffff; --fg:#1a1620; --muted:#6b6470; --line:#e7e0d6;
+  --accent:#e8650a; --accent-2:#8a1010; --code-bg:#f3ede4; --hero-bg:#0d0b14;
+  --radius:12px; --sans:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+  --pixel:'Press Start 2P',var(--mono);
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#0d0b14; --surface:#16131f; --fg:#f2ede4; --muted:#a59fae; --line:#2a2433;
+  --accent:#ffb22e; --accent-2:#c0392b; --code-bg:#1d1928; color-scheme:dark;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d0b14; --surface:#16131f; --fg:#f2ede4; --muted:#a59fae; --line:#2a2433;
+    --accent:#ffb22e; --accent-2:#c0392b; --code-bg:#1d1928; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 var(--sans);overflow-x:hidden}
+a{color:var(--accent)}
+.wrap{max-width:960px;margin:0 auto;padding:0 16px}
+nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:16px;height:56px}
+nav .brand{font-family:var(--pixel);font-size:12px;color:var(--fg);text-decoration:none;margin-right:auto}
+nav .links{display:flex;gap:16px;font-size:14px}
+nav .links a{color:var(--muted);text-decoration:none}
+nav .links a:hover{color:var(--accent)}
+@media (max-width:700px){nav .links{display:none}}
+#theme{background:none;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px}
+header.hero{background:var(--hero-bg);color:#f2ede4;text-align:center;padding:56px 0 64px}
+header.hero img{width:100%;max-width:560px;height:auto;image-rendering:pixelated}
+.tagline{font-family:var(--pixel);font-size:clamp(13px,2.6vw,20px);line-height:1.6;color:#ffb22e;margin:24px 0 12px}
+.sub{color:#cfc8d6;max-width:620px;margin:0 auto 28px}
+.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 20px;border-radius:10px;font-weight:600;text-decoration:none;border:2px solid #ffb22e}
+.btn.primary{background:#ffb22e;color:#1a1620}
+.btn.ghost{color:#ffb22e}
+.status{display:inline-block;margin-top:28px;font-size:14px;color:#cfc8d6;border:1px dashed #5a4a2a;border-radius:8px;padding:8px 14px;max-width:100%}
+.status b{color:#ffb22e}
+section{padding:64px 0;border-bottom:1px solid var(--line)}
+h2{font-family:var(--pixel);font-size:18px;line-height:1.5;margin:0 0 8px;color:var(--accent-2)}
+:root[data-theme="dark"] h2{color:var(--accent)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) h2{color:var(--accent)}}
+.lead{color:var(--muted);margin:0 0 32px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+.card h3{margin:0 0 6px;font-size:16px}
+.card p{margin:0;color:var(--muted);font-size:15px}
+.card .ico{font-size:22px}
+figure{margin:0}
+figure img{width:100%;height:auto;border-radius:var(--radius);border:1px solid var(--line);display:block}
+figcaption{color:var(--muted);font-size:14px;margin-top:8px}
+ol.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+ol.steps>li{counter-increment:s;position:relative;padding-left:48px;margin-bottom:32px}
+ol.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:32px;height:32px;border-radius:8px;background:var(--accent);color:#1a1620;font-family:var(--pixel);font-size:12px;display:grid;place-items:center}
+ol.steps h3{margin:2px 0 8px}
+.code{position:relative;background:var(--code-bg);border:1px solid var(--line);border-radius:10px;margin:10px 0}
+.code pre{margin:0;padding:14px 16px;padding-right:72px;overflow-x:auto;font:14px/1.5 var(--mono)}
+.copy{position:absolute;top:8px;right:8px;font:12px var(--mono);background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 8px;cursor:pointer}
+.copy:hover{border-color:var(--accent)}
+code{font-family:var(--mono);font-size:.92em}
+p code,li code,td code{background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.table-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+.pipe{display:flex;flex-direction:column;align-items:center;gap:6px;font:14px var(--mono);margin:24px 0}
+.pipe div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 16px;text-align:center;max-width:100%}
+.pipe span{color:var(--accent)}
+.warn{border-left:4px solid var(--accent-2);background:var(--surface);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:10px}
+summary{cursor:pointer;font-weight:600}
+details p{color:var(--muted);margin:10px 0 0}
+footer{padding:40px 0;color:var(--muted);font-size:14px;text-align:center}
+footer a{color:var(--muted)}
+footer .links{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+@keyframes flicker{0%,100%{opacity:1}50%{opacity:.82}}
+.tagline{animation:flicker 3s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="brand" href="#top">VSDEMAKE</a>
+  <div class="links"><a href="#features">Features</a><a href="#play">How to play</a><a href="#how">How it works</a><a href="#faq">FAQ</a><a href="https://github.com/SpikeTheDragon40k/vsdemake">GitHub</a></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</div></nav>
+
+<header class="hero" id="top"><div class="wrap">
+  <img src="logo.png" alt="vsdemake" width="704" height="192">
+  <p class="tagline">Survive the night —<br>on your Xbox 360.</p>
+  <p class="sub">An unofficial homebrew demake of Vampire Survivors 0.2.10. A C99 engine runs as <code>default.xex</code>; a local patcher builds the game data from <em>your own</em> Steam copy.</p>
+  <div class="btns">
+    <a class="btn primary" href="#play">How to play</a>
+    <a class="btn ghost" href="https://github.com/SpikeTheDragon40k/vsdemake">Source on GitHub</a>
+  </div>
+  <div class="status"><b>Status: 1.0.0 release candidate.</b> Playable on Xbox 360 hardware (XDK build). Long-session performance is still being checked.</div>
+</div></header>
+
+<main>
+<section id="features"><div class="wrap">
+  <h2>What's in it</h2>
+  <p class="lead">The full content of version 0.2.10, rebuilt for the console.</p>
+  <div class="grid">
+    <div class="card"><div class="ico">🌲</div><h3>Two stages</h3><p>Mad Forest and Inlaid Library, with their music, day/night, stage events and bosses. Reach level 20 in the Forest to unlock the Library.</p></div>
+    <div class="card"><div class="ico">🧛</div><h3>13 characters</h3><p>The starting crew plus the hidden ones, unlocked and bought at the character select as in the original.</p></div>
+    <div class="card"><div class="ico">🗡️</div><h3>Weapons &amp; 9 evolutions</h3><p>Whip to Clock Lancet — every weapon except Pentagram (left out on purpose) — plus Bloody Tear, Holy Wand, Vandalier and the rest.</p></div>
+    <div class="card"><div class="ico">💰</div><h3>Power Up shop</h3><p>14 permanent bonuses with the original's prices and the refund button.</p></div>
+    <div class="card"><div class="ico">🏆</div><h3>40 achievements</h3><p>Collection and Achievements screens, unlocks and gold prizes, saved with an automatic backup.</p></div>
+    <div class="card"><div class="ico">🎁</div><h3>Treasure chests</h3><p>The opening scene: coins, ribbons, item reels, fireworks for the big chest. Skip it with B.</p></div>
+    <div class="card"><div class="ico">🔊</div><h3>Sound &amp; music</h3><p>The original's effects and stage tracks, decoded on the console with the original's volume, pitch and repeat rules.</p></div>
+    <div class="card"><div class="ico">⏸️</div><h3>Pause &amp; options</h3><p>Volumes, Flashing VFX, Damage Numbers, your build and stats — like the original's pause screen.</p></div>
+  </div>
+</div></section>
+
+<section id="gallery"><div class="wrap">
+  <h2>Title screen</h2>
+  <p class="lead">The demake's own background art, built into <code>default.xex</code>.</p>
+  <figure>
+    <img src="title.png" alt="vsdemake title screen background art" width="1670" height="941" loading="lazy">
+    <figcaption>Title art from <code>engine/assets/title_bg.png</code>. Not from the original game; characters depicted belong to their respective rights holders.</figcaption>
+  </figure>
+</div></section>
+
+<section id="play"><div class="wrap">
+  <h2>How to play</h2>
+  <p class="lead">There's nothing to download but source: the data comes from your Steam copy, the executable from your own XDK.</p>
+  <ol class="steps">
+    <li><h3>Get the supported Steam build</h3>
+      <p>With the Steam account that owns Vampire Survivors, open <code>steam://open/console</code> and enter:</p>
+      <div class="code"><pre>download_depot 1794680 1794681 8292959317163221061</pre></div>
+      <p>Wait for “Depot download complete” and keep the reported path (about 200 MB).</p></li>
+    <li><h3>Get the patcher</h3>
+      <p>Needs Node.js 20 or newer.</p>
+      <div class="code"><pre>git clone https://github.com/SpikeTheDragon40k/vsdemake.git
+cd vsdemake/patcher
+npm install</pre></div></li>
+    <li><h3>Verify and build your data pack</h3>
+      <div class="code"><pre>node bin/vspatch.js verify "&lt;path to supported game files&gt;"
+node bin/vspatch.js build "&lt;path to supported game files&gt;" --out vsdata.vspack</pre></div>
+      <p>You get <code>vsdata.vspack</code> (about 32 MB, 88 entries). Keep it local — never share it.</p></li>
+    <li><h3>Play on Xbox 360</h3>
+      <p>Build <code>default.xex</code> with Visual Studio 2010 and the Xbox 360 XDK, copy it and <code>vsdata.vspack</code> into one folder on the HDD or a USB stick, and launch it from Aurora, XeXMenu or FreeStyle Dash. Full walkthrough: <a href="https://github.com/SpikeTheDragon40k/vsdemake/blob/main/docs/XBOX360_GUIDE.md">Xbox 360 guide</a> · <a href="https://github.com/SpikeTheDragon40k/vsdemake/blob/main/docs/FIRST_XEX_TEST.md">first-boot checks</a>.</p></li>
+  </ol>
+  <div class="warn">You need an Xbox 360 that can run unsigned executables. This project does not provide the XDK or console-modification instructions.</div>
+  <h3>Controls</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Action</th><th>Controller</th></tr>
+    <tr><td>Move</td><td>D-pad / left stick</td></tr>
+    <tr><td>Confirm</td><td>A</td></tr>
+    <tr><td>Start / pause</td><td>Start</td></tr>
+    <tr><td>Back / resume</td><td>B</td></tr>
+  </table></div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <h2>How it works</h2>
+  <p class="lead">The engine and the game's content are kept apart.</p>
+  <div class="pipe">
+    <div>Your supported Steam depot files</div><span>▼</span>
+    <div>Local Node.js patcher</div><span>▼</span>
+    <div>vsdata.vspack</div><span>▼</span>
+    <div>vsdemake on Xbox 360 (default.xex)</div>
+  </div>
+  <p>The patcher reads the game files without running the original game. It converts textures, atlases, maps, fonts, strings and gameplay tables, and copies the 30 OGG sounds unchanged into one binary pack. The engine decodes the sounds itself at run time. Patching uploads nothing and downloads nothing.</p>
+  <h3>Why Xbox 360 only?</h3>
+  <p>On PC, the right way to play Vampire Survivors is to buy the original — it's far bigger and better than this early version. vsdemake is a homebrew technical exercise that brings an early build to a console the original never shipped on. The engine still compiles on PC, but only as a headless test tool with no window, controls or sound.</p>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <h2>FAQ</h2>
+  <details><summary>Do I need to own Vampire Survivors?</summary><p>Yes. The project ships no game code, assets or data packs. You must own the game on Steam and build the pack from your own files.</p></details>
+  <details><summary>Why version 0.2.10?</summary><p>The demake targets the early Electron/Phaser build, whose formats the patcher supports. Only Steam manifest 8292959317163221061 is supported; the patcher checks hashes against it.</p></details>
+  <details><summary>How do I update?</summary><p>Rebuild and replace <code>default.xex</code>. Rebuild <code>vsdata.vspack</code> only when the changelog says so or the game tells you at start-up. Keep <code>vsdemake.sav</code> — it stays valid across updates.</p></details>
+  <details><summary>Where are my saves?</summary><p>In <code>vsdemake.sav</code> next to <code>default.xex</code>, with an automatic <code>.bak</code> backup. Don't edit it by hand: that breaks its checksum.</p></details>
+  <details><summary>The title says “NO SOUNDS IN THE PACK”.</summary><p>Rebuild <code>vsdata.vspack</code> with the current patcher (88 entries, 30 sounds).</p></details>
+  <details><summary>What isn't done yet?</summary><p>Hyper mode and Green Acres can be unlocked but not played yet, and long-session performance on the console is still being checked.</p></details>
+  <details><summary>Can I share my data pack?</summary><p>No. Don't distribute <code>vsdata.vspack</code>, extracted data, converted assets or de-obfuscated source.</p></details>
+</div></section>
+
+<section id="credits"><div class="wrap">
+  <h2>Credits &amp; legal</h2>
+  <p>vsdemake is an unofficial fan project. It is not affiliated with, authorized by, or endorsed by poncle or Microsoft. Vampire Survivors and its content belong to their respective rights holders. <strong>Support poncle by buying and playing the original game.</strong></p>
+  <p>The project's own code is MIT-licensed. Third-party: <code>stb_vorbis</code> and <code>stb_image</code> by Sean Barrett (public domain / MIT); the UI font is a bitmap version of Liberation Mono under the SIL Open Font License 1.1; the libxenon fallback embeds shader data from the libxenon examples (BSD).</p>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <div class="links">
+    <a href="https://github.com/SpikeTheDragon40k/vsdemake">Source</a>
+    <a href="https://github.com/SpikeTheDragon40k/vsdemake/blob/main/LICENSE">MIT License</a>
+    <a href="https://github.com/SpikeTheDragon40k/vsdemake/blob/main/CHANGELOG.md">Changelog</a>
+    <a href="https://github.com/SpikeTheDragon40k/vsdemake/issues">Issues</a>
+    <a href="https://github.com/SpikeTheDragon40k/vsdemake/security">Security</a>
+  </div>
+  <p>© 2026 vsdemake contributors · unofficial fan project</p>
+</div></footer>
+
+<script>
+(function(){
+  var root=document.documentElement, btn=document.getElementById('theme');
+  try{var t=localStorage.getItem('theme'); if(t) root.setAttribute('data-theme',t);}catch(e){}
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    var next=cur==='dark'?'light':'dark'; root.setAttribute('data-theme',next);
+    try{localStorage.setItem('theme',next);}catch(e){}
+  });
+  document.querySelectorAll('.code').forEach(function(box){
+    var b=document.createElement('button'); b.className='copy'; b.type='button'; b.textContent='copy';
+    b.addEventListener('click',function(){
+      navigator.clipboard.writeText(box.querySelector('pre').innerText).then(function(){
+        b.textContent='copied'; setTimeout(function(){b.textContent='copy'},1500);
+      });
+    });
+    box.appendChild(b);
+  });
+})();
+</script>
+</body>
+</html>
